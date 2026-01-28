@@ -14,13 +14,13 @@ class Application:
         glfw.window_hint(glfw.RESIZABLE, False)
         glfw.window_hint(glfw.DEPTH_BITS, 16)
         glfw.window_hint(glfw.DOUBLEBUFFER, True)
-        self.win = glfw.create_window(width, height, 'PyGl', None, None)
+        self.win = glfw.create_window(width, height, "PyGl", None, None)
 
         glfw.make_context_current(self.win)
 
-        print('OpenGL', GL.glGetString(GL.GL_VERSION).decode() + ', GLSL',
+        print("OpenGL", GL.glGetString(GL.GL_VERSION).decode() + ", GLSL",
               GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION).decode() +
-              ', Renderer', GL.glGetString(GL.GL_RENDERER).decode())
+              ", Renderer", GL.glGetString(GL.GL_RENDERER).decode())
 
     def run(self):
         while not glfw.window_should_close(self.win):
