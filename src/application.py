@@ -1,10 +1,8 @@
-from ctypes import _NamedFuncPointer
-
 import OpenGL.GL as GL
 import glfw
 
 class Application:
-    win: _NamedFuncPointer
+    win: any
 
     def __init__(self, width, height):
         glfw.init()
