@@ -5,9 +5,9 @@ from entities.camera import Camera
 from entities.entity import Entity
 from geometry.geometry import generate_sphere, generate_cube_flat
 from geometry.mesh import Mesh
-from shading import tf2_ggx_smith
 from shading.material import Material
 from shading.shader import Shader, ShaderGlobals
+from shading.shaders import tf2_ggx_smith
 
 
 class RotatingEntity(Entity):
