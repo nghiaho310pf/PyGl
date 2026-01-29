@@ -43,27 +43,20 @@ class RenderSystem:
         if entity is None:
             return
 
-        camera.aspect_ratio = aspect_ratio
-
-        pitch = camera_transform.rotation[0]
-        yaw = camera_transform.rotation[1]
-
-        front = np.array([
-            math.cos(math.radians(yaw)) * math.cos(math.radians(pitch)),
-            math.sin(math.radians(pitch)),
-            math.sin(math.radians(yaw)) * math.cos(math.radians(pitch))
-        ])
-        front = math_utils.normalize(front)
-
-        world_up = np.array([0.0, 1.0, 0.0])
-        right = math_utils.normalize(np.cross(front, world_up))
-        up = math_utils.normalize(np.cross(right, front))
+        pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
+        front = math_utils.normalize(np.array([
+            math.cos(yaw_rad) * math.cos(pitch_rad),
+            math.sin(pitch_rad),
+            math.sin(yaw_rad) * math.cos(pitch_rad)
+        ]))
+        right = math_utils.normalize(np.cross(front, np.array([0.0, 1.0, 0.0])))
+        up = math_utils.normalize(np.cross(right, front)) * math.cos(roll_rad) + right * math.sin(roll_rad)
 
         target = camera_transform.position + front
         view_matrix = math_utils.create_look_at(camera_transform.position, target, up)
 
         proj_matrix = math_utils.create_perspective_projection(
-            camera.fov, camera.aspect_ratio, camera.near, camera.far
+            camera.fov, aspect_ratio, camera.near, camera.far
         )
 
         self.shader_globals.update(proj_matrix, view_matrix, camera_transform.position, time)
