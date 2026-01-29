@@ -1,4 +1,5 @@
 import ctypes
+import time
 
 import OpenGL.GL as GL
 import glfw
@@ -35,8 +36,8 @@ class Application:
         renderer: bytes = GL.glGetString(GL.GL_RENDERER)
         print(f"OpenGL: {version.decode()}\nGLSL: {glsl_version.decode()}\nRenderer: {renderer.decode()}")
 
-        # Enable Vsync
-        glfw.swap_interval(1)
+        # disable vsync. we'll try to render at a fixed frame rate in Application#run
+        glfw.swap_interval(0)
 
     def _on_resize_internal(self, window, width, height):
         if width == 0 or height == 0:  # may happen when window is minimized
@@ -54,11 +55,26 @@ class Application:
     # == Orchestration ==
 
     def run(self):
-        while not glfw.window_should_close(self.win):
-            self.render()
+        target_fps = 120
+        frame_time_target = 1.0 / target_fps
 
-            glfw.swap_buffers(self.win)
-            glfw.poll_events()
+        print(f"Targeting {target_fps} FPS")
+
+        last_time = glfw.get_time()
+
+        while not glfw.window_should_close(self.win):
+            current_time = glfw.get_time()
+            delta = current_time - last_time
+
+            if delta >= frame_time_target:
+                last_time = current_time
+
+                self.render()
+
+                glfw.swap_buffers(self.win)
+                glfw.poll_events()
+            else:
+                time.sleep(0.0001)
 
         glfw.terminate()
 
