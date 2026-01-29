@@ -1,8 +1,8 @@
-from engine.renderer import Renderer
+from engine.game import Game
 
 
 def main():
-    app = Renderer(1280, 720)
+    app = Game(1280, 720)
     app.run()
 
 

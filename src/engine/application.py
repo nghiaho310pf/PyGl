@@ -7,7 +7,7 @@ import glfw
 class Application:
     win: ctypes.c_void_p
 
-    def __init__(self, width, height):
+    def __init__(self, initial_window_width, initial_window_height):
         glfw.init()
 
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
@@ -24,7 +24,7 @@ class Application:
         glfw.window_hint(glfw.DEPTH_BITS, 24)
         glfw.window_hint(glfw.SAMPLES, 4)
 
-        self.win = glfw.create_window(width, height, "PyGl", None, None)
+        self.win = glfw.create_window(initial_window_width, initial_window_height, "PyGl", None, None)
 
         glfw.make_context_current(self.win)
 

@@ -2,7 +2,7 @@ import struct
 
 import OpenGL.GL as GL
 
-from entities.camera import Camera
+from entities.components.camera import Camera
 
 
 class Shader:
@@ -97,15 +97,11 @@ class ShaderGlobals:
         GL.glBindBufferRange(GL.GL_UNIFORM_BUFFER, self.BINDING_POINT, self.buffer_id, 0, self.size)
         GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, 0)
 
-    def update(self, camera: Camera, time: float):
-        proj = camera.get_projection_matrix()
-        view = camera.get_view_matrix()
-        pos = camera.position
-
+    def update(self, projection_matrix, view_matrix, camera_position, time: float):
         data = (
-                proj.tobytes() +
-                view.tobytes() +
-                struct.pack('3ff', pos[0], pos[1], pos[2], time)
+                projection_matrix.tobytes() +
+                view_matrix.tobytes() +
+                struct.pack('3ff', camera_position[0], camera_position[1], camera_position[2], time)
         )
 
         GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, self.buffer_id)
