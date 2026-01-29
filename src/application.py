@@ -14,13 +14,15 @@ class Application:
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
         glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, GL.GL_TRUE)
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-        glfw.window_hint(glfw.RESIZABLE, False)
+        glfw.window_hint(glfw.RESIZABLE, True)
         glfw.window_hint(glfw.DEPTH_BITS, 16)
         glfw.window_hint(glfw.DOUBLEBUFFER, True)
 
         self.win = glfw.create_window(width, height, "PyGl", None, None)
 
         glfw.make_context_current(self.win)
+
+        glfw.set_framebuffer_size_callback(self.win, self._on_resize_internal)
 
         version: bytes = GL.glGetString(GL.GL_VERSION)
         glsl_version: bytes = GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION)
@@ -30,14 +32,31 @@ class Application:
         # Enable Vsync
         glfw.swap_interval(1)
 
+    def _on_resize_internal(self, window, width, height):
+        if width == 0 or height == 0:  # may happen when window is minimized
+            return
+
+        GL.glViewport(0, 0, width, height)
+        self.on_resize()
+
+    def get_window_size(self):
+        return glfw.get_window_size(self.win)
+
+    # == Orchestration ==
+
     def run(self):
         while not glfw.window_should_close(self.win):
-            self.render(glfw.get_window_size(self.win))
+            self.render()
 
             glfw.swap_buffers(self.win)
             glfw.poll_events()
 
         glfw.terminate()
 
-    def render(self, window_size: tuple[int, int]):
+    # == Overrideable callbacks ==
+
+    def on_resize(self):
+        pass
+
+    def render(self):
         pass

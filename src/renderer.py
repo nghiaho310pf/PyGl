@@ -57,9 +57,15 @@ class Renderer(Application):
             Entity(self.mesh, mat_blue, position=(0.6, 0, 0))
         ]
 
-    def render(self, window_size: tuple[int, int]):
+    def on_resize(self):
+        pass
+
+    def render(self):
         GL.glClearColor(0.1, 0.1, 0.1, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+
+        window_width, window_height = self.get_window_size()
+        self.camera.aspect_ratio = window_width / window_height
 
         proj = self.camera.get_projection_matrix()
         view = self.camera.get_view_matrix()
