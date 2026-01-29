@@ -5,7 +5,7 @@ import blinn_phong
 from application import Application
 from camera import Camera
 from entity import Entity
-from geometry import generate_sphere
+from geometry import generate_sphere, generate_cube_flat
 from material import Material
 from mesh import Mesh
 
@@ -39,11 +39,11 @@ class Renderer(Application):
         #      0.0,  0.5,  0.0,  0.0,  0.0,  1.0,  0.5,  1.0  # top center
         # ], dtype=np.float32)
         sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=32, sectors=32)
-        self.mesh = Mesh(sphere_vertices, sphere_indices)
+        cube_vertices, cube_indices = generate_cube_flat(size=1.0)
 
         self.entities = [
-            RotatingEntity(self.mesh, mat_orange, position=(-0.6, 0, 0)),
-            RotatingEntity(self.mesh, mat_blue, position=(0.6, 0, 0))
+            RotatingEntity(Mesh(sphere_vertices, sphere_indices), mat_orange, position=(-0.7, 0, 0)),
+            RotatingEntity(Mesh(cube_vertices, cube_indices), mat_blue, position=(0.7, 0, 0))
         ]
 
         self.light_pos = [2.0, 2.0, 5.0]
