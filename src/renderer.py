@@ -10,6 +10,11 @@ from material import Material
 from mesh import Mesh
 
 
+class RotatingEntity(Entity):
+    def update(self, dt: float):
+        self.rotation[1] += 1.5
+
+
 class Renderer(Application):
     def __init__(self, width, height):
         super().__init__(width, height)
@@ -33,11 +38,13 @@ class Renderer(Application):
         self.mesh = Mesh(vertices)
 
         self.entities = [
-            Entity(self.mesh, mat_orange, position=(-0.6, 0, 0)),
-            Entity(self.mesh, mat_blue, position=(0.6, 0, 0))
+            RotatingEntity(self.mesh, mat_orange, position=(-0.6, 0, 0)),
+            RotatingEntity(self.mesh, mat_blue, position=(0.6, 0, 0))
         ]
 
         self.light_pos = [2.0, 2.0, 2.0]
+
+        self.last_update = None
 
     def on_resize(self):
         pass
@@ -52,7 +59,14 @@ class Renderer(Application):
         proj = self.camera.get_projection_matrix()
         view = self.camera.get_view_matrix()
 
+        now = self.get_time()
+        if self.last_update is None:
+            self.last_update = now
+        dt = now - self.last_update
+
         for entity in self.entities:
+            entity.update(dt)
+
             entity.material.use()
 
             shader = entity.material.shader
@@ -66,4 +80,4 @@ class Renderer(Application):
 
             entity.mesh.draw()
 
-            entity.rotation[1] += 1.5
+        self.last_update = now

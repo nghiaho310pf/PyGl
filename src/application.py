@@ -42,6 +42,9 @@ class Application:
     def get_window_size(self):
         return glfw.get_window_size(self.win)
 
+    def get_time(self):
+        return glfw.get_time()
+
     # == Orchestration ==
 
     def run(self):

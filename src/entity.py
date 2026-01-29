@@ -17,5 +17,5 @@ class Entity:
     def get_model_matrix(self):
         return math_utils.create_transformation_matrix(self.position, self.rotation, self.scale)
 
-    def update(self, dt):
+    def update(self, dt: float):
         pass
