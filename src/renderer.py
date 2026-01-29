@@ -19,6 +19,8 @@ class Renderer(Application):
     def __init__(self, width, height):
         super().__init__(width, height)
 
+        GL.glFrontFace(GL.GL_CCW)
+        GL.glEnable(GL.GL_CULL_FACE)
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glEnable(GL.GL_MULTISAMPLE)
 
