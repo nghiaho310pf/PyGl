@@ -66,8 +66,8 @@ class Game(Application):
 
         # camera entity
         c = self.registry.create_entity()
-        self.registry.add_component(c, Transform(position=np.array([0.0, 0.0, 2.5]),
-                                                 rotation=np.array([0.0, -90.0, 0.0])))
+        self.registry.add_component(c, Transform(position=np.array([0.0, 1.0, 2.5]),
+                                                 rotation=np.array([-22.0, -90.0, 0.0])))
         self.registry.add_component(c, Camera())
 
         self.last_update = None
