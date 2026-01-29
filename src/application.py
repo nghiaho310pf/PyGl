@@ -16,6 +16,7 @@ class Application:
         glfw.window_hint(glfw.RESIZABLE, False)
         glfw.window_hint(glfw.DEPTH_BITS, 16)
         glfw.window_hint(glfw.DOUBLEBUFFER, True)
+
         self.win = glfw.create_window(width, height, "PyGl", None, None)
 
         glfw.make_context_current(self.win)
@@ -24,6 +25,9 @@ class Application:
         glsl_version: bytes = GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION)
         renderer: bytes = GL.glGetString(GL.GL_RENDERER)
         print(f"OpenGL: {version.decode()}\nGLSL: {glsl_version.decode()}\nRenderer: {renderer.decode()}")
+
+        # Enable Vsync
+        glfw.swap_interval(1)
 
     def run(self):
         while not glfw.window_should_close(self.win):
