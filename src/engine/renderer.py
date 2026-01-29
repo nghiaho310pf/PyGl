@@ -7,7 +7,7 @@ from entities.camera import Camera
 from entities.entity import Entity
 from geometry.geometry import generate_sphere, generate_cube_flat
 from geometry.mesh import Mesh
-from shading import ggx
+from shading import tf2_ggx_smith
 from shading.material import Material
 from shading.shader import Shader
 from shading.ubo import UniformBuffer
@@ -29,19 +29,25 @@ class Renderer(Application):
 
         self.camera = Camera(position=[0.0, 0.0, 2.5], aspect_ratio=width / height)
 
-        shader = ggx.make_shader()
+        shader = tf2_ggx_smith.make_shader()
         self.scene_ubo = UniformBuffer(size=144, binding_point=0)
         self._bind_shader_block(shader, "SceneData", 0)
 
         mat_orange = Material(shader, {
             "u_Albedo": [1.0, 0.5, 0.2],
             "u_Metallic": 0.3,
-            "u_Roughness": 0.3
+            "u_Roughness": 0.3,
+            "u_Reflectance": 0.25,
+            "u_Translucency": 0.25,
+            "u_AO": 0.1,
         })
         mat_blue = Material(shader, {
             "u_Albedo": [0.459, 0.651, 1.0],
             "u_Metallic": 0.7,
-            "u_Roughness": 0.3
+            "u_Roughness": 0.3,
+            "u_Reflectance": 0.0,
+            "u_Translucency": 0.0,
+            "u_AO": 0.1,
         })
 
         # vertices = np.array([
@@ -49,7 +55,7 @@ class Renderer(Application):
         #      0.5, -0.5,  0.0,  0.0,  0.0,  1.0,  1.0,  0.0, # bottom right
         #      0.0,  0.5,  0.0,  0.0,  0.0,  1.0,  0.5,  1.0  # top center
         # ], dtype=np.float32)
-        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=32, sectors=32)
+        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=48, sectors=48)
         cube_vertices, cube_indices = generate_cube_flat(size=1.0)
 
         self.entities = [
