@@ -1,4 +1,8 @@
+import struct
+
 import OpenGL.GL as GL
+
+from entities.camera import Camera
 
 
 class Shader:
@@ -71,3 +75,47 @@ class Shader:
     def set_mat4(self, name, matrix):
         loc = GL.glGetUniformLocation(self.program, name)
         GL.glUniformMatrix4fv(loc, 1, GL.GL_FALSE, matrix)
+
+
+class ShaderGlobals:
+    """
+        Manages the 'SceneData' UBO block shared by shaders.
+        std140 layout:
+        - mat4  u_Projection (64 bytes)
+        - mat4  u_View       (64 bytes)
+        - vec3  u_ViewPos    (12 bytes)
+        - float u_Time       (4 bytes)
+    """
+    BINDING_POINT = 0
+
+    def __init__(self):
+        self.size = 144
+        self.buffer_id = GL.glGenBuffers(1)
+
+        GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, self.buffer_id)
+        GL.glBufferData(GL.GL_UNIFORM_BUFFER, self.size, None, GL.GL_DYNAMIC_DRAW)
+        GL.glBindBufferRange(GL.GL_UNIFORM_BUFFER, self.BINDING_POINT, self.buffer_id, 0, self.size)
+        GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, 0)
+
+    def update(self, camera: Camera, time: float):
+        proj = camera.get_projection_matrix()
+        view = camera.get_view_matrix()
+        pos = camera.position
+
+        data = (
+                proj.tobytes() +
+                view.tobytes() +
+                struct.pack('3ff', pos[0], pos[1], pos[2], time)
+        )
+
+        GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, self.buffer_id)
+        GL.glBufferSubData(GL.GL_UNIFORM_BUFFER, 0, len(data), data)
+        GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, 0)
+
+    def attach_to(self, shader: Shader):
+        """
+        Tells a specific shader to look at Binding Point 0 for "SceneData"
+        """
+        block_index = GL.glGetUniformBlockIndex(shader.program, "SceneData")
+        if block_index != GL.GL_INVALID_INDEX:
+            GL.glUniformBlockBinding(shader.program, block_index, self.BINDING_POINT)

@@ -1,5 +1,3 @@
-import struct
-
 import OpenGL.GL as GL
 
 from engine.application import Application
@@ -9,8 +7,7 @@ from geometry.geometry import generate_sphere, generate_cube_flat
 from geometry.mesh import Mesh
 from shading import tf2_ggx_smith
 from shading.material import Material
-from shading.shader import Shader
-from shading.ubo import UniformBuffer
+from shading.shader import Shader, ShaderGlobals
 
 
 class RotatingEntity(Entity):
@@ -29,9 +26,10 @@ class Renderer(Application):
 
         self.camera = Camera(position=[0.0, 0.0, 2.5], aspect_ratio=width / height)
 
+        self.shader_globals = ShaderGlobals()
+
         shader = tf2_ggx_smith.make_shader()
-        self.scene_ubo = UniformBuffer(size=144, binding_point=0)
-        self._bind_shader_block(shader, "SceneData", 0)
+        self.shader_globals.attach_to(shader)
 
         mat_orange = Material(shader, {
             "u_Albedo": [1.0, 0.5, 0.2],
@@ -89,16 +87,7 @@ class Renderer(Application):
 
         # == shader setup ==
 
-        proj = self.camera.get_projection_matrix()
-        view = self.camera.get_view_matrix()
-        view_pos = self.camera.position
-
-        proj_bytes = proj.tobytes()
-        view_bytes = view.tobytes()
-        extra_data = struct.pack('3ff', view_pos[0], view_pos[1], view_pos[2], now)
-
-        ubo_data = proj_bytes + view_bytes + extra_data
-        self.scene_ubo.update(ubo_data)
+        self.shader_globals.update(self.camera, now)
 
         # == gl clear ==
 
