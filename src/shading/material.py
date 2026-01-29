@@ -1,4 +1,4 @@
-from shader import Shader
+from shading.shader import Shader
 
 
 class Material:

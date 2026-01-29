@@ -1,8 +1,8 @@
 import numpy as np
 
 import math_utils
-from material import Material
-from mesh import Mesh
+from geometry.mesh import Mesh
+from shading.material import Material
 
 
 class Entity:

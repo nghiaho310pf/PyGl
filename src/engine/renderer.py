@@ -1,13 +1,12 @@
 import OpenGL.GL as GL
-import numpy as np
 
-import blinn_phong
-from application import Application
-from camera import Camera
-from entity import Entity
-from geometry import generate_sphere, generate_cube_flat
-from material import Material
-from mesh import Mesh
+from engine.application import Application
+from entities.camera import Camera
+from entities.entity import Entity
+from geometry.geometry import generate_sphere, generate_cube_flat
+from geometry.mesh import Mesh
+from shading import blinn_phong
+from shading.material import Material
 
 
 class RotatingEntity(Entity):

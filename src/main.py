@@ -1,4 +1,4 @@
-from renderer import Renderer
+from engine.renderer import Renderer
 
 
 def main():
