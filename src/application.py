@@ -1,8 +1,10 @@
+import ctypes
+
 import OpenGL.GL as GL
 import glfw
 
 class Application:
-    win: any
+    win: ctypes.c_void_p
 
     def __init__(self, width, height):
         glfw.init()
@@ -18,9 +20,10 @@ class Application:
 
         glfw.make_context_current(self.win)
 
-        print("OpenGL", GL.glGetString(GL.GL_VERSION).decode() + ", GLSL",
-              GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION).decode() +
-              ", Renderer", GL.glGetString(GL.GL_RENDERER).decode())
+        version: bytes = GL.glGetString(GL.GL_VERSION)
+        glsl_version: bytes = GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION)
+        renderer: bytes = GL.glGetString(GL.GL_RENDERER)
+        print(f"OpenGL: {version.decode()}\nGLSL: {glsl_version.decode()}\nRenderer: {renderer.decode()}")
 
     def run(self):
         while not glfw.window_should_close(self.win):
