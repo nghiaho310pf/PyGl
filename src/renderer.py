@@ -1,7 +1,7 @@
 import OpenGL.GL as GL
 import numpy as np
 
-import phong
+import blinn_phong
 
 from application import Application
 from camera import Camera
@@ -19,12 +19,12 @@ class Renderer(Application):
     def __init__(self, width, height):
         super().__init__(width, height)
 
-        phong_shader = phong.make_shader()
+        shader = blinn_phong.make_shader()
 
-        mat_orange = Material(phong_shader, {
+        mat_orange = Material(shader, {
             "u_Color": [1.0, 0.5, 0.2]
         })
-        mat_blue = Material(phong_shader, {
+        mat_blue = Material(shader, {
             "u_Color": [0.459, 0.651, 1.0]
         })
 
