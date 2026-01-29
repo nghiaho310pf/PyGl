@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 
+import numpy as np
+
 
 @dataclass
 class Camera:
-    fov: float = 45.0
-    near: float = 0.1
-    far: float = 100.0
+    fov: np.float32 = np.float32(45.0)
+    near: np.float32 = np.float32(0.1)
+    far: np.float32 = np.float32(100.0)

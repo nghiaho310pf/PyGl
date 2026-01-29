@@ -1,7 +1,8 @@
-import struct
-
 import OpenGL.GL as GL
 import numpy as np
+from numba import njit, void, float32
+
+from math_utils import vec, mat
 
 
 class Shader:
@@ -98,6 +99,14 @@ class Shader:
             GL.glUniform1fv(loc, len(values), np.array(values, dtype=np.float32))
 
 
+@njit(void(vec, mat, mat, vec, float32), cache=True, parallel=False)
+def _update_cpu_buffer(buf, projection_matrix, view_matrix, camera_position, time):
+    buf[0:16] = projection_matrix.reshape(-1)
+    buf[16:32] = view_matrix.reshape(-1)
+    buf[32:35] = camera_position
+    buf[35] = time
+
+
 class ShaderGlobals:
     """
         Manages the 'SceneData' UBO block shared by shaders.
@@ -118,15 +127,13 @@ class ShaderGlobals:
         GL.glBindBufferRange(GL.GL_UNIFORM_BUFFER, self.BINDING_POINT, self.buffer_id, 0, self.size)
         GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, 0)
 
+        self.cpu_buffer = np.zeros(36, dtype=np.float32)
+
     def update(self, projection_matrix, view_matrix, camera_position, time: float):
-        data = (
-                projection_matrix.tobytes() +
-                view_matrix.tobytes() +
-                struct.pack('3ff', camera_position[0], camera_position[1], camera_position[2], time)
-        )
+        _update_cpu_buffer(self.cpu_buffer, projection_matrix, view_matrix, camera_position, time)
 
         GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, self.buffer_id)
-        GL.glBufferSubData(GL.GL_UNIFORM_BUFFER, 0, len(data), data)
+        GL.glBufferSubData(GL.GL_UNIFORM_BUFFER, 0, self.cpu_buffer.nbytes, self.cpu_buffer)
         GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, 0)
 
     def attach_to(self, shader: Shader):

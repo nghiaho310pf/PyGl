@@ -2,16 +2,55 @@ import math
 
 import numpy as np
 from OpenGL import GL
+from numba import njit, float32, void
 
-import math_utils
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals
 from entities.registry import Registry
+from math_utils import normalize, compute_look_at_matrix, compute_projection_matrix, compute_transformation_matrix, vec3
 from shading.shader import Shader, ShaderGlobals
-from shading.shaders import depth_shader, tf2_ggx_smith
+from shading.shaders import depth_shader
 
+
+@njit(void(float32[::1], float32[:, ::1], float32[:, ::1], float32, float32[::1], float32[::1], float32, float32,
+           float32), cache=True, parallel=False)
+def _update_matrices(world_up, view_matrix, projection_matrix, aspect_ratio, camera_position, camera_rotation,
+                     camera_fov, camera_near, camera_far):
+    # Use math.radians for scalars to avoid array overhead
+    pitch_rad = math.radians(camera_rotation[0])
+    yaw_rad = math.radians(camera_rotation[1])
+    roll_rad = math.radians(camera_rotation[2])
+
+    # Explicitly float32 to match your 'normalize' signature
+    front_vec = np.array([
+        math.cos(yaw_rad) * math.cos(pitch_rad),
+        math.sin(pitch_rad),
+        math.sin(yaw_rad) * math.cos(pitch_rad)
+    ], dtype=np.float32)
+
+    front = normalize(front_vec)
+
+    # np.cross usually returns the same dtype as input
+    right = normalize(np.cross(front, world_up))
+
+    # Calculate Up
+    up_raw = np.cross(right, front)
+    up = normalize(up_raw) * np.float32(math.cos(roll_rad)) + right * np.float32(math.sin(roll_rad))
+
+    target = camera_position + front
+
+    compute_look_at_matrix(camera_position, target, up, view_matrix)
+
+    # Ensure scalars are cast if necessary, though Numba usually handles scalar casting fine
+    compute_projection_matrix(
+        np.float32(camera_fov),
+        np.float32(aspect_ratio),
+        np.float32(camera_near),
+        np.float32(camera_far),
+        projection_matrix
+    )
 
 
 class RenderSystem:
@@ -24,6 +63,15 @@ class RenderSystem:
         self.SHADOW_WIDTH = 768
         self.SHADOW_HEIGHT = 768
 
+        # numpy fields for hopefully reducing garbage generation
+        self.world_up = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        self.view_matrix = np.identity(4, dtype=np.float32)
+        self.projection_matrix = np.zeros((4, 4), dtype=np.float32)
+        self.model_matrix = np.identity(4, dtype=np.float32)
+
+        self.light_projection = np.zeros((4, 4), dtype=np.float32)
+        self.light_view = np.identity(4, dtype=np.float32)
+
     def _setup_shadow_map(self, point_light: PointLight):
         # Create FBO
         point_light.shadow_map_fbo = GL.glGenFramebuffers(1)
@@ -33,7 +81,7 @@ class RenderSystem:
         point_light.shadow_map_texture = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, point_light.shadow_map_texture)
         for i in range(6):
-            GL.glTexImage2D(GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL.GL_DEPTH_COMPONENT, 
+            GL.glTexImage2D(GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL.GL_DEPTH_COMPONENT,
                             self.SHADOW_WIDTH, self.SHADOW_HEIGHT, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
@@ -60,11 +108,12 @@ class RenderSystem:
         # == camera setup ==
 
         width, height = window_size
-        aspect_ratio = width / height if height > 0 else 1.0
+        aspect_ratio = np.float32(width / height) if height > 0 else np.float32(1.0)
 
         r = self.registry.get_singleton(Transform, Camera)
         if r is None:
             return
+
         camera_entity, (camera_transform, camera) = r
 
         point_light_positions = []
@@ -73,30 +122,22 @@ class RenderSystem:
         for light_entity, (point_light_transform, point_light) in self.registry.view(Transform, PointLight):
             point_light_positions.append(point_light_transform.position)
             point_light_colors.append(point_light.color)
-        
+
         num_lights = len(point_light_positions)
-        MAX_LIGHTS = 4 # Should match the shader's MAX_LIGHTS
+        MAX_LIGHTS = 4  # Should match the shader's MAX_LIGHTS
         if num_lights > MAX_LIGHTS:
             point_light_positions = point_light_positions[:MAX_LIGHTS]
             point_light_colors = point_light_colors[:MAX_LIGHTS]
             num_lights = MAX_LIGHTS
 
-
-        pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
-        front = math_utils.normalize(np.array([
-            math.cos(yaw_rad) * math.cos(pitch_rad),
-            math.sin(pitch_rad),
-            math.sin(yaw_rad) * math.cos(pitch_rad)
-        ]))
-        right = math_utils.normalize(np.cross(front, np.array([0.0, 1.0, 0.0])))
-        up = math_utils.normalize(np.cross(right, front)) * math.cos(roll_rad) + right * math.sin(roll_rad)
-
-        target = camera_transform.position + front
-        view_matrix = math_utils.create_look_at(camera_transform.position, target, up)
-
-        proj_matrix = math_utils.create_perspective_projection(
-            camera.fov, aspect_ratio, camera.near, camera.far
+        _update_matrices(
+            self.world_up, self.view_matrix, self.projection_matrix,
+            aspect_ratio,
+            camera_transform.position, camera_transform.rotation,
+            camera.fov, camera.near, camera.far
         )
+
+        self.shader_globals.update(self.projection_matrix, self.view_matrix, camera_transform.position, time)
 
         # == shadow pass ==
 
@@ -104,7 +145,7 @@ class RenderSystem:
         GL.glCullFace(GL.GL_FRONT)
         GL.glEnable(GL.GL_DEPTH_TEST)
 
-        light_projection = math_utils.create_perspective_projection(90.0, 1.0, 0.1, 100.0)
+        compute_projection_matrix(90.0, 1.0, 0.1, 100.0, self.light_projection)
         shadow_map_textures = []
         shadow_map_texture_units = []
         texture_unit_counter = 0
@@ -117,12 +158,12 @@ class RenderSystem:
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, point_light.shadow_map_fbo)
 
             shadow_dirs = [
-                (np.array([1.0, 0.0, 0.0]), np.array([0.0, -1.0, 0.0])),
-                (np.array([-1.0, 0.0, 0.0]), np.array([0.0, -1.0, 0.0])),
-                (np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 1.0])),
-                (np.array([0.0, -1.0, 0.0]), np.array([0.0, 0.0, -1.0])),
-                (np.array([0.0, 0.0, 1.0]), np.array([0.0, -1.0, 0.0])),
-                (np.array([0.0, 0.0, -1.0]), np.array([0.0, -1.0, 0.0])),
+                (vec3(1.0, 0.0, 0.0), vec3(0.0, -1.0, 0.0)),
+                (vec3(-1.0, 0.0, 0.0), vec3(0.0, -1.0, 0.0)),
+                (vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0)),
+                (vec3(0.0, -1.0, 0.0), vec3(0.0, 0.0, -1.0)),
+                (vec3(0.0, 0.0, 1.0), vec3(0.0, -1.0, 0.0)),
+                (vec3(0.0, 0.0, -1.0), vec3(0.0, -1.0, 0.0)),
             ]
 
             point_light.light_view_matrices = []
@@ -137,16 +178,18 @@ class RenderSystem:
                                           point_light.shadow_map_texture, 0)
                 GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
 
-                light_view = math_utils.create_look_at(light_transform.position, light_transform.position + target_dir, up_dir)
-                point_light.light_view_matrices.append(light_view)
-                self.depth_shader.set_mat4("u_Projection", light_projection)
-                self.depth_shader.set_mat4("u_View", light_view)
+                compute_look_at_matrix(light_transform.position, light_transform.position + target_dir, up_dir,
+                                       self.light_view)
+                point_light.light_view_matrices.append(self.light_view)
+                self.depth_shader.set_mat4("u_Projection", self.light_projection)
+                self.depth_shader.set_mat4("u_View", self.light_view)
 
                 for entity, (transform, visuals) in self.registry.view(Transform, Visuals):
-                    model_matrix = math_utils.create_transformation_matrix(
-                        transform.position, transform.rotation, transform.scale
+                    compute_transformation_matrix(
+                        transform.position, transform.rotation, transform.scale,
+                        self.model_matrix
                     )
-                    self.depth_shader.set_mat4("u_Model", model_matrix)
+                    self.depth_shader.set_mat4("u_Model", self.model_matrix)
                     visuals.mesh.draw()
 
             light_positions.append(light_transform.position)
@@ -159,7 +202,7 @@ class RenderSystem:
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         GL.glViewport(0, 0, width, height)
 
-        self.shader_globals.update(proj_matrix, view_matrix, camera_transform.position, time)
+        self.shader_globals.update(self.projection_matrix, self.view_matrix, camera_transform.position, time)
 
         # == drawing entities ==
 
@@ -197,10 +240,11 @@ class RenderSystem:
                 material.setup_properties()
 
                 for transform, visuals in entities:
-                    model_matrix = math_utils.create_transformation_matrix(
-                        transform.position, transform.rotation, transform.scale
+                    compute_transformation_matrix(
+                        transform.position, transform.rotation, transform.scale,
+                        out=self.model_matrix
                     )
-                    shader.set_mat4("u_Model", model_matrix)
+                    shader.set_mat4("u_Model", self.model_matrix)
 
                     visuals.mesh.draw()
 
