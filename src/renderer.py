@@ -2,10 +2,10 @@ import OpenGL.GL as GL
 import numpy as np
 
 import blinn_phong
-
 from application import Application
 from camera import Camera
 from entity import Entity
+from geometry import generate_sphere
 from material import Material
 from mesh import Mesh
 
@@ -19,6 +19,11 @@ class Renderer(Application):
     def __init__(self, width, height):
         super().__init__(width, height)
 
+        GL.glEnable(GL.GL_DEPTH_TEST)
+        GL.glEnable(GL.GL_MULTISAMPLE)
+
+        self.camera = Camera(position=[0.0, 0.0, 2.5], aspect_ratio=width / height)
+
         shader = blinn_phong.make_shader()
 
         mat_orange = Material(shader, {
@@ -28,21 +33,20 @@ class Renderer(Application):
             "u_Color": [0.459, 0.651, 1.0]
         })
 
-        self.camera = Camera(position=[0.0, 0.0, 3.0], aspect_ratio=width / height)
-
-        vertices = np.array([
-            -0.5, -0.5,  0.0,  0.0,  0.0,  1.0,  0.0,  0.0, # bottom left
-             0.5, -0.5,  0.0,  0.0,  0.0,  1.0,  1.0,  0.0, # bottom right
-             0.0,  0.5,  0.0,  0.0,  0.0,  1.0,  0.5,  1.0  # top center
-        ], dtype=np.float32)
-        self.mesh = Mesh(vertices)
+        # vertices = np.array([
+        #     -0.5, -0.5,  0.0,  0.0,  0.0,  1.0,  0.0,  0.0, # bottom left
+        #      0.5, -0.5,  0.0,  0.0,  0.0,  1.0,  1.0,  0.0, # bottom right
+        #      0.0,  0.5,  0.0,  0.0,  0.0,  1.0,  0.5,  1.0  # top center
+        # ], dtype=np.float32)
+        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=32, sectors=32)
+        self.mesh = Mesh(sphere_vertices, sphere_indices)
 
         self.entities = [
             RotatingEntity(self.mesh, mat_orange, position=(-0.6, 0, 0)),
             RotatingEntity(self.mesh, mat_blue, position=(0.6, 0, 0))
         ]
 
-        self.light_pos = [2.0, 2.0, 2.0]
+        self.light_pos = [2.0, 2.0, 5.0]
 
         self.last_update = None
 
