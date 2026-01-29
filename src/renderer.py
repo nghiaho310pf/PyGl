@@ -1,8 +1,8 @@
 import OpenGL.GL as GL
 import numpy as np
+
 from application import Application
 from shader import Shader
-
 
 VS_SOURCE = """
 #version 330 core

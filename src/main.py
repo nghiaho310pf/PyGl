@@ -1,5 +1,6 @@
 from renderer import Renderer
 
+
 def main():
     app = Renderer(1280, 720)
     app.run()

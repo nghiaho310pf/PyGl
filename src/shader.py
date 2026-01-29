@@ -1,5 +1,6 @@
 import OpenGL.GL as GL
 
+
 class Shader:
     def __init__(self, vertex_source: str, fragment_source: str):
         self.program = self._compile_program(vertex_source, fragment_source)

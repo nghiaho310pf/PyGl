@@ -3,6 +3,7 @@ import ctypes
 import OpenGL.GL as GL
 import glfw
 
+
 class Application:
     win: ctypes.c_void_p
 
@@ -35,8 +36,8 @@ class Application:
 
             glfw.swap_buffers(self.win)
             glfw.poll_events()
-        
+
         glfw.terminate()
-    
+
     def render(self, window_size: tuple[int, int]):
         pass
