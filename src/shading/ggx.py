@@ -6,9 +6,14 @@ layout (location = 0) in vec3 a_Pos;
 layout (location = 1) in vec3 a_Normal;
 layout (location = 2) in vec2 a_UV;
 
+layout (std140) uniform SceneData {
+    mat4 u_Projection;
+    mat4 u_View;
+    vec3 u_ViewPos;
+    float u_Time;
+};
+
 uniform mat4 u_Model;
-uniform mat4 u_View;
-uniform mat4 u_Projection;
 
 out vec3 v_WorldPos;
 out vec3 v_Normal;
@@ -32,7 +37,12 @@ in vec3 v_WorldPos;
 in vec3 v_Normal;
 in vec2 v_UV;
 
-uniform float u_Time;
+layout (std140) uniform SceneData {
+    mat4 u_Projection;
+    mat4 u_View;
+    vec3 u_ViewPos;
+    float u_Time;
+};
 
 uniform vec3 u_Albedo;
 uniform float u_Roughness;
@@ -40,7 +50,6 @@ uniform float u_Metallic;
 
 uniform vec3 u_LightPos;
 uniform vec3 u_LightColor;
-uniform vec3 u_ViewPos;
 
 const float PI = 3.14159265359;
 

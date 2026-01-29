@@ -1,3 +1,5 @@
+import struct
+
 import OpenGL.GL as GL
 
 from engine.application import Application
@@ -7,6 +9,8 @@ from geometry.geometry import generate_sphere, generate_cube_flat
 from geometry.mesh import Mesh
 from shading import ggx
 from shading.material import Material
+from shading.shader import Shader
+from shading.ubo import UniformBuffer
 
 
 class RotatingEntity(Entity):
@@ -26,6 +30,8 @@ class Renderer(Application):
         self.camera = Camera(position=[0.0, 0.0, 2.5], aspect_ratio=width / height)
 
         shader = ggx.make_shader()
+        self.scene_ubo = UniformBuffer(size=144, binding_point=0)
+        self._bind_shader_block(shader, "SceneData", 0)
 
         mat_orange = Material(shader, {
             "u_Albedo": [1.0, 0.5, 0.2],
@@ -56,23 +62,44 @@ class Renderer(Application):
 
         self.last_update = None
 
+    def _bind_shader_block(self, shader: Shader, block_name: str, binding_point: int):
+        block_index = GL.glGetUniformBlockIndex(shader.program, block_name)
+        if block_index != GL.GL_INVALID_INDEX:
+            GL.glUniformBlockBinding(shader.program, block_index, binding_point)
+
     def on_resize(self):
         pass
 
     def render(self):
-        GL.glClearColor(0.1, 0.1, 0.1, 1.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+        # == per-frame auxiliary setup ==
 
         window_width, window_height = self.get_window_size()
         self.camera.aspect_ratio = window_width / window_height
-
-        proj = self.camera.get_projection_matrix()
-        view = self.camera.get_view_matrix()
 
         now = self.get_time()
         if self.last_update is None:
             self.last_update = now
         dt = now - self.last_update
+
+        # == shader setup ==
+
+        proj = self.camera.get_projection_matrix()
+        view = self.camera.get_view_matrix()
+        view_pos = self.camera.position
+
+        proj_bytes = proj.tobytes()
+        view_bytes = view.tobytes()
+        extra_data = struct.pack('3ff', view_pos[0], view_pos[1], view_pos[2], now)
+
+        ubo_data = proj_bytes + view_bytes + extra_data
+        self.scene_ubo.update(ubo_data)
+
+        # == gl clear ==
+
+        GL.glClearColor(0.1, 0.1, 0.1, 1.0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+
+        # == draw everything ==
 
         for entity in self.entities:
             entity.update(dt)
@@ -80,18 +107,14 @@ class Renderer(Application):
             entity.material.use()
 
             shader = entity.material.shader
-            shader.set_mat4("u_Projection", proj)
-            shader.set_mat4("u_View", view)
-
-            shader.set_float("u_Time", now)
-
             shader.set_vec3("u_LightPos", self.light_pos)
             shader.set_vec3("u_LightColor", self.light_color)
-            shader.set_vec3("u_ViewPos", self.camera.position)
 
             model = entity.get_model_matrix()
             shader.set_mat4("u_Model", model)
 
             entity.mesh.draw()
+
+        # == wrapoff ==
 
         self.last_update = now
