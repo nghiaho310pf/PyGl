@@ -93,4 +93,4 @@ def create_transformation_matrix(position, rotation_euler, scale):
     mat_scale[1, 1] = scale[1]
     mat_scale[2, 2] = scale[2]
 
-    return mat_trans @ mat_rot @ mat_scale
+    return mat_scale @ mat_rot @ mat_trans

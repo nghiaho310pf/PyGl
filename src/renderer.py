@@ -4,6 +4,7 @@ import numpy as np
 from application import Application
 from camera import Camera
 from entity import Entity
+from material import Material
 from mesh import Mesh
 from shader import Shader
 
@@ -25,9 +26,10 @@ void main() {
 FS_SOURCE = """
 #version 330 core
 out vec4 FragColor;
+uniform vec4 u_Color;
 
 void main() {
-    FragColor = vec4(0.459, 0.651, 1, 1.0); // Engineer blue
+    FragColor = u_Color;
 }
 """
 
@@ -36,7 +38,10 @@ class Renderer(Application):
     def __init__(self, width, height):
         super().__init__(width, height)
 
-        self.shader = Shader(VS_SOURCE, FS_SOURCE)
+        base_shader = Shader(VS_SOURCE, FS_SOURCE)
+
+        mat_orange = Material(base_shader, [1.0, 0.5, 0.2, 1.0])
+        mat_blue = Material(base_shader, [0.459, 0.651, 1.0, 1.0])
 
         self.camera = Camera(position=[0.0, 0.0, 3.0], aspect_ratio=width / height)
 
@@ -47,26 +52,28 @@ class Renderer(Application):
         ], dtype=np.float32)
         self.mesh = Mesh(vertices)
 
-        self.triangle_entity = Entity(
-            mesh=self.mesh,
-            position=(0, 0, 0)
-        )
+        self.entities = [
+            Entity(self.mesh, mat_orange, position=(-0.6, 0, 0)),
+            Entity(self.mesh, mat_blue, position=(0.6, 0, 0))
+        ]
 
     def render(self, window_size: tuple[int, int]):
         GL.glClearColor(0.1, 0.1, 0.1, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
-        self.shader.use()
-
         proj = self.camera.get_projection_matrix()
         view = self.camera.get_view_matrix()
 
-        self.shader.set_mat4("u_Projection", proj)
-        self.shader.set_mat4("u_View", view)
+        for entity in self.entities:
+            entity.material.use()
 
-        self.triangle_entity.rotation[1] += 1.5
+            shader = entity.material.shader
+            shader.set_mat4("u_Projection", proj)
+            shader.set_mat4("u_View", view)
 
-        model = self.triangle_entity.get_model_matrix()
-        self.shader.set_mat4("u_Model", model)
+            model = entity.get_model_matrix()
+            shader.set_mat4("u_Model", model)
 
-        self.triangle_entity.mesh.draw()
+            entity.mesh.draw()
+
+            entity.rotation[1] += 1.5
