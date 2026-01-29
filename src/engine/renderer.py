@@ -5,7 +5,7 @@ from entities.camera import Camera
 from entities.entity import Entity
 from geometry.geometry import generate_sphere, generate_cube_flat
 from geometry.mesh import Mesh
-from shading import blinn_phong
+from shading import ggx
 from shading.material import Material
 
 
@@ -25,13 +25,17 @@ class Renderer(Application):
 
         self.camera = Camera(position=[0.0, 0.0, 2.5], aspect_ratio=width / height)
 
-        shader = blinn_phong.make_shader()
+        shader = ggx.make_shader()
 
         mat_orange = Material(shader, {
-            "u_Color": [1.0, 0.5, 0.2]
+            "u_Albedo": [1.0, 0.5, 0.2],
+            "u_Metallic": 0.3,
+            "u_Roughness": 0.3
         })
         mat_blue = Material(shader, {
-            "u_Color": [0.459, 0.651, 1.0]
+            "u_Albedo": [0.459, 0.651, 1.0],
+            "u_Metallic": 0.7,
+            "u_Roughness": 0.3
         })
 
         # vertices = np.array([
@@ -43,11 +47,12 @@ class Renderer(Application):
         cube_vertices, cube_indices = generate_cube_flat(size=1.0)
 
         self.entities = [
-            RotatingEntity(Mesh(sphere_vertices, sphere_indices), mat_orange, position=(-0.7, 0, 0)),
+            Entity(Mesh(sphere_vertices, sphere_indices), mat_orange, position=(-0.7, 0, 0)),
             RotatingEntity(Mesh(cube_vertices, cube_indices), mat_blue, position=(0.7, 0, 0))
         ]
 
         self.light_pos = [2.0, 2.0, 5.0]
+        self.light_color = [300.0, 300.0, 300.0]
 
         self.last_update = None
 
@@ -77,7 +82,11 @@ class Renderer(Application):
             shader = entity.material.shader
             shader.set_mat4("u_Projection", proj)
             shader.set_mat4("u_View", view)
+
+            shader.set_float("u_Time", now)
+
             shader.set_vec3("u_LightPos", self.light_pos)
+            shader.set_vec3("u_LightColor", self.light_color)
             shader.set_vec3("u_ViewPos", self.camera.position)
 
             model = entity.get_model_matrix()
