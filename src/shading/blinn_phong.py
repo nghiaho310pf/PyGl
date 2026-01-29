@@ -5,9 +5,14 @@ VERTEX_SHADER = """
 layout (location = 0) in vec3 a_Pos;
 layout (location = 1) in vec3 a_Normal;
 
+layout (std140) uniform SceneData {
+    mat4 u_Projection;
+    mat4 u_View;
+    vec3 u_ViewPos;
+    float u_Time;
+};
+
 uniform mat4 u_Model;
-uniform mat4 u_View;
-uniform mat4 u_Projection;
 
 out vec3 v_Normal;
 out vec3 v_FragPos;
@@ -26,9 +31,18 @@ out vec4 FragColor;
 in vec3 v_Normal;
 in vec3 v_FragPos;
 
-uniform vec3 u_Color;
-uniform vec3 u_LightPos;   
-uniform vec3 u_ViewPos;
+layout (std140) uniform SceneData {
+    mat4 u_Projection;
+    mat4 u_View;
+    vec3 u_ViewPos;
+    float u_Time;
+};
+
+uniform mat4 u_Model;
+
+uniform vec3 u_Albedo;
+uniform vec3 u_LightPos;
+uniform vec3 u_LightColor;
 
 float specularStrength = 0.5;
 float shininess = 32.0; 
@@ -42,13 +56,13 @@ void main() {
     vec3 ambient = ambientStrength * vec3(1.0);
 
     float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = diff * vec3(1.0);
+    vec3 diffuse = diff * u_LightColor * 0.001;
 
     vec3 halfwayDir = normalize(lightDir + viewDir);  
     float spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
     vec3 specular = specularStrength * spec * vec3(1.0); 
 
-    vec3 result = (ambient + diffuse + specular) * u_Color;
+    vec3 result = (ambient + diffuse + specular) * u_Albedo;
 
     result = pow(result, vec3(1.0 / 2.2)); 
 
