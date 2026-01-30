@@ -1,7 +1,11 @@
-from typing import Any, Dict, Set, Type, TypeVar, List, Tuple, Iterator, TypeVarTuple, Unpack
+from typing import Any, Dict, Set, Type, TypeVar, Tuple, Iterator, overload
 
-T = TypeVar('T')
-Ts = TypeVarTuple("Ts")
+T = TypeVar("T")
+T1 = TypeVar("T1")
+T2 = TypeVar("T2")
+T3 = TypeVar("T3")
+T4 = TypeVar("T4")
+T5 = TypeVar("T5")
 
 
 class Registry:
@@ -24,7 +28,7 @@ class Registry:
 
         self._components[comp_type][entity] = component
 
-    def get_component(self, entity, comp_type):
+    def get_component(self, entity: int, comp_type: Type[T]) -> T | None:
         store = self._components.get(comp_type, None)
         return store.get(entity) if store else None
 
@@ -34,9 +38,31 @@ class Registry:
         """
         return self._components.get(comp_type, {})
 
-    def view(self, *comp_types: Unpack[Tuple[Unpack[Ts]]]) -> Iterator[Tuple[int, List[Unpack[Ts]]]]:
+    @overload
+    def view(self, c1: Type[T1]) -> Iterator[Tuple[int, Tuple[T1]]]:
+        ...
+
+    @overload
+    def view(self, c1: Type[T1], c2: Type[T2]) -> Iterator[Tuple[int, Tuple[T1, T2]]]:
+        ...
+
+    @overload
+    def view(self, c1: Type[T1], c2: Type[T2], c3: Type[T3]) -> Iterator[Tuple[int, Tuple[T1, T2, T3]]]:
+        ...
+
+    @overload
+    def view(self, c1: Type[T1], c2: Type[T2], c3: Type[T3], c4: Type[T4]) -> Iterator[
+        Tuple[int, Tuple[T1, T2, T3, T4]]]:
+        ...
+
+    @overload
+    def view(self, c1: Type[T1], c2: Type[T2], c3: Type[T3], c4: Type[T4], c5: Type[T5]) -> Iterator[
+        Tuple[int, Tuple[T1, T2, T3, T4, T5]]]:
+        ...
+
+    def view(self, *comp_types: Type[Any]) -> Iterator[Tuple[int, Tuple[Any, ...]]]:
         """
-        Returns an iterator of (entity, [comp1, comp2]) for entities with all requested components.
+        Returns an iterator of (entity, (comp1, comp2...)) for entities with all requested components.
         """
         if not comp_types:
             return
@@ -57,13 +83,35 @@ class Registry:
                 result.append(store[entity])
 
             if has_all:
-                yield entity, result
+                yield entity, tuple(result)
 
-    def get_singleton(
-            self, *comp_types: Unpack[Tuple[Unpack[Ts]]]
-    ) -> Tuple[int, List[Unpack[Ts]]] | Tuple[None, List[None]]:
+    @overload
+    def get_singleton(self, c1: Type[T1]) -> \
+            Tuple[int, Tuple[T1]] | None:
+        ...
+
+    @overload
+    def get_singleton(self, c1: Type[T1], c2: Type[T2]) -> \
+            Tuple[int, Tuple[T1, T2]] | None:
+        ...
+
+    @overload
+    def get_singleton(self, c1: Type[T1], c2: Type[T2], c3: Type[T3]) -> \
+            Tuple[int, Tuple[T1, T2, T3]] | None:
+        ...
+
+    @overload
+    def get_singleton(self, c1: Type[T1], c2: Type[T2], c3: Type[T3], c4: Type[T4]) -> \
+            Tuple[int, Tuple[T1, T2, T3, T4]] | None:
+        ...
+
+    @overload
+    def get_singleton(self, c1: Type[T1], c2: Type[T2], c3: Type[T3], c4: Type[T4], c5: Type[T5]) -> \
+            Tuple[int, Tuple[T1, T2, T3, T4, T5]] | None:
+        ...
+
+    def get_singleton(self, *comp_types: Type[Any]) -> Tuple[int, Tuple[Any, ...]] | None:
         """
         Returns the first entity with all requested components.
         """
-        fallback = (None, [None] * len(comp_types))
-        return next(self.view(*comp_types), fallback)
+        return next(self.view(*comp_types), None)

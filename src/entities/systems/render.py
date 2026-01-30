@@ -32,10 +32,15 @@ class RenderSystem:
         width, height = window_size
         aspect_ratio = width / height if height > 0 else 1.0
 
-        camera_entity, (camera_transform, camera) = self.registry.get_singleton(Transform, Camera)
-        if camera_entity is None:
+        r = self.registry.get_singleton(Transform, Camera)
+        if r is None:
             return
-        point_light_entity, (point_light_transform, point_light) = self.registry.get_singleton(Transform, PointLight)
+        camera_entity, (camera_transform, camera) = r
+
+        r = self.registry.get_singleton(Transform, PointLight)
+        if r is None:
+            return
+        light_entity, (point_light_transform, point_light) = r
 
         pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
         front = math_utils.normalize(np.array([
