@@ -77,8 +77,8 @@ class Game(Application):
 
         # camera entity
         c = self.registry.create_entity()
-        self.registry.add_component(c, Transform(position=vec3(0.0, 2.0, 5.0),
-                                                 rotation=vec3(-22.0, -100.0, 0.0)))
+        self.registry.add_component(c, Transform(position=vec3(0.0, 2.4, 5.0),
+                                                 rotation=vec3(-20.0, -100.0, 0.0)))
         self.registry.add_component(c, Camera())
 
         # point light entities
