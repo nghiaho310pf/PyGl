@@ -21,8 +21,8 @@ class RenderSystem:
 
         self.depth_shader = depth_shader.make_shader()
 
-        self.SHADOW_WIDTH = 1024
-        self.SHADOW_HEIGHT = 1024
+        self.SHADOW_WIDTH = 768
+        self.SHADOW_HEIGHT = 768
 
     def _setup_shadow_map(self, point_light: PointLight):
         # Create FBO
@@ -101,6 +101,7 @@ class RenderSystem:
         # == shadow pass ==
 
         GL.glViewport(0, 0, self.SHADOW_WIDTH, self.SHADOW_HEIGHT)
+        GL.glCullFace(GL.GL_FRONT)
         GL.glEnable(GL.GL_DEPTH_TEST)
 
         light_projection = math_utils.create_perspective_projection(90.0, 1.0, 0.1, 100.0)
@@ -165,6 +166,7 @@ class RenderSystem:
 
         GL.glClearColor(0.01, 0.01, 0.01, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+        GL.glCullFace(GL.GL_BACK)
 
         for entity, (transform, visuals) in self.registry.view(Transform, Visuals):
             visuals.material.use()

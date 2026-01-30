@@ -24,7 +24,7 @@ void main() {
     // Normal Matrix to handle non-uniform scaling correctly
     v_Normal = mat3(transpose(inverse(u_Model))) * a_Normal; 
     v_UV = a_UV;
-    
+
     gl_Position = u_Projection * u_View * vec4(v_WorldPos, 1.0);
 }
 """
@@ -62,12 +62,13 @@ uniform samplerCube u_ShadowMap[MAX_LIGHTS];
 uniform float u_FarPlane[MAX_LIGHTS];
 
 const float PI = 3.14159265359;
+const float PI2 = 6.28318530718;
 
 float filmGrain(vec2 coords) {
     return fract(sin(dot(coords.xy, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
-float DistributionGGX(vec3 N, vec3 H, float roughness) {
+float distributionGGX(vec3 N, vec3 H, float roughness) {
     float a = roughness * roughness;
     float a2 = a * a;
     float NdotH = max(dot(N, H), 0.0);
@@ -80,7 +81,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness) {
     return num / max(denom, 0.0001);
 }
 
-float GeometrySchlickGGX(float NdotV, float roughness) {
+float geometrySchlickGGX(float NdotV, float roughness) {
     float r = (roughness + 1.0);
     float k = (r * r) / 8.0;
 
@@ -90,23 +91,23 @@ float GeometrySchlickGGX(float NdotV, float roughness) {
     return num / max(denom, 0.0001);
 }
 
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
-    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+    float ggx2 = geometrySchlickGGX(NdotV, roughness);
+    float ggx1 = geometrySchlickGGX(NdotL, roughness);
 
     return ggx1 * ggx2;
 }
 
-vec3 FresnelSchlick(float cosTheta, vec3 F0) {
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 // Hammon diffuse, replaces the standard Lambert (Albedo / PI).
 // accounts for roughness at grazing angles (retro-reflection) and 
 // improves energy conservation compared to pure lambert
-float HammonDiffuse(vec3 N, vec3 V, vec3 L, float roughness) {
+float hammonDiffuse(vec3 N, vec3 V, vec3 L, float roughness) {
     vec3 H = normalize(V + L);
     float LdotH = clamp(dot(L, H), 0.0, 1.0);
     float NdotL = clamp(dot(N, L), 0.0, 1.0);
@@ -120,7 +121,7 @@ float HammonDiffuse(vec3 N, vec3 V, vec3 L, float roughness) {
     return facing / PI;
 }
 
-vec3 ACESFilm(vec3 x) {
+vec3 acesFilm(vec3 x) {
     float a = 2.51;
     float b = 0.03;
     float c = 2.43;
@@ -138,55 +139,78 @@ vec3 sampleOffsetDirections[20] = vec3[]
    vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
 );
 
-float FindBlockerDistance(samplerCube shadowMap, vec3 fragToLight, float currentDepth, float farPlane) {
-    int blockers = 0;
-    float avgBlockerDepth = 0.0;
-    float searchWidth = 0.05;
-
-    int samples = 8;
-    for (int i = 0; i < samples; ++i) {
-        vec3 sampleDir = fragToLight + sampleOffsetDirections[i] * searchWidth;
-        float sampleDepth = texture(shadowMap, sampleDir).r;
-
-        if (sampleDepth < currentDepth - 0.005) {
-            avgBlockerDepth += sampleDepth;
-            blockers++;
-        }
-    }
-
-    if (blockers > 0)
-        return avgBlockerDepth / float(blockers);
-    
-    return -1.0;
+float blueNoiseDither(vec2 pos) {
+    float white = fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453);
+    float noise = fract(white + (gl_FragCoord.x + gl_FragCoord.y * 0.5) * 0.375);
+    return noise;
 }
 
-float ShadowCalculation(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane) {
+vec3 sampleVogelDisk(int sampleIndex, int samplesCount, float rotation) {
+    float goldenAngle = 2.4; // approx PI * (3.0 - sqrt(5.0))
+
+    float r = sqrt(float(sampleIndex) + 0.5) / sqrt(float(samplesCount));
+    float theta = float(sampleIndex) * goldenAngle + rotation;
+
+    float sine = sin(theta);
+    float cosine = cos(theta);
+
+    return vec3(r * cosine, r * sine, 0.0);
+}
+
+float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane) {
     vec3 fragToLight = fragPos - lightPos;
     float currentDepth = length(fragToLight) / farPlane;
 
     float bias = 0.005;
 
-    float blockerDepth = FindBlockerDistance(shadowMap, fragToLight, currentDepth, farPlane);
-    if (blockerDepth == -1.0) return 0.0;
+    float noise = blueNoiseDither(gl_FragCoord.xy);
+    float randomRotation = noise * PI2;
 
-    float penumbraRatio = (currentDepth - blockerDepth) / blockerDepth;
+    int searchSamples = 8;
+    float avgBlockerDepth = 0.0;
+    int blockers = 0;
+    float searchWidth = 0.05 + (currentDepth * 0.01); // Search wider further away
+
+    vec3 lightDir = normalize(fragToLight);
+    vec3 up = abs(lightDir.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 right = normalize(cross(up, lightDir));
+    up = cross(lightDir, right);
+
+    for (int i = 0; i < searchSamples; ++i) {
+        vec3 offset2D = sampleVogelDisk(i, searchSamples, randomRotation);
+        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * searchWidth;
+
+        float sampleDepth = texture(shadowMap, sampleDir).r;
+        if (sampleDepth < currentDepth - bias) {
+            avgBlockerDepth += sampleDepth;
+            blockers++;
+        }
+    }
+
+    if (blockers == 0) return 0.0;
+    avgBlockerDepth /= float(blockers);
+
+    float penumbraRatio = (currentDepth - avgBlockerDepth) / avgBlockerDepth;
     float diskRadius = penumbraRatio * lightRadius; 
-
-    diskRadius = clamp(diskRadius, 0.001, 0.15);
+    diskRadius = clamp(diskRadius, 0.002, 0.15);
 
     float shadow = 0.0;
-    int samples = 20;
+    int pcfSamples = 32;
 
-    for (int i = 0; i < samples; ++i) {
-        vec3 sampleDir = fragToLight + sampleOffsetDirections[i] * diskRadius;
+    float invSamples = 1.0 / float(pcfSamples);
+
+    for (int i = 0; i < pcfSamples; ++i) {
+        vec3 offset2D = sampleVogelDisk(i, pcfSamples, randomRotation);
+
+        float jitter = fract(noise + u_Time + float(i) * 0.618);
+        float radiusJitter = 1.0 + (jitter * 0.2 - 0.1);
+        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * (diskRadius * radiusJitter);
+
         float closestDepth = texture(shadowMap, sampleDir).r;
-
-        if (currentDepth - bias > closestDepth)
-            shadow += 1.0;
+        if (currentDepth - bias > closestDepth) shadow += 1.0;
     }
-    shadow /= float(samples);
-
-    return shadow;
+    
+    return shadow * invSamples;
 }
 
 void main() {
@@ -209,7 +233,8 @@ void main() {
         float distance = length(lightPos - v_WorldPos);
 
         // Shadow calculation
-        float shadow = ShadowCalculation(v_WorldPos, lightPos, u_LightRadius[i], u_ShadowMap[i], u_FarPlane[i]);
+        float shadow = calculateShadow(v_WorldPos, lightPos, u_LightRadius[i], u_ShadowMap[i], u_FarPlane[i]);
+        shadow = smoothstep(0.01, 0.98, shadow);
 
         // lighting prep
         float attenuation = 1.0 / (distance * distance);
@@ -223,9 +248,9 @@ void main() {
         F0 = mix(F0, u_Albedo, u_Metallic);
 
         // cook-torrance specular
-        float NDF = DistributionGGX(N, H, u_Roughness);
-        float G = GeometrySmith(N, V, L, u_Roughness);
-        vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+        float NDF = distributionGGX(N, H, u_Roughness);
+        float G = geometrySmith(N, V, L, u_Roughness);
+        vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
         vec3 numerator = NDF * G * F;
         float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; 
@@ -237,14 +262,14 @@ void main() {
         kD *= (1.0 - u_Metallic);
 
         // Hammon's roughness-dependent diffuse
-        float diffuseBRDF = HammonDiffuse(N, V, L, u_Roughness);
+        float diffuseBRDF = hammonDiffuse(N, V, L, u_Roughness);
 
         // translucency; wraps the light around the terminator
         float wrap = u_Translucency * 0.5; // Scale down for valid range
         float NdotL_Unclamped = dot(N, L);
         float NdotL_Wrapped = max((NdotL_Unclamped + wrap) / (1.0 + wrap), 0.0);
 
-        // combine diffuse. multiply by PI because HammonDiffuse already divides by PI
+        // combine diffuse. multiply by PI because hammonDiffuse already divides by PI
         vec3 diffuse = kD * u_Albedo * diffuseBRDF;
 
         // composite direct light. specular relies on pure NdotL, diffuse relies on wrapped NdotL
@@ -261,12 +286,12 @@ void main() {
 
         totalDirectLight += directLight;
     }
-    
+
     vec3 color = ambient + totalDirectLight;
 
     // post-processing
     // Reinhard HDR tonemapping
-    color = ACESFilm(color);
+    color = acesFilm(color);
     // dithering
     color += (filmGrain(gl_FragCoord.xy + fract(u_Time)) - 0.5) / 255.0;
 
