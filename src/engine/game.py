@@ -1,5 +1,3 @@
-import numpy as np
-
 from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
