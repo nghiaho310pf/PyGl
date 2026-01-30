@@ -1,16 +1,21 @@
-class Registry:
-    def __init__(self):
-        self._next_id = 0
-        self._components = {}
-        self._entities = set()
+from typing import Any, Dict, Set, Type, TypeVar, List, Tuple, Iterator, Union
 
-    def create_entity(self):
+T = TypeVar('T')
+
+
+class Registry:
+    def __init__(self) -> None:
+        self._next_id: int = 0
+        self._components: Dict[Type[Any], Dict[int, Any]] = {}
+        self._entities: Set[int] = set()
+
+    def create_entity(self) -> int:
         entity = self._next_id
         self._next_id += 1
         self._entities.add(entity)
         return entity
 
-    def add_component(self, entity, component):
+    def add_component(self, entity: int, component: Any) -> None:
         comp_type = type(component)
 
         if comp_type not in self._components:
@@ -22,18 +27,18 @@ class Registry:
         store = self._components.get(comp_type, None)
         return store.get(entity) if store else None
 
-    def get_components(self, comp_type: type):
+    def get_components(self, comp_type: Type[T]) -> Dict[int, T]:
         """
         Returns {entity_id: component} dictionary for a type.
         """
         return self._components.get(comp_type, {})
 
-    def view(self, *comp_types):
+    def view(self, *comp_types: Type[Any]) -> Iterator[Tuple[int, List[Any]]]:
         """
         Returns an iterator of (entity, [comp1, comp2]) for entities that have all requested components.
         """
         if not comp_types:
-            return []
+            return
 
         # Get the dictionary for the first component type
         primary_store = self._components.get(comp_types[0], {})
@@ -53,4 +58,7 @@ class Registry:
             if has_all:
                 yield entity, result
 
-        return None
+    def get_singleton(
+            self, *comp_types: Type[Any]
+    ) -> Union[Tuple[int, List[Any]], Tuple[None, List[None]]]:
+        return next(self.view(*comp_types), (None, [None] * len(comp_types)))
