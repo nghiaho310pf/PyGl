@@ -30,5 +30,6 @@ void main() {
 }
 """
 
+
 def make_shader():
     return Shader(VERTEX_SHADER, FRAGMENT_SHADER)

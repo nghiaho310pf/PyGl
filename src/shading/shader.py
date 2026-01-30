@@ -1,7 +1,7 @@
 import struct
-import numpy as np
 
 import OpenGL.GL as GL
+import numpy as np
 
 
 class Shader:
