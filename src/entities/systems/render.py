@@ -168,28 +168,41 @@ class RenderSystem:
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
         GL.glCullFace(GL.GL_BACK)
 
+        shader_batches = {}
         for entity, (transform, visuals) in self.registry.view(Transform, Visuals):
-            visuals.material.use()
-
             shader = visuals.material.shader
+            mat = visuals.material
+
+            if shader not in shader_batches:
+                shader_batches[shader] = {}
+            if mat not in shader_batches[shader]:
+                shader_batches[shader][mat] = []
+
+            shader_batches[shader][mat].append((transform, visuals))
+
+        for shader, material_group in shader_batches.items():
+            shader.use()
+
             shader.set_vec3_array("u_LightPos", point_light_positions)
             shader.set_vec3_array("u_LightColor", point_light_colors)
             shader.set_int("u_NumLights", num_lights)
+            shader.set_float_array("u_FarPlane", light_far_planes)
+            shader.set_float_array("u_LightRadius", light_radii)
 
             for i, tex_unit in enumerate(shadow_map_texture_units):
                 GL.glActiveTexture(GL.GL_TEXTURE0 + tex_unit)
                 GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, shadow_map_textures[i])
-
             shader.set_int_array("u_ShadowMap", shadow_map_texture_units)
-            shader.set_float_array("u_FarPlane", light_far_planes)
-            shader.set_float_array("u_LightRadius", light_radii)
 
-            model_matrix = math_utils.create_transformation_matrix(
-                transform.position, transform.rotation, transform.scale
-            )
+            for material, entities in material_group.items():
+                material.setup_properties()
 
-            shader.set_mat4("u_Model", model_matrix)
+                for transform, visuals in entities:
+                    model_matrix = math_utils.create_transformation_matrix(
+                        transform.position, transform.rotation, transform.scale
+                    )
+                    shader.set_mat4("u_Model", model_matrix)
 
-            visuals.mesh.draw()
+                    visuals.mesh.draw()
 
         GL.glActiveTexture(GL.GL_TEXTURE0)
