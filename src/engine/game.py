@@ -53,7 +53,7 @@ class Game(Application):
             "u_AO": 0.05,
         })
 
-        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=48, sectors=48)
+        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=36, sectors=36)
         cube_vertices, cube_indices = generate_cube_flat(size=1.0)
         plane_vertices, plane_indices = generate_plane()
 
