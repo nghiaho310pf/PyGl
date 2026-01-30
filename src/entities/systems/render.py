@@ -41,15 +41,9 @@ class RenderSystem:
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_R, GL.GL_CLAMP_TO_EDGE)
 
-        # GL.glFramebufferTexture(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, point_light.shadow_map_texture, 0)
-        # GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT,
-        #                           GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X,
-        #                           point_light.shadow_map_texture, 0)
+        GL.glFramebufferTexture(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, point_light.shadow_map_texture, 0)
         GL.glDrawBuffer(GL.GL_NONE)
         GL.glReadBuffer(GL.GL_NONE)
-
-        if GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER) != GL.GL_FRAMEBUFFER_COMPLETE:
-            print("ERROR::FRAMEBUFFER:: Shadow FBO is not complete!")
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
@@ -115,6 +109,7 @@ class RenderSystem:
         texture_unit_counter = 0
 
         light_positions = []
+        light_radii = []
         light_far_planes = []
 
         for light_entity, (light_transform, point_light) in self.registry.view(Transform, PointLight):
@@ -155,6 +150,7 @@ class RenderSystem:
                     visuals.mesh.draw()
 
             light_positions.append(light_transform.position)
+            light_radii.append(point_light.radius)
             light_far_planes.append(100.0)
             shadow_map_textures.append(point_light.shadow_map_texture)
             shadow_map_texture_units.append(texture_unit_counter)
@@ -184,6 +180,7 @@ class RenderSystem:
 
             shader.set_int_array("u_ShadowMap", shadow_map_texture_units)
             shader.set_float_array("u_FarPlane", light_far_planes)
+            shader.set_float_array("u_LightRadius", light_radii)
 
             model_matrix = math_utils.create_transformation_matrix(
                 transform.position, transform.rotation, transform.scale

@@ -83,12 +83,12 @@ class Game(Application):
 
         # point light entities
         c = self.registry.create_entity()
-        self.registry.add_component(c, Transform(position=vec3(1.0, 3.0, 1.0)))
+        self.registry.add_component(c, Transform(position=vec3(1.2, 4.0, 1.2)))
         self.registry.add_component(c, PointLight(color=vec3(300.0, 300.0, 300.0)))
 
         c = self.registry.create_entity()
-        self.registry.add_component(c, Transform(position=vec3(-1.0, 4.0, -1.0)))
-        self.registry.add_component(c, PointLight(color=vec3(100.0, 100.0, 100.0)))
+        self.registry.add_component(c, Transform(position=vec3(-1.0, 5.0, -1.0)))
+        self.registry.add_component(c, PointLight(color=vec3(100.0, 100.0, 100.0), radius=3.5))
 
         self.last_update = None
 

@@ -55,6 +55,7 @@ uniform float u_AO;            // Ambient Occlusion
 
 const int MAX_LIGHTS = 4;
 uniform vec3 u_LightPos[MAX_LIGHTS];
+uniform float u_LightRadius[MAX_LIGHTS];
 uniform vec3 u_LightColor[MAX_LIGHTS];
 uniform int u_NumLights;
 uniform samplerCube u_ShadowMap[MAX_LIGHTS];
@@ -62,7 +63,7 @@ uniform float u_FarPlane[MAX_LIGHTS];
 
 const float PI = 3.14159265359;
 
-float random(vec2 coords) {
+float filmGrain(vec2 coords) {
     return fract(sin(dot(coords.xy, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
@@ -137,17 +138,49 @@ vec3 sampleOffsetDirections[20] = vec3[]
    vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
 );
 
-float ShadowCalculation(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane) {
+float FindBlockerDistance(samplerCube shadowMap, vec3 fragToLight, float currentDepth, float farPlane) {
+    int blockers = 0;
+    float avgBlockerDepth = 0.0;
+    float searchWidth = 0.05;
+
+    int samples = 8;
+    for (int i = 0; i < samples; ++i) {
+        vec3 sampleDir = fragToLight + sampleOffsetDirections[i] * searchWidth;
+        float sampleDepth = texture(shadowMap, sampleDir).r;
+
+        if (sampleDepth < currentDepth - 0.005) {
+            avgBlockerDepth += sampleDepth;
+            blockers++;
+        }
+    }
+
+    if (blockers > 0)
+        return avgBlockerDepth / float(blockers);
+    
+    return -1.0;
+}
+
+float ShadowCalculation(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane) {
     vec3 fragToLight = fragPos - lightPos;
     float currentDepth = length(fragToLight) / farPlane;
 
     float bias = 0.005;
+
+    float blockerDepth = FindBlockerDistance(shadowMap, fragToLight, currentDepth, farPlane);
+    if (blockerDepth == -1.0) return 0.0;
+
+    float penumbraRatio = (currentDepth - blockerDepth) / blockerDepth;
+    float diskRadius = penumbraRatio * lightRadius; 
+
+    diskRadius = clamp(diskRadius, 0.001, 0.15);
+
     float shadow = 0.0;
     int samples = 20;
-    float diskRadius = 0.03;
 
     for (int i = 0; i < samples; ++i) {
-        float closestDepth = texture(shadowMap, fragToLight + sampleOffsetDirections[i] * diskRadius).r;
+        vec3 sampleDir = fragToLight + sampleOffsetDirections[i] * diskRadius;
+        float closestDepth = texture(shadowMap, sampleDir).r;
+
         if (currentDepth - bias > closestDepth)
             shadow += 1.0;
     }
@@ -160,7 +193,7 @@ void main() {
     vec3 N = normalize(v_Normal);
     vec3 V = normalize(u_ViewPos - v_WorldPos);
 
-    vec3 ambient = vec3(0.03) * u_Albedo * u_AO;
+    vec3 ambient = u_Albedo * u_AO;
     vec3 totalDirectLight = vec3(0.0);
 
     for (int i = 0; i < MAX_LIGHTS; ++i) {
@@ -176,7 +209,7 @@ void main() {
         float distance = length(lightPos - v_WorldPos);
 
         // Shadow calculation
-        float shadow = ShadowCalculation(v_WorldPos, lightPos, u_ShadowMap[i], u_FarPlane[i]);
+        float shadow = ShadowCalculation(v_WorldPos, lightPos, u_LightRadius[i], u_ShadowMap[i], u_FarPlane[i]);
 
         // lighting prep
         float attenuation = 1.0 / (distance * distance);
@@ -235,7 +268,7 @@ void main() {
     // Reinhard HDR tonemapping
     color = ACESFilm(color);
     // dithering
-    color += (random(gl_FragCoord.xy + fract(u_Time)) - 0.5) / 255.0;
+    color += (filmGrain(gl_FragCoord.xy + fract(u_Time)) - 0.5) / 255.0;
 
     FragColor = vec4(color, 1.0);
 }
