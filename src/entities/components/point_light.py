@@ -10,4 +10,4 @@ class PointLight:
     shadow_map_fbo: int = 0
     shadow_map_texture: int = 0
     light_projection_matrix: npt.NDArray[np.float32] = field(default_factory=lambda: np.identity(4, dtype=np.float32))
-    light_view_matrix: npt.NDArray[np.float32] = field(default_factory=lambda: np.identity(4, dtype=np.float32))
+    light_view_matrices: list[npt.NDArray[np.float32]] = field(default_factory=list)

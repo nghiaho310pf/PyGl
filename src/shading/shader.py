@@ -92,6 +92,11 @@ class Shader:
         if loc != -1:
             GL.glUniform1iv(loc, len(values), np.array(values, dtype=np.int32))
 
+    def set_float_array(self, name, values):
+        loc = self._get_uniform_location(name)
+        if loc != -1:
+            GL.glUniform1fv(loc, len(values), np.array(values, dtype=np.float32))
+
 
 class ShaderGlobals:
     """

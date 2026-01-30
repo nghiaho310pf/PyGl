@@ -1,7 +1,7 @@
 from shading.shader import Shader
 
 VERTEX_SHADER = """
-#version 330 core
+#version 450 core
 layout (location = 0) in vec3 a_Pos;
 layout (location = 1) in vec3 a_Normal;
 layout (location = 2) in vec2 a_UV;
@@ -30,7 +30,7 @@ void main() {
 """
 
 FRAGMENT_SHADER = """
-#version 330 core
+#version 450 core
 out vec4 FragColor;
 
 in vec3 v_WorldPos;
@@ -57,6 +57,8 @@ const int MAX_LIGHTS = 4;
 uniform vec3 u_LightPos[MAX_LIGHTS];
 uniform vec3 u_LightColor[MAX_LIGHTS];
 uniform int u_NumLights;
+uniform samplerCube u_ShadowMap[MAX_LIGHTS];
+uniform float u_FarPlane[MAX_LIGHTS];
 
 const float PI = 3.14159265359;
 
@@ -126,6 +128,34 @@ vec3 ACESFilm(vec3 x) {
     return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
 }
 
+vec3 sampleOffsetDirections[20] = vec3[]
+(
+   vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1),
+   vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
+   vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
+   vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
+   vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
+);
+
+float ShadowCalculation(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane) {
+    vec3 fragToLight = fragPos - lightPos;
+    float currentDepth = length(fragToLight) / farPlane;
+
+    float bias = 0.005;
+    float shadow = 0.0;
+    int samples = 20;
+    float diskRadius = 0.03;
+
+    for (int i = 0; i < samples; ++i) {
+        float closestDepth = texture(shadowMap, fragToLight + sampleOffsetDirections[i] * diskRadius).r;
+        if (currentDepth - bias > closestDepth)
+            shadow += 1.0;
+    }
+    shadow /= float(samples);
+
+    return shadow;
+}
+
 void main() {
     vec3 N = normalize(v_Normal);
     vec3 V = normalize(u_ViewPos - v_WorldPos);
@@ -144,6 +174,9 @@ void main() {
         vec3 L = normalize(lightPos - v_WorldPos);
         vec3 H = normalize(V + L);
         float distance = length(lightPos - v_WorldPos);
+
+        // Shadow calculation
+        float shadow = ShadowCalculation(v_WorldPos, lightPos, u_ShadowMap[i], u_FarPlane[i]);
 
         // lighting prep
         float attenuation = 1.0 / (distance * distance);
@@ -179,12 +212,15 @@ void main() {
         float NdotL_Wrapped = max((NdotL_Unclamped + wrap) / (1.0 + wrap), 0.0);
 
         // combine diffuse. multiply by PI because HammonDiffuse already divides by PI
-        vec3 diffuse = kD * u_Albedo * diffuseBRDF; 
+        vec3 diffuse = kD * u_Albedo * diffuseBRDF;
 
         // composite direct light. specular relies on pure NdotL, diffuse relies on wrapped NdotL
         // we add u_AO to diffuse attenuation slightly to fake self-shadowing in cracks
         vec3 directLight = (diffuse * NdotL_Wrapped + specular * max(dot(N, L), 0.0)) * radiance;
-        
+
+        // apply shadow
+        directLight *= (1.0 - shadow);
+
         // specular occlusion
         // trick to reduce specular intensity in cracks (where AO is low). prevents "shining in the dark"
         float specularOcclusion = clamp(pow(NdotL_Wrapped + u_AO, 2.0), 0.0, 1.0);
