@@ -22,11 +22,18 @@ class Registry:
 
     def add_component(self, entity: int, component: Any) -> None:
         comp_type = type(component)
-
         if comp_type not in self._components:
             self._components[comp_type] = {}
 
         self._components[comp_type][entity] = component
+
+    def add_components(self, entity: int, *components: Any) -> None:
+        for c in components:
+            comp_type = type(c)
+            if comp_type not in self._components:
+                self._components[comp_type] = {}
+
+            self._components[comp_type][entity] = c
 
     def get_component(self, entity: int, comp_type: Type[T]) -> T | None:
         store = self._components.get(comp_type, None)
