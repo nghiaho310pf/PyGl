@@ -1,7 +1,6 @@
-import numpy as np
-
 from engine.application import Application
 from entities.components.camera import Camera
+from entities.components.point_light import PointLight
 from entities.components.rotated import Rotated
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals
@@ -10,6 +9,7 @@ from entities.systems.render import RenderSystem
 from entities.systems.rotator import RotatorSystem
 from geometry.geometry import generate_sphere, generate_cube_flat
 from geometry.mesh import Mesh
+from math_utils import vec3
 from shading.material import Material
 from shading.shaders import tf2_ggx_smith
 
@@ -55,20 +55,25 @@ class Game(Application):
 
         # orange sphere entity
         e1 = self.registry.create_entity()
-        self.registry.add_component(e1, Transform(position=np.array([-0.7, 0, 0])))
+        self.registry.add_component(e1, Transform(position=vec3(-0.7, 0, 0)))
         self.registry.add_component(e1, Visuals(Mesh(sphere_vertices, sphere_indices), mat_orange))
 
         # blue cube entity
         e2 = self.registry.create_entity()
-        self.registry.add_component(e2, Transform(position=np.array([0.7, 0, 0])))
+        self.registry.add_component(e2, Transform(position=vec3(0.7, 0, 0)))
         self.registry.add_component(e2, Visuals(Mesh(cube_vertices, cube_indices), mat_blue))
-        self.registry.add_component(e2, Rotated(delta=np.array([0.0, 90.0, 0.0])))
+        self.registry.add_component(e2, Rotated(delta=vec3(0.0, 90.0, 0.0)))
 
         # camera entity
         c = self.registry.create_entity()
-        self.registry.add_component(c, Transform(position=np.array([0.0, 1.0, 2.5]),
-                                                 rotation=np.array([-22.0, -90.0, 0.0])))
+        self.registry.add_component(c, Transform(position=vec3(0.0, 1.0, 2.5),
+                                                 rotation=vec3(-22.0, -90.0, 0.0)))
         self.registry.add_component(c, Camera())
+
+        # point light entity
+        c = self.registry.create_entity()
+        self.registry.add_component(c, Transform(position=vec3(2.0, 2.0, 5.0)))
+        self.registry.add_component(c, PointLight(color=vec3(300.0, 300.0, 300.0)))
 
         self.last_update = None
 

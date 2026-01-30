@@ -5,6 +5,7 @@ from OpenGL import GL
 
 import math_utils
 from entities.components.camera import Camera
+from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals
 from entities.registry import Registry
@@ -15,10 +16,6 @@ class RenderSystem:
     def __init__(self, registry: Registry):
         self.registry = registry
         self.shader_globals = ShaderGlobals()
-
-        # TODO: add light/lamp component.
-        self.light_pos = [2.0, 2.0, 5.0]
-        self.light_color = [300.0, 300.0, 300.0]
 
         # TODO: should this really be here?
         GL.glFrontFace(GL.GL_CCW)
@@ -38,6 +35,7 @@ class RenderSystem:
         camera_entity, (camera_transform, camera) = self.registry.get_singleton(Transform, Camera)
         if camera_entity is None:
             return
+        point_light_entity, (point_light_transform, point_light) = self.registry.get_singleton(Transform, PointLight)
 
         pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
         front = math_utils.normalize(np.array([
@@ -66,8 +64,8 @@ class RenderSystem:
             visuals.material.use()
 
             shader = visuals.material.shader
-            shader.set_vec3("u_LightPos", self.light_pos)
-            shader.set_vec3("u_LightColor", self.light_color)
+            shader.set_vec3("u_LightPos", point_light_transform.position)
+            shader.set_vec3("u_LightColor", point_light.color)
 
             model_matrix = math_utils.create_transformation_matrix(
                 transform.position, transform.rotation, transform.scale

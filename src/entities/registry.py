@@ -1,6 +1,7 @@
-from typing import Any, Dict, Set, Type, TypeVar, List, Tuple, Iterator, Union
+from typing import Any, Dict, Set, Type, TypeVar, List, Tuple, Iterator, TypeVarTuple, Unpack
 
 T = TypeVar('T')
+Ts = TypeVarTuple("Ts")
 
 
 class Registry:
@@ -33,9 +34,9 @@ class Registry:
         """
         return self._components.get(comp_type, {})
 
-    def view(self, *comp_types: Type[Any]) -> Iterator[Tuple[int, List[Any]]]:
+    def view(self, *comp_types: Unpack[Tuple[Unpack[Ts]]]) -> Iterator[Tuple[int, List[Unpack[Ts]]]]:
         """
-        Returns an iterator of (entity, [comp1, comp2]) for entities that have all requested components.
+        Returns an iterator of (entity, [comp1, comp2]) for entities with all requested components.
         """
         if not comp_types:
             return
@@ -59,6 +60,10 @@ class Registry:
                 yield entity, result
 
     def get_singleton(
-            self, *comp_types: Type[Any]
-    ) -> Union[Tuple[int, List[Any]], Tuple[None, List[None]]]:
-        return next(self.view(*comp_types), (None, [None] * len(comp_types)))
+            self, *comp_types: Unpack[Tuple[Unpack[Ts]]]
+    ) -> Tuple[int, List[Unpack[Ts]]] | Tuple[None, List[None]]:
+        """
+        Returns the first entity with all requested components.
+        """
+        fallback = (None, [None] * len(comp_types))
+        return next(self.view(*comp_types), fallback)
