@@ -108,9 +108,6 @@ class RenderSystem:
 
         GL.glViewport(0, 0, self.SHADOW_WIDTH, self.SHADOW_HEIGHT)
         GL.glEnable(GL.GL_DEPTH_TEST)
-        GL.glDepthFunc(GL.GL_LESS)
-        GL.glDisable(GL.GL_CULL_FACE)
-        # GL.glCullFace(GL.GL_BACK)
 
         light_projection = math_utils.create_perspective_projection(90.0, 1.0, 0.1, 100.0)
         shadow_map_textures = []
@@ -163,8 +160,6 @@ class RenderSystem:
             shadow_map_texture_units.append(texture_unit_counter)
             texture_unit_counter += 1
 
-        GL.glDepthFunc(GL.GL_LESS)
-        # GL.glCullFace(GL.GL_BACK)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         GL.glViewport(0, 0, width, height)
 

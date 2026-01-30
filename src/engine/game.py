@@ -57,7 +57,7 @@ class Game(Application):
 
         sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=48, sectors=48)
         cube_vertices, cube_indices = generate_cube_flat(size=1.0)
-        plane_vertices, plane_indices = generate_plane(size=1.0)
+        plane_vertices, plane_indices = generate_plane()
 
         # orange sphere entity
         e1 = self.registry.create_entity()
@@ -71,9 +71,9 @@ class Game(Application):
         self.registry.add_component(e2, Rotated(delta=vec3(0.0, 90.0, 0.0)))
 
         # floor entity
-        # e3 = self.registry.create_entity()
-        # self.registry.add_component(e3, Transform(position=vec3(0.0, 0.0, 0.0)))
-        # self.registry.add_component(e3, Visuals(Mesh(plane_vertices, plane_indices), mat_grey))
+        e3 = self.registry.create_entity()
+        self.registry.add_component(e3, Transform(position=vec3(0.0, 0.0, 0.0)))
+        self.registry.add_component(e3, Visuals(Mesh(plane_vertices, plane_indices), mat_grey))
 
         # camera entity
         c = self.registry.create_entity()
@@ -81,10 +81,14 @@ class Game(Application):
                                                  rotation=vec3(-22.0, -100.0, 0.0)))
         self.registry.add_component(c, Camera())
 
-        # point light entity
+        # point light entities
         c = self.registry.create_entity()
         self.registry.add_component(c, Transform(position=vec3(1.0, 3.0, 1.0)))
         self.registry.add_component(c, PointLight(color=vec3(300.0, 300.0, 300.0)))
+
+        c = self.registry.create_entity()
+        self.registry.add_component(c, Transform(position=vec3(-1.0, 4.0, -1.0)))
+        self.registry.add_component(c, PointLight(color=vec3(100.0, 100.0, 100.0)))
 
         self.last_update = None
 
