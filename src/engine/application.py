@@ -18,6 +18,7 @@ class Application:
 
         glfw.window_hint(glfw.RESIZABLE, True)
         glfw.window_hint(glfw.DOUBLEBUFFER, True)
+        glfw.window_hint(glfw.SRGB_CAPABLE, True)
 
         glfw.window_hint(glfw.RED_BITS, 8)
         glfw.window_hint(glfw.GREEN_BITS, 8)

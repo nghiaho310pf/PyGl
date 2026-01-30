@@ -115,6 +115,15 @@ float HammonDiffuse(vec3 N, vec3 V, vec3 L, float roughness) {
     return facing / PI;
 }
 
+vec3 ACESFilm(vec3 x) {
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+}
+
 void main() {
     vec3 N = normalize(v_Normal);
     vec3 V = normalize(u_ViewPos - v_WorldPos);
@@ -175,9 +184,7 @@ void main() {
 
     // post-processing
     // Reinhard HDR tonemapping
-    color = color / (color + vec3(1.0));
-    // gamma correction
-    color = pow(color, vec3(1.0/2.2));
+    color = ACESFilm(color);
     // dithering
     color += (random(gl_FragCoord.xy + fract(u_Time)) - 0.5) / 255.0;
 

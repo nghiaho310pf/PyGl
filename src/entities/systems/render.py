@@ -22,6 +22,7 @@ class RenderSystem:
         GL.glEnable(GL.GL_CULL_FACE)
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glEnable(GL.GL_MULTISAMPLE)
+        GL.glEnable(GL.GL_FRAMEBUFFER_SRGB)
 
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
@@ -62,7 +63,7 @@ class RenderSystem:
 
         # == drawing entities ==
 
-        GL.glClearColor(0.1, 0.1, 0.1, 1.0)
+        GL.glClearColor(0.01, 0.01, 0.01, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
         for entity, (transform, visuals) in self.registry.view(Transform, Visuals):
