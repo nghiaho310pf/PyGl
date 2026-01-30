@@ -1,4 +1,5 @@
 import struct
+import numpy as np
 
 import OpenGL.GL as GL
 
@@ -73,6 +74,23 @@ class Shader:
     def set_mat4(self, name, matrix):
         loc = GL.glGetUniformLocation(self.program, name)
         GL.glUniformMatrix4fv(loc, 1, GL.GL_FALSE, matrix)
+
+    def set_vec3_array(self, name, values):
+        loc = self._get_uniform_location(name)
+        if loc != -1:
+            flattened_values = [coord for vec in values for coord in vec]
+            GL.glUniform3fv(loc, len(values), flattened_values)
+
+    def set_mat4_array(self, name, matrices):
+        loc = self._get_uniform_location(name)
+        if loc != -1:
+            flattened_matrices = np.array(matrices, dtype=np.float32).flatten()
+            GL.glUniformMatrix4fv(loc, len(matrices), GL.GL_FALSE, flattened_matrices)
+
+    def set_int_array(self, name, values):
+        loc = self._get_uniform_location(name)
+        if loc != -1:
+            GL.glUniform1iv(loc, len(values), np.array(values, dtype=np.int32))
 
 
 class ShaderGlobals:

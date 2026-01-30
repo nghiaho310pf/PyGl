@@ -53,8 +53,10 @@ uniform float u_Reflectance;   // F0 control (0.5 = 0.04 standard dielectric)
 uniform float u_Translucency;  // "Wrap" factor for subsurface scattering
 uniform float u_AO;            // Ambient Occlusion
 
-uniform vec3 u_LightPos;
-uniform vec3 u_LightColor;
+const int MAX_LIGHTS = 4;
+uniform vec3 u_LightPos[MAX_LIGHTS];
+uniform vec3 u_LightColor[MAX_LIGHTS];
+uniform int u_NumLights;
 
 const float PI = 3.14159265359;
 
@@ -127,60 +129,71 @@ vec3 ACESFilm(vec3 x) {
 void main() {
     vec3 N = normalize(v_Normal);
     vec3 V = normalize(u_ViewPos - v_WorldPos);
-    vec3 L = normalize(u_LightPos - v_WorldPos);
-    vec3 H = normalize(V + L);
-    float distance = length(u_LightPos - v_WorldPos);
 
-    // lighting prep
-    float attenuation = 1.0 / (distance * distance);
-    vec3 radiance = u_LightColor * attenuation;
-
-    // F0. remap user reflectance (0.0-1.0) to physical dielectric range (0.0-0.08)
-    // 0.5 input becomes 0.04 (standard plastic/water)
-    // 1.0 input becomes 0.08 (gemstone/high-gloss)
-    float dielectricF0 = 0.16 * u_Reflectance * u_Reflectance;
-    vec3 F0 = vec3(dielectricF0); 
-    F0 = mix(F0, u_Albedo, u_Metallic);
-
-    // cook-torrance specular
-    float NDF = DistributionGGX(N, H, u_Roughness);
-    float G = GeometrySmith(N, V, L, u_Roughness);
-    vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
-
-    vec3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; 
-    vec3 specular = numerator / denominator;
-
-    // Hammon diffuse
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= (1.0 - u_Metallic);
-
-    // Hammon's roughness-dependent diffuse
-    float diffuseBRDF = HammonDiffuse(N, V, L, u_Roughness);
-
-    // translucency; wraps the light around the terminator
-    float wrap = u_Translucency * 0.5; // Scale down for valid range
-    float NdotL_Unclamped = dot(N, L);
-    float NdotL_Wrapped = max((NdotL_Unclamped + wrap) / (1.0 + wrap), 0.0);
-
-    // combine diffuse. multiply by PI because HammonDiffuse already divides by PI
-    vec3 diffuse = kD * u_Albedo * diffuseBRDF; 
-
-    // composite direct light. specular relies on pure NdotL, diffuse relies on wrapped NdotL
-    // we add u_AO to diffuse attenuation slightly to fake self-shadowing in cracks
-    vec3 directLight = (diffuse * NdotL_Wrapped + specular * max(dot(N, L), 0.0)) * radiance;
-
-    // ambient / ibm approx
-    // in real PBR engine, this is replaced by an irradiance map and prefiltered env map
     vec3 ambient = vec3(0.03) * u_Albedo * u_AO;
+    vec3 totalDirectLight = vec3(0.0);
 
-    // specular occlusion
-    // trick to reduce specular intensity in cracks (where AO is low). prevents "shining in the dark"
-    float specularOcclusion = clamp(pow(NdotL_Wrapped + u_AO, 2.0), 0.0, 1.0);
-    // directLight *= specularOcclusion; // optional: apply to direct light too? Usually just ambient.
+    for (int i = 0; i < MAX_LIGHTS; ++i) {
+        if (i >= u_NumLights) {
+            break;
+        }
 
-    vec3 color = ambient + directLight;
+        vec3 lightPos = u_LightPos[i];
+        vec3 lightColor = u_LightColor[i];
+
+        vec3 L = normalize(lightPos - v_WorldPos);
+        vec3 H = normalize(V + L);
+        float distance = length(lightPos - v_WorldPos);
+
+        // lighting prep
+        float attenuation = 1.0 / (distance * distance);
+        vec3 radiance = lightColor * attenuation;
+
+        // F0. remap user reflectance (0.0-1.0) to physical dielectric range (0.0-0.08)
+        // 0.5 input becomes 0.04 (standard plastic/water)
+        // 1.0 input becomes 0.08 (gemstone/high-gloss)
+        float dielectricF0 = 0.16 * u_Reflectance * u_Reflectance;
+        vec3 F0 = vec3(dielectricF0); 
+        F0 = mix(F0, u_Albedo, u_Metallic);
+
+        // cook-torrance specular
+        float NDF = DistributionGGX(N, H, u_Roughness);
+        float G = GeometrySmith(N, V, L, u_Roughness);
+        vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; 
+        vec3 specular = numerator / denominator;
+
+        // Hammon diffuse
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= (1.0 - u_Metallic);
+
+        // Hammon's roughness-dependent diffuse
+        float diffuseBRDF = HammonDiffuse(N, V, L, u_Roughness);
+
+        // translucency; wraps the light around the terminator
+        float wrap = u_Translucency * 0.5; // Scale down for valid range
+        float NdotL_Unclamped = dot(N, L);
+        float NdotL_Wrapped = max((NdotL_Unclamped + wrap) / (1.0 + wrap), 0.0);
+
+        // combine diffuse. multiply by PI because HammonDiffuse already divides by PI
+        vec3 diffuse = kD * u_Albedo * diffuseBRDF; 
+
+        // composite direct light. specular relies on pure NdotL, diffuse relies on wrapped NdotL
+        // we add u_AO to diffuse attenuation slightly to fake self-shadowing in cracks
+        vec3 directLight = (diffuse * NdotL_Wrapped + specular * max(dot(N, L), 0.0)) * radiance;
+        
+        // specular occlusion
+        // trick to reduce specular intensity in cracks (where AO is low). prevents "shining in the dark"
+        float specularOcclusion = clamp(pow(NdotL_Wrapped + u_AO, 2.0), 0.0, 1.0);
+        // directLight *= specularOcclusion; // optional: apply to direct light too? Usually just ambient.
+
+        totalDirectLight += directLight;
+    }
+    
+    vec3 color = ambient + totalDirectLight;
 
     // post-processing
     // Reinhard HDR tonemapping
