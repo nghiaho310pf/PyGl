@@ -2,8 +2,6 @@ import struct
 
 import OpenGL.GL as GL
 
-from entities.components.camera import Camera
-
 
 class Shader:
     def __init__(self, vertex_source: str, fragment_source: str):
