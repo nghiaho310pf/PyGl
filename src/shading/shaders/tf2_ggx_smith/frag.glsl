@@ -89,13 +89,63 @@ float hammonDiffuse(vec3 N, vec3 V, vec3 L, float roughness) {
     return facing / PI;
 }
 
-vec3 acesFilm(vec3 x) {
-    float a = 2.51;
-    float b = 0.03;
-    float c = 2.43;
-    float d = 0.59;
-    float e = 0.14;
-    return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+vec3 toneMapAgX(vec3 color) {
+    // 1. AgX Input Transform (Inset)
+    // Moves Rec.709 primaries inward to avoid clipping "The Notorious Six"
+    const mat3 agx_input_mat = mat3(
+        0.59719, 0.35458, 0.04823,
+        0.07600, 0.90834, 0.01566,
+        0.02840, 0.13383, 0.83777
+    );
+    
+    vec3 val = agx_input_mat * color;
+
+    // 2. Log2 Space Encoding
+    const float min_ev = -12.47393;
+    const float max_ev = 4.026069;
+    val = clamp(log2(val), min_ev, max_ev);
+    val = (val - min_ev) / (max_ev - min_ev);
+
+    // 3. Sigmoid (Approximation of the standard AgX curve)
+    // Generates the "S" curve for contrast
+    val = clamp(val, 0.0, 1.0);
+    vec3 val2 = val * val;
+    vec3 val4 = val2 * val2;
+    val = -17.86  * val  * val2 * val4 
+        + 79.05   * val4 * val2 
+        - 129.56  * val4 * val 
+        + 90.30   * val4 
+        - 22.56   * val2 * val 
+        + 1.34    * val2;
+
+    // 4. AgX Output Transform (Outset)
+    // Convert back to Linear Rec.709
+    const mat3 agx_output_mat = mat3(
+        1.56230, -0.46872, -0.09358,
+        -0.45667, 1.35334, 0.10332,
+        -0.09117, 0.02988, 1.06129
+    );
+    
+    return agx_output_mat * val;
+}
+
+vec3 khronosPbrNeutral(vec3 color) {
+    const float startCompression = 0.8 - 0.04;
+    const float desaturation = 0.15;
+
+    float x = min(color.r, min(color.g, color.b));
+    float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+    color -= offset;
+
+    float peak = max(color.r, max(color.g, color.b));
+    if (peak < startCompression) return color;
+
+    const float d = 1.0 - startCompression;
+    float newPeak = 1.0 - d * d / (peak + d - startCompression);
+    color *= newPeak / peak;
+
+    float g = 1.0 - 1.0 / (desaturation * (peak - newPeak) + 1.0);
+    return mix(color, newPeak * vec3(1.0, 1.0, 1.0), g);
 }
 
 vec3 sampleOffsetDirections[20] = vec3[]
@@ -256,11 +306,9 @@ void main() {
 
     vec3 color = ambient + totalDirectLight;
 
-    // post-processing
-    // Reinhard HDR tonemapping
-    color = acesFilm(color);
+    // tonemapping
+    color = khronosPbrNeutral(color);
     // dithering
     color += (filmGrain(gl_FragCoord.xy + fract(u_Time)) - 0.5) / 255.0;
-
     FragColor = vec4(color, 1.0);
 }

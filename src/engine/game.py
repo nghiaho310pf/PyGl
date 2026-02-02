@@ -34,7 +34,7 @@ class Game(Application):
             "u_Roughness": 0.3,
             "u_Reflectance": 0.25,
             "u_Translucency": 0.25,
-            "u_AO": 0.1,
+            "u_AO": 0.05,
         })
         mat_blue = Material(shader, {
             "u_Albedo": [0.459, 0.651, 1.0],
@@ -42,7 +42,7 @@ class Game(Application):
             "u_Roughness": 0.3,
             "u_Reflectance": 0.0,
             "u_Translucency": 0.0,
-            "u_AO": 0.1,
+            "u_AO": 0.05,
         })
         mat_grey = Material(shader, {
             "u_Albedo": [0.225, 0.225, 0.225],
@@ -50,7 +50,7 @@ class Game(Application):
             "u_Roughness": 0.3,
             "u_Reflectance": 0.0,
             "u_Translucency": 0.0,
-            "u_AO": 0.1,
+            "u_AO": 0.05,
         })
 
         sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=48, sectors=48)

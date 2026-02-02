@@ -30,6 +30,7 @@ class Application:
 
         glfw.make_context_current(self.win)
 
+        GL.glEnable(GL.GL_FRAMEBUFFER_SRGB)
         glfw.set_framebuffer_size_callback(self.win, self._on_resize_internal)
 
         version: bytes = GL.glGetString(GL.GL_VERSION)
