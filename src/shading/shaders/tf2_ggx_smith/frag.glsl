@@ -49,23 +49,11 @@ float distributionGGX(vec3 N, vec3 H, float roughness) {
     return num / max(denom, 0.0001);
 }
 
-float geometrySchlickGGX(float NdotV, float roughness) {
-    float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
-
-    float num = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
-
-    return num / max(denom, 0.0001);
-}
-
-float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = geometrySchlickGGX(NdotV, roughness);
-    float ggx1 = geometrySchlickGGX(NdotL, roughness);
-
-    return ggx1 * ggx2;
+float correlatedSmith(float NdotV, float NdotL, float roughness) {
+    float a2 = roughness * roughness;
+    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - a2) + a2);
+    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - a2) + a2);
+    return 0.5 / (GGXV + GGXL);
 }
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
@@ -97,7 +85,7 @@ vec3 toneMapAgX(vec3 color) {
         0.07600, 0.90834, 0.01566,
         0.02840, 0.13383, 0.83777
     );
-    
+
     vec3 val = agx_input_mat * color;
 
     // 2. Log2 Space Encoding
@@ -111,11 +99,11 @@ vec3 toneMapAgX(vec3 color) {
     val = clamp(val, 0.0, 1.0);
     vec3 val2 = val * val;
     vec3 val4 = val2 * val2;
-    val = -17.86  * val  * val2 * val4 
-        + 79.05   * val4 * val2 
-        - 129.56  * val4 * val 
-        + 90.30   * val4 
-        - 22.56   * val2 * val 
+    val = -17.86  * val  * val2 * val4
+        + 79.05   * val4 * val2
+        - 129.56  * val4 * val
+        + 90.30   * val4
+        - 22.56   * val2 * val
         + 1.34    * val2;
 
     // 4. AgX Output Transform (Outset)
@@ -125,7 +113,7 @@ vec3 toneMapAgX(vec3 color) {
         -0.45667, 1.35334, 0.10332,
         -0.09117, 0.02988, 1.06129
     );
-    
+
     return agx_output_mat * val;
 }
 
@@ -266,12 +254,10 @@ void main() {
 
         // cook-torrance specular
         float NDF = distributionGGX(N, H, u_Roughness);
-        float G = geometrySmith(N, V, L, u_Roughness);
+        float G = correlatedSmith(dot(N, V), dot(N, L), u_Roughness);
         vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-        vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
-        vec3 specular = numerator / denominator;
+        vec3 specular = NDF * G * F;
 
         // Hammon diffuse
         vec3 kS = F;
