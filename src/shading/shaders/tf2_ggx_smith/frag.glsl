@@ -125,11 +125,9 @@ vec3 sampleVogelDisk(int sampleIndex, int samplesCount, float rotation) {
     return vec3(r * cosine, r * sine, 0.0);
 }
 
-float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane) {
+float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane, float bias) {
     vec3 fragToLight = fragPos - lightPos;
     float currentDepth = length(fragToLight) / farPlane;
-
-    float bias = 0.005;
 
     float noise = blueNoiseDither(gl_FragCoord.xy);
     float randomRotation = noise * PI2;
@@ -201,7 +199,8 @@ void main() {
         float distance = length(lightPos - v_WorldPos);
 
         // Shadow calculation
-        float shadow = calculateShadow(v_WorldPos, lightPos, u_LightRadius[i], u_ShadowMap[i], u_FarPlane[i]);
+        float shadowBias = max(0.0075 * (1.0 - dot(N, L)), 0.00075);
+        float shadow = calculateShadow(v_WorldPos, lightPos, u_LightRadius[i], u_ShadowMap[i], u_FarPlane[i], shadowBias);
         shadow = smoothstep(0.01, 0.98, shadow);
 
         // lighting prep
