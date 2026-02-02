@@ -10,8 +10,7 @@ from entities.components.transform import Transform
 from entities.components.visuals import Visuals
 from entities.registry import Registry
 from shading.shader import Shader, ShaderGlobals
-from shading.shaders import depth_shader, tf2_ggx_smith
-
+from shading.shaders import depth_shader
 
 
 class RenderSystem:
@@ -33,7 +32,7 @@ class RenderSystem:
         point_light.shadow_map_texture = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, point_light.shadow_map_texture)
         for i in range(6):
-            GL.glTexImage2D(GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL.GL_DEPTH_COMPONENT, 
+            GL.glTexImage2D(GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL.GL_DEPTH_COMPONENT,
                             self.SHADOW_WIDTH, self.SHADOW_HEIGHT, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
@@ -73,14 +72,13 @@ class RenderSystem:
         for light_entity, (point_light_transform, point_light) in self.registry.view(Transform, PointLight):
             point_light_positions.append(point_light_transform.position)
             point_light_colors.append(point_light.color)
-        
+
         num_lights = len(point_light_positions)
-        MAX_LIGHTS = 4 # Should match the shader's MAX_LIGHTS
+        MAX_LIGHTS = 4  # Should match the shader's MAX_LIGHTS
         if num_lights > MAX_LIGHTS:
             point_light_positions = point_light_positions[:MAX_LIGHTS]
             point_light_colors = point_light_colors[:MAX_LIGHTS]
             num_lights = MAX_LIGHTS
-
 
         pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
         front = math_utils.normalize(np.array([
@@ -137,7 +135,8 @@ class RenderSystem:
                                           point_light.shadow_map_texture, 0)
                 GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
 
-                light_view = math_utils.create_look_at(light_transform.position, light_transform.position + target_dir, up_dir)
+                light_view = math_utils.create_look_at(light_transform.position, light_transform.position + target_dir,
+                                                       up_dir)
                 point_light.light_view_matrices.append(light_view)
                 self.depth_shader.set_mat4("u_Projection", light_projection)
                 self.depth_shader.set_mat4("u_View", light_view)
