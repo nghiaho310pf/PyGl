@@ -1,3 +1,5 @@
+import platform
+import re
 import struct
 
 import OpenGL.GL as GL
@@ -14,8 +16,14 @@ class Shader:
 
     @staticmethod
     def _compile_program(vert_src, frag_src):
+        has_broken_opengl = platform.system() == "Darwin"
+
         def compile_src(src, shader_type):
             shader = GL.glCreateShader(shader_type)
+
+            if has_broken_opengl:
+                src = re.sub(r"(^\s*#version\s+)\d+(\s*\w*)", "#version 330 core", src)
+
             GL.glShaderSource(shader, src)
             GL.glCompileShader(shader)
 

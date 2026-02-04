@@ -1,4 +1,5 @@
 import ctypes
+import platform
 import time
 
 import OpenGL.GL as GL
@@ -9,10 +10,14 @@ class Application:
     win: ctypes.c_void_p
 
     def __init__(self, initial_window_width, initial_window_height):
+        has_broken_opengl = platform.system() == "Darwin"
+
         glfw.init()
 
-        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
-        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
+        glfw.default_window_hints()
+
+        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3 if has_broken_opengl else 4)
+        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3 if has_broken_opengl else 5)
         glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, GL.GL_TRUE)
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
 

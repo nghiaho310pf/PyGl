@@ -1,7 +1,7 @@
 from shading.shader import Shader
 
 VERTEX_SHADER = """
-#version 330 core
+#version 450 core
 layout (location = 0) in vec3 a_Pos;
 
 uniform mat4 u_Projection;
@@ -17,7 +17,7 @@ void main() {
 """
 
 FRAGMENT_SHADER = """
-#version 330 core
+#version 450 core
 in vec3 v_FragPos;
 
 uniform vec3 u_LightPos;
