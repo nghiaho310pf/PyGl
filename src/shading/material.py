@@ -4,7 +4,7 @@ from shading.shader import Shader
 
 
 class Material:
-    def __init__(self, shader: Shader, properties: dict = None):
+    def __init__(self, shader: Shader, properties: dict | None = None):
         self.shader = shader
         self.properties = properties if properties else {}
 
