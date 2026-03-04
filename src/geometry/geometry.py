@@ -17,13 +17,13 @@ def generate_sphere(radius=1.0, stacks=16, sectors=32):
     for i in range(stacks + 1):
         stack_angle = math.pi / 2 - i * math.pi / stacks
         xy = radius * math.cos(stack_angle)
-        z = radius * math.sin(stack_angle)
+        y = radius * math.sin(stack_angle)
 
         for j in range(sectors + 1):
             sector_angle = j * 2 * math.pi / sectors
 
-            x = xy * math.cos(sector_angle)
-            y = xy * math.sin(sector_angle)
+            x = xy * math.sin(sector_angle)
+            z = xy * math.cos(sector_angle)
 
             nx = x / radius
             ny = y / radius
