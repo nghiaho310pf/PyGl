@@ -11,7 +11,7 @@ from geometry.geometry import generate_sphere, generate_cube_flat, generate_plan
 from geometry.mesh import Mesh
 from math_utils import vec3
 from shading.material import Material
-from shading.shaders import tf2_ggx_smith
+from shading.shaders import blinn_phong
 
 
 class Game(Application):
@@ -25,32 +25,17 @@ class Game(Application):
 
         # == demo setup ==
 
-        shader = tf2_ggx_smith.make_shader()
+        shader = blinn_phong.make_shader()
         self.render_system.attach_shader(shader)
 
         mat_orange = Material(shader, {
             "u_Albedo": [1.0, 0.318, 0.133],
-            "u_Metallic": 0.3,
-            "u_Roughness": 0.6,
-            "u_Reflectance": 0.25,
-            "u_Translucency": 0.0,
-            "u_AO": 0.05,
         })
         mat_blue = Material(shader, {
             "u_Albedo": [0.276, 0.481, 1.0],
-            "u_Metallic": 0.7,
-            "u_Roughness": 0.6,
-            "u_Reflectance": 0.25,
-            "u_Translucency": 0.0,
-            "u_AO": 0.05,
         })
         mat_grey = Material(shader, {
             "u_Albedo": [0.08, 0.08, 0.08],
-            "u_Metallic": 0.7,
-            "u_Roughness": 0.6,
-            "u_Reflectance": 0.0,
-            "u_Translucency": 0.0,
-            "u_AO": 0.05,
         })
 
         sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=20, sectors=40)
@@ -90,19 +75,12 @@ class Game(Application):
             Camera()
         )
 
-        # point light entities
+        # point light entity
         c = self.registry.create_entity()
         self.registry.add_components(
             c,
             Transform(position=vec3(1.2, 4.0, 1.2)),
             PointLight(color=vec3(220.0, 220.0, 220.0))
-        )
-
-        c = self.registry.create_entity()
-        self.registry.add_components(
-            c,
-            Transform(position=vec3(-1.0, 5.0, -1.0)),
-            PointLight(color=vec3(60.0, 60.0, 60.0), radius=0.1)
         )
 
         self.last_update = None
