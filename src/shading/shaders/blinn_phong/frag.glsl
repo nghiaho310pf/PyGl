@@ -29,7 +29,7 @@ void main() {
     vec3 ambient = ambientStrength * vec3(1.0);
 
     float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = diff * u_LightColor * 0.001;
+    vec3 diffuse = diff * u_LightColor * 0.0033;
 
     vec3 halfwayDir = normalize(lightDir + viewDir);  
     float spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
