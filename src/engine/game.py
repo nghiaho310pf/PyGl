@@ -1,10 +1,14 @@
+import numpy as np
+
 from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.rotated import Rotated
+from entities.components.rotated_camera import RotatedCamera
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals
 from entities.registry import Registry
+from entities.systems.camera_rotator import CameraRotatorSystem
 from entities.systems.render import RenderSystem
 from entities.systems.rotator import RotatorSystem
 from geometry.geometry import generate_sphere, generate_cube_flat, generate_plane
@@ -22,6 +26,7 @@ class Game(Application):
 
         self.render_system = RenderSystem(self.registry)
         self.rotator_system = RotatorSystem(self.registry)
+        self.camera_rotator_system = CameraRotatorSystem(self.registry)
 
         # == demo setup ==
 
@@ -55,8 +60,7 @@ class Game(Application):
         self.registry.add_components(
             e2,
             Transform(position=vec3(0.0, 1.5, 0)),
-            Visuals(Mesh(cube_vertices, cube_indices), mat_blue),
-            Rotated(delta=vec3(0.0, 90.0, 0.0))
+            Visuals(Mesh(cube_vertices, cube_indices), mat_blue)
         )
 
         # floor entity
@@ -71,8 +75,9 @@ class Game(Application):
         c = self.registry.create_entity()
         self.registry.add_components(
             c,
-            Transform(position=vec3(0.0, 2.4, 5.0), rotation=vec3(-22.0, -100.0, 0.0)),
-            Camera()
+            Transform(rotation=vec3(-20.0, 0.0, 0.0)),
+            Camera(),
+            RotatedCamera(center=vec3(0.0, 1.0, 0.0), distance=np.float32(6.0), rotation_delta=vec3(0.0, 45.0, 0.0))
         )
 
         # point light entity
@@ -93,5 +98,6 @@ class Game(Application):
 
         self.rotator_system.update(now, dt)
         self.render_system.update(self.get_window_size(), now, dt)
+        self.camera_rotator_system.update(now, dt)
 
         self.last_update = now
