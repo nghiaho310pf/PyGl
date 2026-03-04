@@ -22,51 +22,31 @@ class RenderSystem:
     def update(self, window_size: tuple[int, int], time: float, delta_time: float):
         # == camera setup ==
 
-        width, height = window_size
-        aspect_ratio = width / height if height > 0 else 1.0
-
-        camera_res = self.registry.get_singleton(Transform, Camera)
-        if camera_res is None:
+        cameras = list(self.registry.view(Transform, Camera))
+        if len(cameras) == 0:
             return
-        _, (camera_transform, camera) = camera_res
+
+        width = math.ceil(window_size[0] / len(cameras))
+        height = window_size[1]
+        aspect_ratio = width / height if height > 0 else 1.0
 
         # == single light setup ==
 
         light_res = self.registry.get_singleton(Transform, PointLight)
         light_pos = np.array([0.0, 0.0, 0.0])
         light_color = np.array([1.0, 1.0, 1.0])
-        
+
         if light_res:
             _, (light_transform, point_light) = light_res
             light_pos = light_transform.position
             light_color = point_light.color
 
-        # == view/projection matrices ==
-
-        pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
-        front = math_utils.normalize(np.array([
-            math.cos(yaw_rad) * math.cos(pitch_rad),
-            math.sin(pitch_rad),
-            math.sin(yaw_rad) * math.cos(pitch_rad)
-        ]))
-        right = math_utils.normalize(np.cross(front, np.array([0.0, 1.0, 0.0])))
-        up = math_utils.normalize(np.cross(right, front)) * math.cos(roll_rad) + right * math.sin(roll_rad)
-
-        target = camera_transform.position + front
-        view_matrix = math_utils.create_look_at(camera_transform.position, target, up)
-        proj_matrix = math_utils.create_perspective_projection(
-            camera.fov, aspect_ratio, camera.near, camera.far
-        )
-
-        self.shader_globals.update(proj_matrix, view_matrix, camera_transform.position, time)
-
-        # == drawing entities ==
-
-        GL.glViewport(0, 0, width, height)
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glClearColor(0.01, 0.01, 0.01, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
         GL.glCullFace(GL.GL_BACK)
+
+        # == batch by shader ==
 
         shader_batches = {}
         for entity, (transform, visuals) in self.registry.view(Transform, Visuals):
@@ -80,18 +60,44 @@ class RenderSystem:
 
             shader_batches[shader][mat].append((transform, visuals))
 
-        for shader, material_group in shader_batches.items():
-            shader.use()
+        for camera_index in range(len(cameras)):
+            (camera_id, (camera_transform, camera)) = cameras[camera_index]
 
-            shader.set_vec3("u_LightPos", light_pos)
-            shader.set_vec3("u_LightColor", light_color)
+            # == view/projection matrices ==
 
-            for material, entities in material_group.items():
-                material.setup_properties()
+            pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
+            front = math_utils.normalize(np.array([
+                math.cos(yaw_rad) * math.cos(pitch_rad),
+                math.sin(pitch_rad),
+                math.sin(yaw_rad) * math.cos(pitch_rad)
+            ]))
+            right = math_utils.normalize(np.cross(front, np.array([0.0, 1.0, 0.0])))
+            up = math_utils.normalize(np.cross(right, front)) * math.cos(roll_rad) + right * math.sin(roll_rad)
 
-                for transform, visuals in entities:
-                    model_matrix = math_utils.create_transformation_matrix(
-                        transform.position, transform.rotation, transform.scale
-                    )
-                    shader.set_mat4("u_Model", model_matrix)
-                    visuals.mesh.draw()
+            target = camera_transform.position + front
+            view_matrix = math_utils.create_look_at(camera_transform.position, target, up)
+            proj_matrix = math_utils.create_perspective_projection(
+                camera.fov, aspect_ratio, camera.near, camera.far
+            )
+
+            self.shader_globals.update(proj_matrix, view_matrix, camera_transform.position, time)
+
+            # == draw ==
+
+            GL.glViewport(camera_index * width, 0, width, height)
+
+            for shader, material_group in shader_batches.items():
+                shader.use()
+
+                shader.set_vec3("u_LightPos", light_pos)
+                shader.set_vec3("u_LightColor", light_color)
+
+                for material, entities in material_group.items():
+                    material.setup_properties()
+
+                    for transform, visuals in entities:
+                        model_matrix = math_utils.create_transformation_matrix(
+                            transform.position, transform.rotation, transform.scale
+                        )
+                        shader.set_mat4("u_Model", model_matrix)
+                        visuals.mesh.draw()

@@ -62,19 +62,29 @@ class Game(Application):
             Visuals(Mesh(plane_vertices, plane_indices), mat_grey)
         )
 
-        # camera entity
-        c = self.registry.create_entity()
+        # camera entities
+        c1 = self.registry.create_entity()
         self.registry.add_components(
-            c,
+            c1,
             Transform(rotation=vec3(-20.0, 0.0, 0.0)),
             Camera(),
             RotatedCamera(center=vec3(0.0, 1.0, 0.0), distance=np.float32(6.0), rotation_delta=vec3(0.0, 45.0, 0.0))
         )
 
-        # point light entity
-        c = self.registry.create_entity()
+        c2 = self.registry.create_entity()
         self.registry.add_components(
-            c,
+            c2,
+            Transform(
+                position=vec3(0.0, 2.4, 5.0),
+                rotation=vec3(-15.0, -90.0, 0.0)
+            ),
+            Camera()
+        )
+
+        # point light entity
+        l = self.registry.create_entity()
+        self.registry.add_components(
+            l,
             Transform(position=vec3(1.2, 4.0, 1.2)),
             PointLight(color=vec3(220.0, 220.0, 220.0))
         )
@@ -88,7 +98,7 @@ class Game(Application):
         dt = now - self.last_update
 
         self.rotator_system.update(now, dt)
-        self.render_system.update(self.get_window_size(), now, dt)
         self.camera_rotator_system.update(now, dt)
+        self.render_system.update(self.get_window_size(), now, dt)
 
         self.last_update = now
