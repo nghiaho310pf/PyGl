@@ -141,3 +141,75 @@ def generate_plane(size=10.0):
     ]
 
     return np.array(data, dtype=np.float32), np.array(indices, dtype=np.uint32)
+
+def generate_cylinder(radius=1.0, height=2.0, sectors=32):
+    """
+    Generates a UV cylinder with a single stack (two rings for the barrel),
+    plus flat circular caps on both ends.
+
+    Returns:
+        vertices: np.array (float32) -> Interleaved [Pos(3), Norm(3)]
+        indices: np.array (uint32) -> EBO indices
+    """
+    data = []
+    indices = []
+
+    h = height / 2.0
+
+    # Bottom ring
+    for j in range(sectors + 1):
+        u = j / sectors
+        angle = u * 2 * math.pi
+        nx = math.cos(angle)
+        nz = math.sin(angle)
+        data.extend([radius * nx, -h, radius * nz, nx, 0.0, nz])
+
+    # Top ring
+    for j in range(sectors + 1):
+        u = j / sectors
+        angle = u * 2 * math.pi
+        nx = math.cos(angle)
+        nz = math.sin(angle)
+        data.extend([radius * nx, h, radius * nz, nx, 0.0, nz])
+
+    # Barrel indices
+    for j in range(sectors):
+        # From bottom ring
+        k1 = j
+        # From top ring
+        k2 = j + sectors + 1
+
+        indices.extend([k1, k1 + 1, k2])
+        indices.extend([k1 + 1, k2 + 1, k2])
+
+    # Top face
+    top_center_idx = len(data) // 6
+    data.extend([0.0, h, 0.0, 0.0, 1.0, 0.0])
+
+    for j in range(sectors + 1):
+        u_angle = j / sectors
+        angle = u_angle * 2 * math.pi
+        x = radius * math.cos(angle)
+        z = radius * math.sin(angle)
+
+        data.extend([x, h, z, 0.0, 1.0, 0.0])
+
+    for j in range(sectors):
+        indices.extend([top_center_idx, top_center_idx + 1 + j, top_center_idx + 2 + j])
+
+    # Bottom face
+    bottom_center_idx = len(data) // 6
+    data.extend([0.0, -h, 0.0, 0.0, -1.0, 0.0])
+
+    for j in range(sectors + 1):
+        u_angle = j / sectors
+        angle = u_angle * 2 * math.pi
+        x = radius * math.cos(angle)
+        z = radius * math.sin(angle)
+
+        data.extend([x, -h, z, 0.0, -1.0, 0.0])
+
+    for j in range(sectors):
+        indices.extend([bottom_center_idx, bottom_center_idx + 2 + j, bottom_center_idx + 1 + j])
+
+    return np.array(data, dtype=np.float32), np.array(indices, dtype=np.uint32)

@@ -11,7 +11,7 @@ from entities.registry import Registry
 from entities.systems.camera_rotator import CameraRotatorSystem
 from entities.systems.render import RenderSystem
 from entities.systems.rotator import RotatorSystem
-from geometry.geometry import generate_sphere, generate_cube_flat, generate_plane
+from geometry.geometry import generate_plane, generate_cylinder
 from geometry.mesh import Mesh
 from math_utils import vec3
 from shading.material import Material
@@ -43,24 +43,15 @@ class Game(Application):
             "u_Albedo": [0.08, 0.08, 0.08],
         })
 
-        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=20, sectors=40)
-        cube_vertices, cube_indices = generate_cube_flat(size=1.0)
         plane_vertices, plane_indices = generate_plane()
+        cylinder_vertices, cylinder_indices = generate_cylinder(0.5, 2, 32)
 
-        # orange sphere entity
+        # orange cylinder entity
         e1 = self.registry.create_entity()
         self.registry.add_components(
             e1,
             Transform(position=vec3(0.0, 0.5, 0)),
-            Visuals(Mesh(sphere_vertices, sphere_indices), mat_orange)
-        )
-
-        # blue cube entity
-        e2 = self.registry.create_entity()
-        self.registry.add_components(
-            e2,
-            Transform(position=vec3(0.0, 1.5, 0)),
-            Visuals(Mesh(cube_vertices, cube_indices), mat_blue)
+            Visuals(Mesh(cylinder_vertices, cylinder_indices), mat_orange)
         )
 
         # floor entity
