@@ -1,33 +1,16 @@
-import codecs
-import inspect
-import os
+from pathlib import Path
 
 
-def read_source_file(relative_filename):
-    abs_path = os.path.abspath((inspect.stack()[1])[1])
-    parent_directory = os.path.dirname(abs_path)
-    file_path = os.path.join(parent_directory, relative_filename)
-
-    with open(file_path, "rb") as f:
-        raw_data = f.read()
+def read_source_file(file_path: Path) -> str:
+    try:
+        raw_data = file_path.read_bytes()
+    except FileNotFoundError:
+        return ""
 
     if not raw_data:
         return ""
 
-    if raw_data.startswith(codecs.BOM_UTF32_BE):
-        return raw_data[len(codecs.BOM_UTF32_BE):].decode("utf-32-be")
-    if raw_data.startswith(codecs.BOM_UTF32_LE):
-        return raw_data[len(codecs.BOM_UTF32_LE):].decode("utf-32-le")
-    if raw_data.startswith(codecs.BOM_UTF16_BE):
-        return raw_data[len(codecs.BOM_UTF16_BE):].decode("utf-16-be")
-    if raw_data.startswith(codecs.BOM_UTF16_LE):
-        return raw_data[len(codecs.BOM_UTF16_LE):].decode("utf-16-le")
-    if raw_data.startswith(codecs.BOM_UTF8):
-        return raw_data[len(codecs.BOM_UTF8):].decode("utf-8")
-
-    encodings_to_try = ["utf-8", "shift_jis", "cp1252", "latin-1"]
-
-    for enc in encodings_to_try:
+    for enc in ["utf-8-sig", "utf-16", "utf-32", "utf-8", "shift_jis", "cp1252", "latin-1"]:
         try:
             return raw_data.decode(enc, errors="strict")
         except (UnicodeDecodeError, LookupError):
