@@ -8,7 +8,7 @@ def generate_sphere(radius=1.0, stacks=16, sectors=32):
     Generates a UV sphere.
 
     Returns:
-        vertices: np.array (float32) -> Interleaved [Pos(3), Norm(3), UV(2)]
+        vertices: np.array (float32) -> Interleaved [Pos(3), Norm(3)]
         indices: np.array (uint32) -> EBO indices
     """
     data = []
@@ -29,10 +29,7 @@ def generate_sphere(radius=1.0, stacks=16, sectors=32):
             ny = y / radius
             nz = z / radius
 
-            u = j / sectors
-            v = i / stacks
-
-            data.extend([x, y, z, nx, ny, nz, u, v])
+            data.extend([x, y, z, nx, ny, nz])
 
     for i in range(stacks):
         k1 = i * (sectors + 1)
@@ -58,51 +55,51 @@ def generate_cube_flat(size=1.0):
     Total indices: 36 = 6 per face * 6 faces
 
     Returns:
-        vertices: np.array (float32) -> Interleaved [Pos(3), Norm(3), UV(2)]
+        vertices: np.array (float32) -> Interleaved [Pos(3), Norm(3)]
         indices: np.array (uint32) -> EBO indices
     """
     s = size / 2.0
 
     front = [
-        -s, s, s, 0, 0, 1, 0, 1,
-        -s, -s, s, 0, 0, 1, 0, 0,
-        s, -s, s, 0, 0, 1, 1, 0,
-        s, s, s, 0, 0, 1, 1, 1
+        -s, s, s, 0, 0, 1,
+        -s, -s, s, 0, 0, 1,
+        s, -s, s, 0, 0, 1,
+        s, s, s, 0, 0, 1,
     ]
 
     back = [
-        s, s, -s, 0, 0, -1, 0, 1,
-        s, -s, -s, 0, 0, -1, 0, 0,
-        -s, -s, -s, 0, 0, -1, 1, 0,
-        -s, s, -s, 0, 0, -1, 1, 1
+        s, s, -s, 0, 0, -1,
+        s, -s, -s, 0, 0, -1,
+        -s, -s, -s, 0, 0, -1,
+        -s, s, -s, 0, 0, -1,
     ]
 
     top = [
-        -s, s, -s, 0, 1, 0, 0, 1,
-        -s, s, s, 0, 1, 0, 0, 0,
-        s, s, s, 0, 1, 0, 1, 0,
-        s, s, -s, 0, 1, 0, 1, 1
+        -s, s, -s, 0, 1, 0,
+        -s, s, s, 0, 1, 0,
+        s, s, s, 0, 1, 0,
+        s, s, -s, 0, 1, 0,
     ]
 
     bottom = [
-        -s, -s, s, 0, -1, 0, 0, 1,
-        -s, -s, -s, 0, -1, 0, 0, 0,
-        s, -s, -s, 0, -1, 0, 1, 0,
-        s, -s, s, 0, -1, 0, 1, 1
+        -s, -s, s, 0, -1, 0,
+        -s, -s, -s, 0, -1, 0,
+        s, -s, -s, 0, -1, 0,
+        s, -s, s, 0, -1, 0,
     ]
 
     right = [
-        s, s, s, 1, 0, 0, 0, 1,
-        s, -s, s, 1, 0, 0, 0, 0,
-        s, -s, -s, 1, 0, 0, 1, 0,
-        s, s, -s, 1, 0, 0, 1, 1
+        s, s, s, 1, 0, 0,
+        s, -s, s, 1, 0, 0,
+        s, -s, -s, 1, 0, 0,
+        s, s, -s, 1, 0, 0,
     ]
 
     left = [
-        -s, s, -s, -1, 0, 0, 0, 1,
-        -s, -s, -s, -1, 0, 0, 0, 0,
-        -s, -s, s, -1, 0, 0, 1, 0,
-        -s, s, s, -1, 0, 0, 1, 1
+        -s, s, -s, -1, 0, 0,
+        -s, -s, -s, -1, 0, 0,
+        -s, -s, s, -1, 0, 0,
+        -s, s, s, -1, 0, 0,
     ]
 
     vertices = np.array(front + back + top + bottom + right + left, dtype=np.float32)
@@ -119,23 +116,23 @@ def generate_cube_flat(size=1.0):
     return vertices, np.array(indices, dtype=np.uint32)
 
 
-def generate_plane(size=10.0, uv_scale=1.0):
+def generate_plane(size=10.0):
     """
     Generates a flat plane (floor) on the XZ plane.
     Total vertices: 4
     Total indices: 6 (2 triangles)
 
     Returns:
-        vertices: np.array (float32) -> Interleaved [Pos(3), Norm(3), UV(2)]
+        vertices: np.array (float32) -> Interleaved [Pos(3), Norm(3)]
         indices: np.array (uint32) -> EBO indices
     """
     s = size / 2.0
 
     data = [
-        -s, 0.0, -s, 0, 1, 0, 0, uv_scale,
-        -s, 0.0, s, 0, 1, 0, 0, 0,
-        s, 0.0, s, 0, 1, 0, uv_scale, 0,
-        s, 0.0, -s, 0, 1, 0, uv_scale, uv_scale
+        -s, 0.0, -s, 0, 1, 0,
+        -s, 0.0, s, 0, 1, 0,
+        s, 0.0, s, 0, 1, 0,
+        s, 0.0, -s, 0, 1, 0,
     ]
 
     indices = [

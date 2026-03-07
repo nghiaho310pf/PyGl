@@ -6,7 +6,7 @@ import OpenGL.GL as GL
 class Mesh:
     def __init__(self, vertices, indices=None):
         """
-        :param vertices: numpy array (float32) containing interleaved data [Px, Py, Pz, Nx, Ny, Nz, U, V ...]
+        :param vertices: numpy array (float32) containing interleaved data [Px, Py, Pz, Nx, Ny, Nz, ...]
         :param indices: numpy array (uint32) containing triangle indices (optional)
         """
         self.vertices = vertices
@@ -16,8 +16,8 @@ class Mesh:
         self.vbo = None
         self.ebo = None
 
-        # pretty much fixed stride of 8 (xyz; nxnynz; uv)
-        self.stride = 8
+        # stride of 6 (xyz; nxnynz)
+        self.stride = 6
 
         self.vertex_count = len(vertices) // self.stride
         self.indices_count = len(indices) if indices is not None else 0
@@ -45,9 +45,6 @@ class Mesh:
 
         GL.glEnableVertexAttribArray(1)
         GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(12))
-
-        GL.glEnableVertexAttribArray(2)
-        GL.glVertexAttribPointer(2, 2, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(24))
 
         GL.glBindVertexArray(0)
 
