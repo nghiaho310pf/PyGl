@@ -18,7 +18,11 @@ uniform vec3 u_LightPos;
 uniform vec3 u_LightColor;
 
 float specularStrength = 0.5;
-float shininess = 32.0; 
+float shininess = 32.0;
+
+float filmGrain(vec2 coords) {
+    return fract(sin(dot(coords.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
 
 void main() {
     vec3 normal = normalize(v_Normal);
@@ -36,6 +40,6 @@ void main() {
     vec3 specular = specularStrength * spec * vec3(1.0); 
 
     vec3 result = (ambient + diffuse + specular) * u_Albedo;
-
+    result += (filmGrain(gl_FragCoord.xy + fract(u_Time)) - 0.5) * 0.002;
     FragColor = vec4(result, 1.0);
 }
