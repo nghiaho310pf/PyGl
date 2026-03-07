@@ -162,7 +162,7 @@ class RenderSystem:
 
         # == drawing entities ==
 
-        GL.glClearColor(0.01, 0.01, 0.01, 1.0)
+        GL.glClearColor(0.004, 0.004, 0.004, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
         GL.glCullFace(GL.GL_BACK)
 

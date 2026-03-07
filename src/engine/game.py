@@ -29,31 +29,31 @@ class Game(Application):
         self.render_system.attach_shader(shader)
 
         mat_orange = Material(shader, {
-            "u_Albedo": [1.0, 0.5, 0.2],
+            "u_Albedo": [1.0, 0.318, 0.133],
             "u_Metallic": 0.3,
-            "u_Roughness": 0.3,
+            "u_Roughness": 0.6,
             "u_Reflectance": 0.25,
-            "u_Translucency": 0.25,
+            "u_Translucency": 0.0,
             "u_AO": 0.05,
         })
         mat_blue = Material(shader, {
-            "u_Albedo": [0.459, 0.651, 1.0],
+            "u_Albedo": [0.276, 0.481, 1.0],
             "u_Metallic": 0.7,
-            "u_Roughness": 0.3,
-            "u_Reflectance": 0.0,
+            "u_Roughness": 0.6,
+            "u_Reflectance": 0.25,
             "u_Translucency": 0.0,
             "u_AO": 0.05,
         })
         mat_grey = Material(shader, {
-            "u_Albedo": [0.225, 0.225, 0.225],
+            "u_Albedo": [0.08, 0.08, 0.08],
             "u_Metallic": 0.7,
-            "u_Roughness": 0.3,
+            "u_Roughness": 0.6,
             "u_Reflectance": 0.0,
             "u_Translucency": 0.0,
             "u_AO": 0.05,
         })
 
-        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=18, sectors=36)
+        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=20, sectors=40)
         cube_vertices, cube_indices = generate_cube_flat(size=1.0)
         plane_vertices, plane_indices = generate_plane()
 
@@ -86,7 +86,7 @@ class Game(Application):
         c = self.registry.create_entity()
         self.registry.add_components(
             c,
-            Transform(position=vec3(0.0, 2.4, 5.0), rotation=vec3(-20.0, -100.0, 0.0)),
+            Transform(position=vec3(0.0, 2.4, 5.0), rotation=vec3(-22.0, -100.0, 0.0)),
             Camera()
         )
 
@@ -95,14 +95,14 @@ class Game(Application):
         self.registry.add_components(
             c,
             Transform(position=vec3(1.2, 4.0, 1.2)),
-            PointLight(color=vec3(300.0, 300.0, 300.0))
+            PointLight(color=vec3(220.0, 220.0, 220.0))
         )
 
         c = self.registry.create_entity()
         self.registry.add_components(
             c,
             Transform(position=vec3(-1.0, 5.0, -1.0)),
-            PointLight(color=vec3(100.0, 100.0, 100.0), radius=0.1)
+            PointLight(color=vec3(60.0, 60.0, 60.0), radius=0.1)
         )
 
         self.last_update = None
