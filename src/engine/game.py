@@ -13,7 +13,7 @@ from geometry.geometry import generate_sphere, generate_cube_flat, generate_plan
 from geometry.mesh import Mesh
 from math_utils import vec3
 from shading.material import Material
-from shading.shaders import tf2_ggx_smith
+from shading.shaders import blinn_phong
 
 
 class Game(Application):
@@ -27,31 +27,25 @@ class Game(Application):
 
         # == demo setup ==
 
-        shader = tf2_ggx_smith.make_shader()
+        shader = blinn_phong.make_shader()
         self.render_system.attach_shader(shader)
 
         mat_orange = Material(shader, {
             "u_Albedo": [1.0, 0.318, 0.133],
-            "u_Metallic": 0.3,
             "u_Roughness": 0.6,
             "u_Reflectance": 0.25,
-            "u_Translucency": 0.0,
             "u_AO": 0.05,
         })
         mat_blue = Material(shader, {
             "u_Albedo": [0.276, 0.481, 1.0],
-            "u_Metallic": 0.7,
             "u_Roughness": 0.6,
             "u_Reflectance": 0.25,
-            "u_Translucency": 0.0,
             "u_AO": 0.05,
         })
         mat_grey = Material(shader, {
             "u_Albedo": [0.08, 0.08, 0.08],
-            "u_Metallic": 0.7,
             "u_Roughness": 0.6,
-            "u_Reflectance": 0.0,
-            "u_Translucency": 0.0,
+            "u_Reflectance": 0.01,
             "u_AO": 0.05,
         })
 
@@ -93,21 +87,21 @@ class Game(Application):
         )
 
         # point light entities
-        c = self.registry.create_entity()
+        c1 = self.registry.create_entity()
         self.registry.add_components(
-            c,
+            c1,
             Transform(position=vec3(1.2, 4.0, 1.2)),
             PointLight(color=vec3(220.0, 220.0, 220.0))
         )
 
-        self.tweakable_light = c
-
-        c = self.registry.create_entity()
+        c2 = self.registry.create_entity()
         self.registry.add_components(
-            c,
+            c2,
             Transform(position=vec3(-1.0, 5.0, -1.0)),
-            PointLight(color=vec3(60.0, 60.0, 60.0), radius=0.1)
+            PointLight(color=vec3(60.0, 60.0, 60.0))
         )
+
+        self.tweakable_lights = [c1, c2]
 
         self.fps_tracker = 0.0
 
@@ -144,28 +138,25 @@ class Game(Application):
         imgui.text(f"FPS: {self.fps_tracker:.1f}")
         imgui.separator()
 
-        r = self.registry.get_components(self.tweakable_light, PointLight)
-        if r is None:
-            return
-        (light_component, ) = r
+        for l in self.tweakable_lights:
+            r = self.registry.get_components(l, PointLight)
+            if r is None:
+                continue
+            (light_component, ) = r
 
-        current_color = (
-            light_component.color[0] / 255.0,
-            light_component.color[1] / 255.0,
-            light_component.color[2] / 255.0
-        )
-        
-        changed, new_color = imgui.color_edit3("Light Color", current_color)
-        
-        if changed:
-            light_component.color = vec3(
-                new_color[0] * 255.0,
-                new_color[1] * 255.0,
-                new_color[2] * 255.0
+            current_color = (
+                light_component.color[0] / 255.0,
+                light_component.color[1] / 255.0,
+                light_component.color[2] / 255.0
             )
             
-        changed_radius, new_radius = imgui.slider_float("Light Radius", light_component.radius, 0.0, 1.0)
-        if changed_radius:
-            light_component.radius = new_radius
+            changed, new_color = imgui.color_edit3(f"Light (Entity #{l})", current_color)
+            
+            if changed:
+                light_component.color = vec3(
+                    new_color[0] * 255.0,
+                    new_color[1] * 255.0,
+                    new_color[2] * 255.0
+                )
 
         imgui.end()

@@ -12,13 +12,15 @@ layout (std140) uniform SceneData {
 };
 
 uniform mat4 u_Model;
-
 uniform vec3 u_Albedo;
-uniform vec3 u_LightPos;
-uniform vec3 u_LightColor;
+uniform float u_Roughness;
+uniform float u_Reflectance;
+uniform float u_AO;
 
-float specularStrength = 0.5;
-float shininess = 32.0;
+const int MAX_LIGHTS = 4;
+uniform vec3 u_LightPos[MAX_LIGHTS];
+uniform vec3 u_LightColor[MAX_LIGHTS];
+uniform int u_NumLights;
 
 float filmGrain(vec2 coords) {
     return fract(sin(dot(coords.xy, vec2(12.9898, 78.233))) * 43758.5453);
@@ -26,20 +28,36 @@ float filmGrain(vec2 coords) {
 
 void main() {
     vec3 normal = normalize(v_Normal);
-    vec3 lightDir = normalize(u_LightPos - v_FragPos);
     vec3 viewDir = normalize(u_ViewPos - v_FragPos);
+    vec3 ambient = vec3(u_AO);
 
-    float ambientStrength = 0.1;
-    vec3 ambient = ambientStrength * vec3(1.0);
+    float shininess = 2.0 / pow(max(u_Roughness, 0.0001), 4.0) - 2.0;
+    float actualReflectance = 0.16 * (u_Reflectance * u_Reflectance);
+    float energyConservation = (shininess + 8.0) * 0.039789;
+    float specMultiplier = actualReflectance * energyConservation;
 
-    float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = diff * u_LightColor * 0.0033;
+    vec3 diffuseAccumulator = vec3(0.0);
+    vec3 specularAccumulator = vec3(0.0);
 
-    vec3 halfwayDir = normalize(lightDir + viewDir);  
-    float spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
-    vec3 specular = specularStrength * spec * vec3(1.0); 
+    int numLights = min(u_NumLights, MAX_LIGHTS); 
+    for (int i = 0; i < numLights; i++) {
+        vec3 lightDir = normalize(u_LightPos[i] - v_FragPos);
+        vec3 halfwayDir = normalize(lightDir + viewDir);
 
-    vec3 result = (ambient + diffuse + specular) * u_Albedo;
+        float NdotL = max(dot(normal, lightDir), 0.0);
+        float NdotH = max(dot(normal, halfwayDir), 0.0);
+
+        diffuseAccumulator += NdotL * u_LightColor[i];
+
+        float specAmount = pow(NdotH, shininess);
+        specularAccumulator += specAmount * u_LightColor[i];
+    }
+
+    diffuseAccumulator *= 0.0033;
+    specularAccumulator *= specMultiplier;
+    vec3 result = ((ambient + diffuseAccumulator) * u_Albedo) + specularAccumulator;
+
     result += (filmGrain(gl_FragCoord.xy + fract(u_Time)) - 0.5) * 0.002;
+
     FragColor = vec4(result, 1.0);
 }
