@@ -12,48 +12,55 @@ class Registry:
     def __init__(self) -> None:
         self._next_id: int = 0
         self._components: Dict[Type[Any], Dict[int, Any]] = {}
-        self._entities: Set[int] = set()
+        self._entity_components: Dict[int, Dict[Type[Any], Any]] = {}
 
     def create_entity(self) -> int:
         entity = self._next_id
         self._next_id += 1
-        self._entities.add(entity)
+        self._entity_components[entity] = {}
         return entity
 
-    def get_entities(self) -> Iterator[int]:
-        return iter(self._entities)
-
     def remove_entity(self, entity: int) -> None:
-        if entity in self._entities:
-            self._entities.remove(entity)
-
-        for comp_type, store in self._components.items():
-            store.pop(entity, None)
+        components = self._entity_components.pop(entity, None)
+        if components is not None:
+            for comp_type in components:
+                self._components[comp_type].pop(entity, None)
 
     def add_component(self, entity: int, component: Any) -> None:
+        if entity not in self._entity_components:
+            return
+
         comp_type = type(component)
         if comp_type not in self._components:
             self._components[comp_type] = {}
 
         self._components[comp_type][entity] = component
+        self._entity_components[entity][comp_type] = component
 
     def add_components(self, entity: int, *components: Any) -> None:
+        if entity not in self._entity_components:
+            return
+
         for c in components:
             comp_type = type(c)
             if comp_type not in self._components:
                 self._components[comp_type] = {}
 
             self._components[comp_type][entity] = c
+            self._entity_components[entity][comp_type] = c
 
     def get_component(self, entity: int, comp_type: Type[T]) -> T | None:
         store = self._components.get(comp_type, None)
         return store.get(entity) if store else None
 
-    def get_components(self, comp_type: Type[T]) -> Dict[int, T]:
-        """
-        Returns {entity_id: component} dictionary for a type.
-        """
+    def get_components(self, entity: int) -> Dict[Type[Any], Any]:
+        return self._entity_components.get(entity, {})
+
+    def get_components_of_type(self, comp_type: Type[T]) -> Dict[int, T]:
         return self._components.get(comp_type, {})
+
+    def view_all(self) -> Iterator[Tuple[int, Dict[Type[Any], Any]]]:
+        yield from self._entity_components.items()
 
     @overload
     def view(self, c1: Type[T1]) -> Iterator[Tuple[int, Tuple[T1]]]:
@@ -69,12 +76,12 @@ class Registry:
 
     @overload
     def view(self, c1: Type[T1], c2: Type[T2], c3: Type[T3], c4: Type[T4]) -> Iterator[
-        Tuple[int, Tuple[T1, T2, T3, T4]]]:
+            Tuple[int, Tuple[T1, T2, T3, T4]]]:
         ...
 
     @overload
     def view(self, c1: Type[T1], c2: Type[T2], c3: Type[T3], c4: Type[T4], c5: Type[T5]) -> Iterator[
-        Tuple[int, Tuple[T1, T2, T3, T4, T5]]]:
+            Tuple[int, Tuple[T1, T2, T3, T4, T5]]]:
         ...
 
     def view(self, *comp_types: Type[Any]) -> Iterator[Tuple[int, Tuple[Any, ...]]]:
@@ -84,23 +91,20 @@ class Registry:
         if not comp_types:
             return
 
-        # Get the dictionary for the first component type
-        primary_store = self._components.get(comp_types[0], {})
+        stores = [self._components.get(ct, {}) for ct in comp_types]
+        if any(not store for store in stores):
+            return
 
-        for entity, comp1 in primary_store.items():
-            result = [comp1]
-            has_all = True
+        sorted_stores = sorted(stores, key=len)
 
-            # Check if this entity has the other components
-            for other_type in comp_types[1:]:
-                store = self._components.get(other_type, {})
-                if entity not in store:
-                    has_all = False
-                    break
-                result.append(store[entity])
+        common_entities = set(sorted_stores[0].keys())
+        for store in sorted_stores[1:]:
+            common_entities.intersection_update(store.keys())
+            if not common_entities:
+                return
 
-            if has_all:
-                yield entity, tuple(result)
+        for entity in common_entities:
+            yield entity, tuple(store[entity] for store in stores)
 
     @overload
     def get_singleton(self, c1: Type[T1]) -> \
