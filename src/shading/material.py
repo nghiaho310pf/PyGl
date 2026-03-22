@@ -1,4 +1,4 @@
-from warnings import deprecated
+import warnings
 
 from shading.shader import Shader
 
@@ -24,7 +24,11 @@ class Material:
                     self.shader.set_vec4(name, value)
                     pass
 
-    @deprecated("Batch draw calls by shader and use Shader#use() + Material#setup_properties instead")
     def use(self):
+        warnings.warn(
+            "Material#use is deprecated. Batch draw calls by shader and use Shader#use() + Material#setup_properties instead",
+            category=DeprecationWarning,
+            stacklevel=2
+        )
         self.shader.use()
         self.setup_properties()
