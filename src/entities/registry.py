@@ -20,6 +20,16 @@ class Registry:
         self._entities.add(entity)
         return entity
 
+    def get_entities(self) -> Iterator[int]:
+        return iter(self._entities)
+
+    def remove_entity(self, entity: int) -> None:
+        if entity in self._entities:
+            self._entities.remove(entity)
+
+        for comp_type, store in self._components.items():
+            store.pop(entity, None)
+
     def add_component(self, entity: int, component: Any) -> None:
         comp_type = type(component)
         if comp_type not in self._components:
