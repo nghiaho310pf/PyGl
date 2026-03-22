@@ -1,11 +1,12 @@
 import ctypes
+from pathlib import Path
 import platform
 import time
 
 import OpenGL.GL as GL
 import glfw
-from imgui_bundle import imgui
 from imgui_bundle.python_backends.glfw_backend import GlfwRenderer
+from imgui_bundle import imgui, hello_imgui
 
 
 class Application:
@@ -43,6 +44,14 @@ class Application:
 
         imgui.create_context()
         self.imgui_renderer = GlfwRenderer(self.win)
+        imgui.get_io().fonts.add_font_default()
+        font_config = imgui.ImFontConfig()
+        font_config.merge_mode = True
+        imgui.get_io().fonts.add_font_from_file_ttf(
+            hello_imgui.asset_file_full_path("fonts/fontawesome-webfont.ttf"),
+            16,
+            font_config
+        )
 
         version: bytes = GL.glGetString(GL.GL_VERSION)
         glsl_version: bytes = GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION)

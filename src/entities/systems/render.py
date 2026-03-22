@@ -39,7 +39,7 @@ class RenderSystem:
 
         for light_entity, (point_light_transform, point_light) in self.registry.view(Transform, PointLight):
             point_light_positions.append(point_light_transform.position)
-            point_light_colors.append(point_light.color)
+            point_light_colors.append(point_light.color * point_light.strength)
 
         num_lights = len(point_light_positions)
         MAX_LIGHTS = 4  # Should match the shader's MAX_LIGHTS
