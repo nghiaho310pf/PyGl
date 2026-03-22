@@ -4,10 +4,13 @@ import time
 
 import OpenGL.GL as GL
 import glfw
+from imgui_bundle import imgui
+from imgui_bundle.python_backends.glfw_backend import GlfwRenderer
 
 
 class Application:
     win: ctypes.c_void_p
+    imgui_renderer: GlfwRenderer
 
     def __init__(self, initial_window_width, initial_window_height):
         has_broken_opengl = platform.system() == "Darwin"
@@ -37,6 +40,9 @@ class Application:
 
         GL.glEnable(GL.GL_FRAMEBUFFER_SRGB)
         glfw.set_framebuffer_size_callback(self.win, self._on_resize_internal)
+
+        imgui.create_context()
+        self.imgui_renderer = GlfwRenderer(self.win)
 
         version: bytes = GL.glGetString(GL.GL_VERSION)
         glsl_version: bytes = GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION)
@@ -83,6 +89,7 @@ class Application:
             else:
                 time.sleep(0.0001)
 
+        self.imgui_renderer.shutdown()
         glfw.terminate()
 
     # == Overrideable callbacks ==
