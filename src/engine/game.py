@@ -228,15 +228,15 @@ class Game(Application):
         
         elif isinstance(comp, Transform):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
-                changed_pos, new_pos = imgui.drag_float3("Position", comp.position, 0.1)
+                changed_pos, new_pos = imgui.drag_float3("Position", comp.position.tolist(), 0.1)
                 if changed_pos:
                     comp.position = vec3(*new_pos)
 
-                changed_rot, new_rot = imgui.drag_float3("Rotation", comp.rotation, 1.0)
+                changed_rot, new_rot = imgui.drag_float3("Rotation", comp.rotation.tolist(), 1.0)
                 if changed_rot:
                     comp.rotation = vec3(*new_rot)
 
-                changed_scale, new_scale = imgui.drag_float3("Scale", comp.scale, 0.1)
+                changed_scale, new_scale = imgui.drag_float3("Scale", comp.scale.tolist(), 0.1)
                 if changed_scale:
                     comp.scale = vec3(*new_scale)
                 imgui.tree_pop()
@@ -246,9 +246,9 @@ class Game(Application):
                 changed_enabled, new_enabled = imgui.checkbox("Enabled", comp.enabled)
                 if changed_enabled:
                     comp.enabled = new_enabled
-                changed_color, new_color = imgui.color_edit3("Color", comp.color)
+                changed_color, new_color = imgui.color_edit3("Color", comp.color.tolist())
                 if changed_color:
-                    comp.color = np.array(new_color)
+                    comp.color = vec3(*new_color)
                 changed_strength, new_strength = imgui.drag_float("Strength", float(comp.strength), 1, 0.0, 1000.0)
                 if changed_strength:
                     comp.strength = np.float32(new_strength)
