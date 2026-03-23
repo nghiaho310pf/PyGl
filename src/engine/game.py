@@ -234,6 +234,9 @@ class Game(Application):
 
         elif isinstance(comp, PointLight):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+                changed_enabled, new_enabled = imgui.checkbox("Enabled", comp.enabled)
+                if changed_enabled:
+                    comp.enabled = new_enabled
                 changed_color, new_color = imgui.color_edit3("Color", comp.color)
                 if changed_color:
                     comp.color = np.array(new_color)
@@ -257,7 +260,14 @@ class Game(Application):
                     comp.far = new_far
                 imgui.tree_pop()
         
-        elif isinstance(comp, Visuals):
+        elif isinstance(comp, Visuals) and not comp.is_internal:
+            if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+                changed_enabled, new_enabled = imgui.checkbox("Shown", comp.enabled)
+                if changed_enabled:
+                    comp.enabled = new_enabled
+
+                imgui.tree_pop()
+
             # hardcode "Material", there might be a separate mesh-related dropdown later
             if imgui.tree_node_ex("Material", imgui.TreeNodeFlags_.default_open):
                 # for now just a hardcoded whitelist of the parameters

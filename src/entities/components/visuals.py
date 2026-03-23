@@ -8,3 +8,5 @@ from shading.material import Material
 class Visuals:
     mesh: Mesh
     material: Material
+    enabled: bool = True
+    is_internal: bool = False

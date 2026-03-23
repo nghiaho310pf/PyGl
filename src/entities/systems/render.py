@@ -38,8 +38,9 @@ class RenderSystem:
         point_light_colors = []
 
         for light_entity, (point_light_transform, point_light) in self.registry.view(Transform, PointLight):
-            point_light_positions.append(point_light_transform.position)
-            point_light_colors.append(point_light.color * point_light.strength)
+            if point_light.enabled:
+                point_light_positions.append(point_light_transform.position)
+                point_light_colors.append(point_light.color * point_light.strength)
 
         num_lights = len(point_light_positions)
         MAX_LIGHTS = 4  # Should match the shader's MAX_LIGHTS
@@ -78,6 +79,9 @@ class RenderSystem:
 
         shader_batches = {}
         for entity, (transform, visuals) in self.registry.view(Transform, Visuals):
+            if not visuals.enabled:
+                continue
+
             shader = visuals.material.shader
             mat = visuals.material
 
