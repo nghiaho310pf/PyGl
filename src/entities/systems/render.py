@@ -96,10 +96,13 @@ class RenderSystem:
             camera.fov, aspect_ratio, camera.near, camera.far
         )
 
+        # both the shadow pass and main pass uses back-face culling
+        GL.glEnable(GL.GL_CULL_FACE)
+        GL.glCullFace(GL.GL_BACK)
+
         # == shadow pass ==
 
         GL.glViewport(0, 0, self.SHADOW_WIDTH, self.SHADOW_HEIGHT)
-        GL.glCullFace(GL.GL_FRONT)
         GL.glEnable(GL.GL_DEPTH_TEST)
 
         light_projection = math_utils.create_perspective_projection(90.0, 1.0, 0.1, 100.0)
@@ -164,7 +167,6 @@ class RenderSystem:
 
         GL.glClearColor(0.004, 0.004, 0.004, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-        GL.glCullFace(GL.GL_BACK)
 
         shader_batches = {}
         for entity, (transform, visuals) in self.registry.view(Transform, Visuals):
