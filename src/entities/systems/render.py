@@ -18,6 +18,8 @@ class RenderSystem:
         self.registry = registry
         self.shader_globals = ShaderGlobals()
 
+        self.target_camera = None
+
         self.depth_shader = depth_shader.make_shader()
 
     def attach_shader(self, shader: Shader):
@@ -29,10 +31,18 @@ class RenderSystem:
         width, height = window_size
         aspect_ratio = width / height if height > 0 else 1.0
 
-        r = self.registry.get_singleton(Transform, Camera)
-        if r is None:
-            return
-        camera_entity, (camera_transform, camera) = r
+        if self.target_camera is None:
+            r = self.registry.get_singleton(Transform, Camera)
+            if r is None:
+                return
+            camera_entity, (camera_transform, camera) = r
+            self.target_camera = camera_entity
+        else:
+            components = self.registry.get_components(self.target_camera)
+            camera_transform = components[Transform]
+            camera = components[Camera]
+            if camera_transform is None or camera is None:
+                return
 
         point_light_positions = []
         point_light_colors = []

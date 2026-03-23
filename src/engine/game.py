@@ -1,3 +1,5 @@
+from typing import Any, Type
+
 from imgui_bundle import imgui
 import numpy as np
 
@@ -90,8 +92,15 @@ class Game(Application):
         c = self.registry.create_entity()
         self.registry.add_components(
             c,
-            EntityName("Camera"),
+            EntityName("Camera 1"),
             Transform(position=vec3(0.0, 2.4, 5.0), rotation=vec3(-22.0, -100.0, 0.0)),
+            Camera()
+        )
+        c = self.registry.create_entity()
+        self.registry.add_components(
+            c,
+            EntityName("Camera 2"),
+            Transform(position=vec3(5.0, 2.4, 0.0), rotation=vec3(-22.0, -167.0, 0.0)),
             Camera()
         )
 
@@ -99,7 +108,7 @@ class Game(Application):
         c1 = self.registry.create_entity()
         self.registry.add_components(
             c1,
-            EntityName("Main point light"),
+            EntityName("Main light"),
             Transform(position=vec3(1.2, 4.0, 1.2)),
             PointLight(strength=np.float32(220.0))
         )
@@ -107,7 +116,7 @@ class Game(Application):
         c2 = self.registry.create_entity()
         self.registry.add_components(
             c2,
-            EntityName("Sub point light"),
+            EntityName("Sub light"),
             Transform(position=vec3(-1.0, 5.0, -1.0)),
             PointLight(strength=np.float32(60.0))
         )
@@ -207,11 +216,11 @@ class Game(Application):
                 self.selected_entity = None
             elif inspector_expanded:
                 for comp_type, component in selected_components.items():
-                    self.draw_component_properties(comp_type, component)
+                    self.draw_component_properties(self.selected_entity, comp_type, component)
 
             imgui.end()
 
-    def draw_component_properties(self, comp_type, comp):
+    def draw_component_properties(self, entity_id: int, comp_type: Type[Any], comp: Any):
         if isinstance(comp, EntityName):
             changed_name, new_name = imgui.input_text("Name", comp.name if comp.name is not None else "")
             if changed_name:
@@ -247,6 +256,12 @@ class Game(Application):
                 
         elif isinstance(comp, Camera):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+                imgui.begin_disabled(self.render_system.target_camera == entity_id)
+                changed_targeted, new_targeted = imgui.checkbox("Main camera", self.render_system.target_camera == entity_id)
+                if changed_targeted:
+                    self.render_system.target_camera = entity_id
+                imgui.end_disabled()
+
                 changed_fov, new_fov = imgui.drag_float("FOV", comp.fov, 1.0, 10.0, 150.0)
                 if changed_fov:
                     comp.fov = new_fov
