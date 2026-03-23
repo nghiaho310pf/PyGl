@@ -1,6 +1,6 @@
 from typing import Any, Type
 
-from imgui_bundle import imgui
+from imgui_bundle import imgui, icons_fontawesome_6
 import numpy as np
 
 from engine.application import Application
@@ -156,11 +156,11 @@ class Game(Application):
         
         content_max_x = imgui.get_cursor_pos().x + imgui.get_content_region_avail().x
         ICON_PRIORITY = {
-            Camera: "\uf03d",
-            PointLight: "\uf0eb",
-            Visuals: "\uf1b2",
-            Rotated: "\uf01e",
-            Transform: "\uf047",
+            Camera: icons_fontawesome_6.ICON_FA_CAMERA,
+            PointLight: icons_fontawesome_6.ICON_FA_LIGHTBULB,
+            Visuals: icons_fontawesome_6.ICON_FA_CUBE,
+            Rotated: icons_fontawesome_6.ICON_FA_ARROWS_ROTATE,
+            Transform: icons_fontawesome_6.ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT,
         }
         FIXED_ICON_WIDTH = 26 
 
@@ -177,10 +177,13 @@ class Game(Application):
             start_x = imgui.get_cursor_pos_x()
             
             if display_icon:
+                icon_width = imgui.calc_text_size(display_icon).x
+                center_offset = (FIXED_ICON_WIDTH - icon_width) / 2
+                imgui.set_cursor_pos_x(start_x + center_offset)
                 imgui.text_disabled(display_icon)
-                imgui.same_line(int(start_x) + FIXED_ICON_WIDTH)
+                imgui.same_line(start_x + FIXED_ICON_WIDTH)
             else:
-                imgui.set_cursor_pos_x(int(start_x) + FIXED_ICON_WIDTH)
+                imgui.set_cursor_pos_x(start_x + FIXED_ICON_WIDTH)
 
             id_str = f"#{entity_id}"
             selectable_label = f"{display_name}###entity_{entity_id}"
