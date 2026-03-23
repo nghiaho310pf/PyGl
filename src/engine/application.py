@@ -44,11 +44,15 @@ class Application:
 
         imgui.create_context()
         self.imgui_renderer = GlfwRenderer(self.win)
-        imgui.get_io().fonts.add_font_default()
         font_config = imgui.ImFontConfig()
+        imgui.get_io().fonts.add_font_from_file_ttf(
+            hello_imgui.asset_file_full_path("fonts/DroidSans.ttf"),
+            16,
+            font_config
+        )
         font_config.merge_mode = True
         imgui.get_io().fonts.add_font_from_file_ttf(
-            hello_imgui.asset_file_full_path("fonts/fontawesome-webfont.ttf"),
+            hello_imgui.asset_file_full_path("fonts/Font_Awesome_6_Free-Solid-900.otf"),
             16,
             font_config
         )
