@@ -4,6 +4,7 @@ import numpy as np
 from OpenGL import GL
 
 import math_utils
+from entities.components.render_state import RenderState
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.transform import Transform
@@ -14,31 +15,33 @@ from shading.shaders import depth_shader
 
 
 class RenderSystem:
-    def __init__(self, registry: Registry):
-        self.registry = registry
+    def __init__(self):
+        # == unorthodox: global state ==
         self.shader_globals = ShaderGlobals()
-
-        self.target_camera = None
-
         self.depth_shader = depth_shader.make_shader()
 
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
 
-    def update(self, window_size: tuple[int, int], time: float, delta_time: float):
+    def update(self, registry: Registry, window_size: tuple[int, int], time: float, delta_time: float):
         # == camera setup ==
 
         width, height = window_size
         aspect_ratio = width / height if height > 0 else 1.0
 
-        if self.target_camera is None:
-            r = self.registry.get_singleton(Transform, Camera)
+        r = registry.get_singleton(RenderState)
+        if r is None:
+            return
+        render_state_entity, (render_state, ) = r
+
+        if render_state.target_camera is None:
+            r = registry.get_singleton(Transform, Camera)
             if r is None:
                 return
             camera_entity, (camera_transform, camera) = r
-            self.target_camera = camera_entity
+            render_state.target_camera = camera_entity
         else:
-            components = self.registry.get_components(self.target_camera)
+            components = registry.get_components(render_state.target_camera)
             camera_transform = components[Transform]
             camera = components[Camera]
             if camera_transform is None or camera is None:
@@ -47,7 +50,7 @@ class RenderSystem:
         point_light_positions = []
         point_light_colors = []
 
-        for light_entity, (point_light_transform, point_light) in self.registry.view(Transform, PointLight):
+        for light_entity, (point_light_transform, point_light) in registry.view(Transform, PointLight):
             if point_light.enabled:
                 point_light_positions.append(point_light_transform.position)
                 point_light_colors.append(point_light.color * point_light.strength)
@@ -88,7 +91,7 @@ class RenderSystem:
         self.shader_globals.update(proj_matrix, view_matrix, camera_transform.position, time)
 
         shader_batches = {}
-        for entity, (transform, visuals) in self.registry.view(Transform, Visuals):
+        for entity, (transform, visuals) in registry.view(Transform, Visuals):
             if not visuals.enabled:
                 continue
 

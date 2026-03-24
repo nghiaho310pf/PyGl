@@ -4,10 +4,7 @@ from entities.registry import Registry
 
 
 class RotatorSystem:
-    def __init__(self, registry: Registry):
-        self.registry = registry
-
-    def update(self, time: float, delta_time: float):
-        for entity, (transform, rotated) in self.registry.view(Transform, Rotated):
+    def update(self, registry: Registry, time: float, delta_time: float):
+        for entity, (transform, rotated) in registry.view(Transform, Rotated):
             transform.rotation += delta_time * rotated.delta
             transform.rotation %= 360.0
