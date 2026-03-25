@@ -35,6 +35,23 @@ class Game(Application):
         self.ui_system = UiSystem()
         self.rotator_system = RotatorSystem()
 
+        # == shader setup ==
+        shader = blinn_phong.make_shader()
+        self.render_system.attach_shader(shader)
+
+        mat_preview = Material(shader, {
+            "u_Albedo": [0.4, 0.9, 0.4],
+            "u_Roughness": 0.5,
+            "u_Reflectance": 0.1,
+            "u_AO": 0.0,
+        })
+        mat_default = Material(shader, {
+            "u_Albedo": [0.3, 0.3, 0.3],
+            "u_Roughness": 0.5,
+            "u_Reflectance": 0.1,
+            "u_AO": 0.0,
+        })
+
         # == singleton entities required for above systems ==
         self.registry.add_components(
             self.registry.create_entity(),
@@ -44,13 +61,15 @@ class Game(Application):
         self.registry.add_components(
             self.registry.create_entity(),
             EntityFlags(is_internal=True),
-            UiState()
+            UiState(default_material=mat_default),
+            Transform(position=vec3(0.0, 0.0, 0.0)),
+            Visuals(
+                Mesh(np.array([], dtype=np.float32), np.array([], dtype=np.uint32)),
+                material=mat_preview, enabled=False, is_internal=True
+            ) 
         )
 
         # == demo setup ==
-
-        shader = blinn_phong.make_shader()
-        self.render_system.attach_shader(shader)
 
         mat_orange = Material(shader, {
             "u_Albedo": [1.0, 0.318, 0.133],

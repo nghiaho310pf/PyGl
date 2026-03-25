@@ -19,6 +19,8 @@ class RenderSystem:
         # == unorthodox: global state ==
         self.shader_globals = ShaderGlobals()
         self.depth_shader = depth_shader.make_shader()
+        self.default_camera_transform = Transform()
+        self.default_camera_component = Camera()
 
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
@@ -29,23 +31,26 @@ class RenderSystem:
         width, height = window_size
         aspect_ratio = width / height if height > 0 else 1.0
 
+        camera_transform = self.default_camera_transform
+        camera = self.default_camera_component
+
         r = registry.get_singleton(RenderState)
         if r is None:
             return
         render_state_entity, (render_state, ) = r
 
+        if render_state.target_camera is not None:
+            r = registry.get_components(render_state.target_camera, Transform, Camera)
+            if r is None:
+                render_state.target_camera = None
+            else:
+                camera_transform, camera = r
+
         if render_state.target_camera is None:
             r = registry.get_singleton(Transform, Camera)
-            if r is None:
-                return
-            camera_entity, (camera_transform, camera) = r
-            render_state.target_camera = camera_entity
-        else:
-            components = registry.get_components(render_state.target_camera)
-            camera_transform = components[Transform]
-            camera = components[Camera]
-            if camera_transform is None or camera is None:
-                return
+            if r is not None:
+                camera_entity, (camera_transform, camera) = r
+                render_state.target_camera = camera_entity
 
         point_light_positions = []
         point_light_colors = []

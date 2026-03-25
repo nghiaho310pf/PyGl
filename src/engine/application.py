@@ -103,6 +103,7 @@ class Application:
                 time.sleep(0.0001)
 
         self.imgui_renderer.shutdown()
+        imgui.destroy_context()
         glfw.terminate()
 
     # == Overrideable callbacks ==
