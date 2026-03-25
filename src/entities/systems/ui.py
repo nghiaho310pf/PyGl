@@ -42,6 +42,9 @@ class UiSystem:
             return
 
         # == creation section ==
+        if ui_state.should_close_add_menu:
+            imgui.set_next_item_open(False)
+            ui_state.should_close_add_menu = False
         add_menu_expanded = imgui.collapsing_header("Add")
 
         if not add_menu_expanded:
@@ -104,14 +107,16 @@ class UiSystem:
                         copy.deepcopy(ui_state.default_material.properties)
                     )
 
+                    new_entity = registry.create_entity()
                     registry.add_components(
-                        registry.create_entity(),
+                        new_entity,
                         EntityFlags(name=f"{ui_state.add_mesh_type.name}"),
                         Transform(position=vec3(0.0, 0.0, 0.0)),
                         Visuals(Mesh(*vi), new_material)
                     )
 
-                    ui_visuals.enabled = False
+                    ui_state.selected_entity = new_entity
+                    ui_state.should_close_add_menu = True
 
         # == entity list section ==
         if imgui.collapsing_header("Entities", imgui.TreeNodeFlags_.default_open):

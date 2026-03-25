@@ -24,4 +24,6 @@ class UiState:
     cube_size: float = 1.0
     preview_visual_initialized: bool = False
 
+    should_close_add_menu: bool = False
+
     entities_to_dispose: list[int] = field(default_factory=lambda: [])
