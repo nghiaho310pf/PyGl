@@ -27,99 +27,26 @@ class UiSystem:
             return
         ui_state_entity, (ui_state, ui_visuals) = r
 
-        # == entity list window ==
-        entity_list_expanded, entity_list_opened = imgui.begin("Entities")
-        if entity_list_expanded:
-            content_max_x = imgui.get_cursor_pos().x + imgui.get_content_region_avail().x
-            ICON_PRIORITY = {
-                Camera: icons_fontawesome_6.ICON_FA_CAMERA,
-                PointLight: icons_fontawesome_6.ICON_FA_LIGHTBULB,
-                Visuals: icons_fontawesome_6.ICON_FA_CUBE,
-                Rotated: icons_fontawesome_6.ICON_FA_ARROWS_ROTATE,
-                Transform: icons_fontawesome_6.ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT,
-            }
-            FIXED_ICON_WIDTH = 26
+        viewport = imgui.get_main_viewport()
 
-            for entity_id, components in registry.view_all():
-                entity_flags: EntityFlags | None = components.get(EntityFlags)
-                if entity_flags is not None and entity_flags.is_internal:
-                    continue
+        window_pos = (viewport.work_pos.x + viewport.work_size.x, viewport.work_pos.y)
+        imgui.set_next_window_pos(window_pos, imgui.Cond_.always, pivot=(1.0, 0.0))
+        imgui.set_next_window_size((350, viewport.work_size.y), imgui.Cond_.first_use_ever)
 
-                display_name = entity_flags.name if (
-                    entity_flags and entity_flags.name) else "Entity"
-
-                display_icon = None
-                for comp_type, icon in ICON_PRIORITY.items():
-                    if comp_type in components:
-                        display_icon = icon
-                        break
-
-                start_x = imgui.get_cursor_pos_x()
-
-                if display_icon:
-                    icon_width = imgui.calc_text_size(display_icon).x
-                    center_offset = (FIXED_ICON_WIDTH - icon_width) / 2
-                    imgui.set_cursor_pos_x(start_x + center_offset)
-                    imgui.text_disabled(display_icon)
-                    imgui.same_line(start_x + FIXED_ICON_WIDTH)
-                else:
-                    imgui.set_cursor_pos_x(start_x + FIXED_ICON_WIDTH)
-
-                id_str = f"#{entity_id}"
-                selectable_label = f"{display_name}###entity_{entity_id}"
-
-                clicked, _ = imgui.selectable(
-                    selectable_label, ui_state.selected_entity == entity_id)
-                if clicked:
-                    ui_state.selected_entity = entity_id
-
-                id_width = imgui.calc_text_size(id_str).x
-                align_x = content_max_x - id_width
-
-                imgui.same_line(int(align_x))
-                imgui.text_disabled(id_str)
-
-        imgui.end()
-
-        # == inspector window ==
-        if ui_state.selected_entity is not None:
-            selected_components = registry.get_all_components(
-                ui_state.selected_entity)
-
-            entity_flags = selected_components.get(EntityFlags)
-            if entity_flags is not None and entity_flags.name is not None:
-                entity_label = f"{entity_flags.name} (#{ui_state.selected_entity})"
-            else:
-                entity_label = f"Entity #{ui_state.selected_entity}"
-
-            # 3. Use '###' to give it a dynamic title but a static ID ("InspectorWindow")
-            window_title = f"Inspector: {entity_label}###InspectorWindow"
-
-            inspector_expanded, inspector_open = imgui.begin(
-                window_title, True)
-
-            if not inspector_open:
-                ui_state.selected_entity = None
-            elif inspector_expanded:
-                for comp_type, component in selected_components.items():
-                    UiSystem.draw_component_properties(
-                        registry, 
-                        ui_state, 
-                        ui_state.selected_entity, 
-                        comp_type, 
-                        component
-                    )
-
+        min_size = (150, viewport.work_size.y)
+        max_size = (viewport.work_size.x * 0.8, viewport.work_size.y)
+        imgui.set_next_window_size_constraints(min_size, max_size)
+        main_expanded, main_opened = imgui.begin("Scene Panel")
+        if not main_expanded:
             imgui.end()
-        
-        # == add mesh window ==
-        imgui.set_next_window_collapsed(True, imgui.Cond_.first_use_ever)
-        add_menu_expanded, add_menu_opened = imgui.begin("Add")
+            return
+
+        # == creation section ==
+        add_menu_expanded = imgui.collapsing_header("Add")
 
         if not add_menu_expanded:
             ui_visuals.enabled = False
-
-        if add_menu_expanded:
+        else:
             changed_type = False
 
             if imgui.radio_button("Sphere", ui_state.add_mesh_type == AddType.Sphere):
@@ -185,6 +112,81 @@ class UiSystem:
                     )
 
                     ui_visuals.enabled = False
+
+        # == entity list section ==
+        if imgui.collapsing_header("Entities", imgui.TreeNodeFlags_.default_open):
+            content_max_x = imgui.get_cursor_pos().x + imgui.get_content_region_avail().x
+            ICON_PRIORITY = {
+                Camera: icons_fontawesome_6.ICON_FA_CAMERA,
+                PointLight: icons_fontawesome_6.ICON_FA_LIGHTBULB,
+                Visuals: icons_fontawesome_6.ICON_FA_CUBE,
+                Rotated: icons_fontawesome_6.ICON_FA_ARROWS_ROTATE,
+                Transform: icons_fontawesome_6.ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT,
+            }
+            FIXED_ICON_WIDTH = 26
+
+            for entity_id, components in registry.view_all():
+                entity_flags: EntityFlags | None = components.get(EntityFlags)
+                if entity_flags is not None and entity_flags.is_internal:
+                    continue
+
+                display_name = entity_flags.name if (
+                    entity_flags and entity_flags.name) else "Entity"
+
+                display_icon = None
+                for comp_type, icon in ICON_PRIORITY.items():
+                    if comp_type in components:
+                        display_icon = icon
+                        break
+
+                start_x = imgui.get_cursor_pos_x()
+
+                if display_icon:
+                    icon_width = imgui.calc_text_size(display_icon).x
+                    center_offset = (FIXED_ICON_WIDTH - icon_width) / 2
+                    imgui.set_cursor_pos_x(start_x + center_offset)
+                    imgui.text_disabled(display_icon)
+                    imgui.same_line(start_x + FIXED_ICON_WIDTH)
+                else:
+                    imgui.set_cursor_pos_x(start_x + FIXED_ICON_WIDTH)
+
+                id_str = f"#{entity_id}"
+                selectable_label = f"{display_name}###entity_{entity_id}"
+
+                clicked, _ = imgui.selectable(
+                    selectable_label, ui_state.selected_entity == entity_id)
+                if clicked:
+                    ui_state.selected_entity = entity_id
+
+                id_width = imgui.calc_text_size(id_str).x
+                align_x = content_max_x - id_width
+
+                imgui.same_line(int(align_x))
+                imgui.text_disabled(id_str)
+
+        # == inspector section ==
+        if ui_state.selected_entity is not None:
+            selected_components = registry.get_all_components(
+                ui_state.selected_entity)
+
+            entity_flags = selected_components.get(EntityFlags)
+            if entity_flags is not None and entity_flags.name is not None:
+                entity_label = f"{entity_flags.name} (#{ui_state.selected_entity})"
+            else:
+                entity_label = f"Entity #{ui_state.selected_entity}"
+
+            # We use '###' so ImGui tracks the open/close state of the header even if the entity changes
+            header_title = f"Inspector: {entity_label}###InspectorHeader"
+
+            if imgui.collapsing_header(header_title, imgui.TreeNodeFlags_.default_open):
+                for comp_type, component in selected_components.items():
+                    UiSystem.draw_component_properties(
+                        registry, 
+                        ui_state, 
+                        ui_state.selected_entity, 
+                        comp_type, 
+                        component
+                    )
 
         imgui.end()
 
