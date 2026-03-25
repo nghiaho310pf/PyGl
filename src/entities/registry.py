@@ -49,11 +49,38 @@ class Registry:
             self._components[comp_type][entity] = c
             self._entity_components[entity][comp_type] = c
 
-    def get_component(self, entity: int, comp_type: Type[T]) -> T | None:
-        store = self._components.get(comp_type, None)
-        return store.get(entity) if store else None
+    @overload
+    def get_components(self, entity: int, c1: Type[T1]) -> Tuple[T1] | None:
+        ...
 
-    def get_components(self, entity: int) -> Dict[Type[Any], Any]:
+    @overload
+    def get_components(self, entity: int, c1: Type[T1], c2: Type[T2]) -> Tuple[T1, T2] | None:
+        ...
+
+    @overload
+    def get_components(self, entity: int, c1: Type[T1], c2: Type[T2], c3: Type[T3]) -> Tuple[T1, T2, T3] | None:
+        ...
+
+    @overload
+    def get_components(self, entity: int, c1: Type[T1], c2: Type[T2], c3: Type[T3], c4: Type[T4]) -> Tuple[T1, T2, T3, T4] | None:
+        ...
+
+    @overload
+    def get_components(self, entity: int, c1: Type[T1], c2: Type[T2], c3: Type[T3], c4: Type[T4], c5: Type[T5]) -> Tuple[T1, T2, T3, T4, T5] | None:
+        ...
+
+    def get_components(self, entity: int, *comp_types: Type[Any]) -> Tuple[Any, ...] | None:
+        if not comp_types:
+            return ()
+        comps = self._entity_components.get(entity)
+        if comps is None:
+            return None
+        try:
+            return tuple(comps[ct] for ct in comp_types)
+        except KeyError:
+            return None
+
+    def get_all_components(self, entity: int) -> Dict[Type[Any], Any]:
         return self._entity_components.get(entity, {})
 
     def get_components_of_type(self, comp_type: Type[T]) -> Dict[int, T]:
