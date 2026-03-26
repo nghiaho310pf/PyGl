@@ -54,13 +54,17 @@ class UiSystem:
             if imgui.radio_button("Sphere", ui_state.add_mesh_type == AddType.Sphere):
                 ui_state.add_mesh_type = AddType.Sphere
                 changed_type = True
-            imgui.same_line()
             if imgui.radio_button("Cube", ui_state.add_mesh_type == AddType.Cube):
                 ui_state.add_mesh_type = AddType.Cube
                 changed_type = True
-            imgui.same_line()
             if imgui.radio_button("Plane", ui_state.add_mesh_type == AddType.Plane):
                 ui_state.add_mesh_type = AddType.Plane
+                changed_type = True
+            if imgui.radio_button("Light", ui_state.add_mesh_type == AddType.PointLight):
+                ui_state.add_mesh_type = AddType.PointLight
+                changed_type = True
+            if imgui.radio_button("Camera", ui_state.add_mesh_type == AddType.Camera):
+                ui_state.add_mesh_type = AddType.Camera
                 changed_type = True
 
             mesh_changed = not ui_state.preview_visual_initialized or changed_type
@@ -75,47 +79,65 @@ class UiSystem:
                 changed_s, ui_state.cube_size = imgui.slider_float("Size", ui_state.cube_size, 0.1, 5.0)
                 mesh_changed = mesh_changed or changed_s
 
-            if mesh_changed:
-                vi = None
-                if ui_state.add_mesh_type == AddType.Sphere:
-                    vi = generate_sphere(ui_state.sphere_radius, ui_state.sphere_stacks, ui_state.sphere_sectors)
-                elif ui_state.add_mesh_type == AddType.Cube:
-                    vi = generate_cube_flat(ui_state.cube_size)
-                elif ui_state.add_mesh_type == AddType.Plane:
-                    vi = generate_plane()
-
-                if vi is not None:
-                    ui_visuals.mesh = Mesh(*vi)
-                ui_state.preview_visual_initialized = True
+            if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera):
+                ui_visuals.enabled = False
             else:
                 ui_visuals.enabled = True
+                if mesh_changed:
+                    vi = None
+                    if ui_state.add_mesh_type == AddType.Sphere:
+                        vi = generate_sphere(ui_state.sphere_radius, ui_state.sphere_stacks, ui_state.sphere_sectors)
+                    elif ui_state.add_mesh_type == AddType.Cube:
+                        vi = generate_cube_flat(ui_state.cube_size)
+                    elif ui_state.add_mesh_type == AddType.Plane:
+                        vi = generate_plane()
+
+                    if vi is not None:
+                        ui_visuals.mesh = Mesh(*vi)
+                    ui_state.preview_visual_initialized = True
 
             imgui.separator()
-            if imgui.button(f"Add to scene"):
-                vi = None
-                if ui_state.add_mesh_type == AddType.Sphere:
-                    vi = generate_sphere(ui_state.sphere_radius, ui_state.sphere_stacks, ui_state.sphere_sectors)
-                elif ui_state.add_mesh_type == AddType.Cube:
-                    vi = generate_cube_flat(ui_state.cube_size)
-                elif ui_state.add_mesh_type == AddType.Plane:
-                    vi = generate_plane()
+            if imgui.button("Add to scene"):
+                new_entity = registry.create_entity()
 
-                if vi is not None:
-                    new_material = Material(
-                        ui_state.default_material.shader,
-                        copy.deepcopy(ui_state.default_material.properties)
-                    )
+                if ui_state.add_mesh_type in (AddType.Sphere, AddType.Cube, AddType.Plane):
+                    vi = None
+                    if ui_state.add_mesh_type == AddType.Sphere:
+                        vi = generate_sphere(ui_state.sphere_radius, ui_state.sphere_stacks, ui_state.sphere_sectors)
+                    elif ui_state.add_mesh_type == AddType.Cube:
+                        vi = generate_cube_flat(ui_state.cube_size)
+                    elif ui_state.add_mesh_type == AddType.Plane:
+                        vi = generate_plane()
 
-                    new_entity = registry.create_entity()
+                    if vi is not None:
+                        new_material = Material(
+                            ui_state.default_material.shader,
+                            copy.deepcopy(ui_state.default_material.properties)
+                        )
+
+                        registry.add_components(
+                            new_entity,
+                            EntityFlags(name=f"{ui_state.add_mesh_type.name}"),
+                            Transform(position=vec3(0.0, 0.0, 0.0)),
+                            Visuals(Mesh(*vi), new_material)
+                        )
+                elif ui_state.add_mesh_type == AddType.PointLight:
                     registry.add_components(
                         new_entity,
-                        EntityFlags(name=f"{ui_state.add_mesh_type.name}"),
+                        EntityFlags(name="Point Light"),
                         Transform(position=vec3(0.0, 0.0, 0.0)),
-                        Visuals(Mesh(*vi), new_material)
+                        PointLight()
+                    )
+                elif ui_state.add_mesh_type == AddType.Camera:
+                    registry.add_components(
+                        new_entity,
+                        EntityFlags(name="Camera"),
+                        Transform(position=vec3(0.0, 0.0, 0.0)),
+                        Camera()
                     )
 
-                    ui_state.selected_entity = new_entity
-                    ui_state.should_close_add_menu = True
+                ui_state.selected_entity = new_entity
+                ui_state.should_close_add_menu = True
 
         # == entity list section ==
         if imgui.collapsing_header("Entities", imgui.TreeNodeFlags_.default_open):

@@ -9,6 +9,8 @@ class AddType(Enum):
     Sphere = 0
     Cube = 1
     Plane = 2
+    PointLight = 3
+    Camera = 4
 
 
 @dataclass
