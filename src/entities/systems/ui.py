@@ -10,7 +10,6 @@ from entities.components.render_state import RenderState
 from entities.components.transform import Transform
 from entities.components.ui_state import UiState, AddType
 from entities.components.visuals import Visuals
-from entities.components.rotated import Rotated
 from entities.components.entity_flags import EntityFlags
 from entities.registry import Registry
 from geometry.geometry import generate_cube_flat, generate_plane, generate_sphere
@@ -125,7 +124,6 @@ class UiSystem:
                 Camera: icons_fontawesome_6.ICON_FA_CAMERA,
                 PointLight: icons_fontawesome_6.ICON_FA_LIGHTBULB,
                 Visuals: icons_fontawesome_6.ICON_FA_CUBE,
-                Rotated: icons_fontawesome_6.ICON_FA_ARROWS_ROTATE,
                 Transform: icons_fontawesome_6.ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT,
             }
             FIXED_ICON_WIDTH = 26

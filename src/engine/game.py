@@ -8,13 +8,11 @@ from entities.components.camera import Camera
 from entities.components.entity_flags import EntityFlags
 from entities.components.point_light import PointLight
 from entities.components.render_state import RenderState
-from entities.components.rotated import Rotated
 from entities.components.transform import Transform
 from entities.components.ui_state import UiState
 from entities.components.visuals import Visuals
 from entities.registry import Registry
 from entities.systems.render import RenderSystem
-from entities.systems.rotator import RotatorSystem
 from entities.systems.ui import UiSystem
 from geometry.geometry import generate_sphere, generate_cube_flat, generate_plane
 from geometry.mesh import Mesh
@@ -33,7 +31,6 @@ class Game(Application):
 
         self.render_system = RenderSystem()
         self.ui_system = UiSystem()
-        self.rotator_system = RotatorSystem()
 
         # == shader setup ==
         shader = blinn_phong.make_shader()
@@ -108,9 +105,8 @@ class Game(Application):
         self.registry.add_components(
             e2,
             EntityFlags(name="Cube"),
-            Transform(position=vec3(0.0, 1.5, 0)),
-            Visuals(Mesh(cube_vertices, cube_indices), mat_blue),
-            Rotated(delta=vec3(0.0, 90.0, 0.0))
+            Transform(position=vec3(-1.6, 0.5, 0), rotation=vec3(0.0, -57.0, 0.0)),
+            Visuals(Mesh(cube_vertices, cube_indices), mat_blue)
         )
 
         # floor entity
@@ -164,7 +160,6 @@ class Game(Application):
 
         # == logic ==
         self.imgui_renderer.process_inputs()
-        self.rotator_system.update(self.registry, now, dt)
 
         # == graphics ==
         self.render_system.update(self.registry, self.get_window_size(), now, dt)
