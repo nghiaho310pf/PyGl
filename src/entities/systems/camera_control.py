@@ -33,12 +33,6 @@ class CameraControlSystem:
         (transform, ) = r_cam
         io = imgui.get_io()
 
-        if ctrl_state.orbit_entity is not None:
-            target_comps = registry.get_all_components(ctrl_state.orbit_entity)
-            if target_comps and Transform in target_comps:
-                target_transform = target_comps[Transform]
-                ctrl_state.focal_point = np.copy(target_transform.position)
-
         if imgui.is_mouse_clicked(0) and not io.want_capture_mouse:
             ctrl_state.is_rotating = True
         if imgui.is_mouse_released(0):
@@ -82,23 +76,30 @@ class CameraControlSystem:
         up /= np.linalg.norm(up)
 
         if ctrl_state.is_panning:
-            pan_amount = ctrl_state.distance * ctrl_state.pan_speed
+            pan_amount = ctrl_state.focal_point_distance * ctrl_state.pan_speed
             pan_move = (right * -io.mouse_delta.x + up *
                         io.mouse_delta.y) * pan_amount
             ctrl_state.focal_point += pan_move
 
-            if io.mouse_delta.x != 0 or io.mouse_delta.y != 0:
-                ctrl_state.orbit_entity = None
-
         if ctrl_state.is_zooming:
             zoom_factor = io.mouse_delta.y * ctrl_state.zoom_speed
-            ctrl_state.distance *= (1.0 + zoom_factor)
+            ctrl_state.focal_point_distance *= (1.0 + zoom_factor)
 
         if not io.want_capture_mouse and io.mouse_wheel != 0.0:
             zoom_factor = -io.mouse_wheel * ctrl_state.scroll_zoom_speed
-            ctrl_state.distance *= (1.0 + zoom_factor)
+            ctrl_state.focal_point_distance *= (1.0 + zoom_factor)
 
-        ctrl_state.distance = max(0.1, ctrl_state.distance)
+        ctrl_state.focal_point_distance = max(0.1, ctrl_state.focal_point_distance)
 
-        cam_pos = ctrl_state.focal_point - front * ctrl_state.distance
-        transform.position = vec3(*cam_pos)
+        is_input_active = (
+            ctrl_state.is_rotating or 
+            ctrl_state.is_panning or 
+            ctrl_state.is_zooming or 
+            (not io.want_capture_mouse and io.mouse_wheel != 0.0)
+        )
+
+        if is_input_active:
+            cam_pos = ctrl_state.focal_point - front * ctrl_state.focal_point_distance
+            transform.position = vec3(*cam_pos)
+        else:
+            ctrl_state.focal_point = np.array(transform.position + front * ctrl_state.focal_point_distance, dtype=np.float32)
