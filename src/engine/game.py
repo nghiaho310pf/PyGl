@@ -102,7 +102,7 @@ class Game(Application):
         self.registry.add_components(
             c,
             Transform(position=vec3(-1.0, 5.0, -1.0)),
-            PointLight(color=vec3(60.0, 60.0, 60.0), radius=0.1)
+            PointLight(color=vec3(60.0, 60.0, 60.0))
         )
 
         self.last_update = None

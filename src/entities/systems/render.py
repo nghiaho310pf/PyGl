@@ -34,11 +34,14 @@ class RenderSystem:
         for i in range(6):
             GL.glTexImage2D(GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL.GL_DEPTH_COMPONENT,
                             self.SHADOW_WIDTH, self.SHADOW_HEIGHT, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
-        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
-        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_R, GL.GL_CLAMP_TO_EDGE)
+
+        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_COMPARE_MODE, GL.GL_COMPARE_REF_TO_TEXTURE)
+        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_COMPARE_FUNC, GL.GL_LEQUAL)
 
         GL.glFramebufferTexture(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, point_light.shadow_map_texture, 0)
         GL.glDrawBuffer(GL.GL_NONE)
@@ -111,7 +114,6 @@ class RenderSystem:
         texture_unit_counter = 0
 
         light_positions = []
-        light_radii = []
         light_far_planes = []
 
         for light_entity, (light_transform, point_light) in self.registry.view(Transform, PointLight):
@@ -152,7 +154,6 @@ class RenderSystem:
                     visuals.mesh.draw()
 
             light_positions.append(light_transform.position)
-            light_radii.append(point_light.radius)
             light_far_planes.append(100.0)
             shadow_map_textures.append(point_light.shadow_map_texture)
             shadow_map_texture_units.append(texture_unit_counter)
@@ -187,7 +188,6 @@ class RenderSystem:
             shader.set_vec3_array("u_LightColor", point_light_colors)
             shader.set_int("u_NumLights", num_lights)
             shader.set_float_array("u_FarPlane", light_far_planes)
-            shader.set_float_array("u_LightRadius", light_radii)
 
             for i, tex_unit in enumerate(shadow_map_texture_units):
                 GL.glActiveTexture(GL.GL_TEXTURE0 + tex_unit)

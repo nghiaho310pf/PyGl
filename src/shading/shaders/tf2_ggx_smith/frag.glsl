@@ -23,10 +23,9 @@ uniform float u_AO;            // Ambient Occlusion
 
 const int MAX_LIGHTS = 4;
 uniform vec3 u_LightPos[MAX_LIGHTS];
-uniform float u_LightRadius[MAX_LIGHTS];
 uniform vec3 u_LightColor[MAX_LIGHTS];
 uniform int u_NumLights;
-uniform samplerCube u_ShadowMap[MAX_LIGHTS];
+uniform samplerCubeShadow u_ShadowMap[MAX_LIGHTS];
 uniform float u_FarPlane[MAX_LIGHTS];
 
 const float PI = 3.14159265359;
@@ -100,85 +99,29 @@ vec3 toneMapAgX(vec3 color) {
     return pow(max(agx_output_mat * val, 0.0), vec3(2.2));
 }
 
-vec3 sampleOffsetDirections[20] = vec3[]
-(
-   vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1),
-   vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
-   vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
-   vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
-   vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
-);
-
-float blueNoiseDither(vec2 pos) {
-    float white = fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453);
-    float noise = fract(white + (gl_FragCoord.x + gl_FragCoord.y * 0.5) * 0.375);
-    return noise;
-}
-
-vec3 sampleVogelDisk(int sampleIndex, int samplesCount, float rotation) {
-    float goldenAngle = 2.4; // approx PI * (3.0 - sqrt(5.0))
-
-    float r = sqrt(float(sampleIndex) + 0.5) / sqrt(float(samplesCount));
-    float theta = float(sampleIndex) * goldenAngle + rotation;
-
-    float sine = sin(theta);
-    float cosine = cos(theta);
-
-    return vec3(r * cosine, r * sine, 0.0);
-}
-
-float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane, float bias) {
+float calculateShadow(vec3 fragPos, vec3 lightPos, samplerCubeShadow shadowMap, float farPlane, float bias) {
     vec3 fragToLight = fragPos - lightPos;
     float currentDepth = length(fragToLight) / farPlane;
-
-    float noise = blueNoiseDither(gl_FragCoord.xy);
-    float randomRotation = noise * PI2;
-
-    int searchSamples = 8;
-    float avgBlockerDepth = 0.0;
-    int blockers = 0;
-    float searchWidth = 0.05 + (currentDepth * 0.01); // Search wider further away
 
     vec3 lightDir = normalize(fragToLight);
     vec3 up = abs(lightDir.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
     vec3 right = normalize(cross(up, lightDir));
     up = cross(lightDir, right);
 
-    for (int i = 0; i < searchSamples; ++i) {
-        vec3 offset2D = sampleVogelDisk(i, searchSamples, randomRotation);
-        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * searchWidth;
+    float shadow = 0.0;
 
-        float sampleDepth = texture(shadowMap, sampleDir).r;
-        if (sampleDepth < currentDepth - bias) {
-            avgBlockerDepth += sampleDepth;
-            blockers++;
+    const float spread = 0.003;
+    const int halfGrid = 3;
+    for (int x = 0; x <= halfGrid; ++x) {
+        for (int y = 0; y <= halfGrid; ++y) {
+            vec3 sampleDir = lightDir + (right * (float(x) - 1.5) + up * (float(y) - 1.5)) * spread;
+            float visibility = texture(shadowMap, vec4(sampleDir, currentDepth - bias));
+
+            shadow += (1.0 - visibility);
         }
     }
 
-    if (blockers == 0) return 0.0;
-    avgBlockerDepth /= float(blockers);
-
-    float penumbraRatio = (currentDepth - avgBlockerDepth) / avgBlockerDepth;
-    float diskRadius = penumbraRatio * lightRadius;
-    diskRadius = clamp(diskRadius, 0.002, 0.15);
-
-    float shadow = 0.0;
-    int pcfSamples = 32;
-
-    float invSamples = 1.0 / float(pcfSamples);
-
-    for (int i = 0; i < pcfSamples; ++i) {
-        vec3 offset2D = sampleVogelDisk(i, pcfSamples, randomRotation);
-
-        float jitter = fract(noise + u_Time + float(i) * 0.618);
-        float radiusJitter = 1.0 + (jitter * 0.2 - 0.1);
-        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * (diskRadius * radiusJitter);
-
-        float closestDepth = texture(shadowMap, sampleDir).r;
-        if (currentDepth - bias > closestDepth) shadow += 1.0;
-    }
-
-    return shadow * invSamples;
+    return shadow * 0.0625;
 }
 
 void main() {
@@ -196,17 +139,19 @@ void main() {
         vec3 lightPos = u_LightPos[i];
         vec3 lightColor = u_LightColor[i];
 
-        vec3 L = normalize(lightPos - v_WorldPos);
+        vec3 lightVec = lightPos - v_WorldPos;
+        float distanceSq = dot(lightVec, lightVec);
+        float attenuation = 1.0 / distanceSq;
+
+        vec3 L = lightVec * inversesqrt(distanceSq); 
         vec3 H = normalize(V + L);
-        float distance = length(lightPos - v_WorldPos);
 
         // Shadow calculation
         float shadowBias = max(0.0075 * (1.0 - dot(N, L)), 0.00075);
-        float shadow = calculateShadow(v_WorldPos, lightPos, u_LightRadius[i], u_ShadowMap[i], u_FarPlane[i], shadowBias);
+        float shadow = calculateShadow(v_WorldPos, lightPos, u_ShadowMap[i], u_FarPlane[i], shadowBias);
         shadow = smoothstep(0.01, 0.98, shadow);
 
         // lighting prep
-        float attenuation = 1.0 / (distance * distance);
         vec3 radiance = lightColor * attenuation;
 
         // F0. remap user reflectance (0.0-1.0) to physical dielectric range (0.0-0.08)
