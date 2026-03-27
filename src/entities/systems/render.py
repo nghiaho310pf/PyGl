@@ -1,4 +1,5 @@
 import math
+from typing import Tuple
 
 import numpy as np
 from OpenGL import GL
@@ -10,6 +11,7 @@ from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals
 from entities.registry import Registry
+from shading.material import Material
 from shading.shader import Shader, ShaderGlobals
 from shading.shaders import depth_shader
 
@@ -103,7 +105,8 @@ class RenderSystem:
 
         self.shader_globals.update(proj_matrix, view_matrix, camera_transform.position, time)
 
-        shader_batches = {}
+        shader_batches: dict[Shader, dict[Material,
+                                          list[Tuple[Transform, Visuals]]]] = {}
         for entity, (transform, visuals) in registry.view(Transform, Visuals):
             if not visuals.enabled:
                 continue
