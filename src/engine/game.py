@@ -16,8 +16,10 @@ from entities.registry import Registry
 from entities.systems.render import RenderSystem
 from entities.systems.ui import UiSystem
 from entities.systems.camera_control import CameraControlSystem
-from geometry.geometry import generate_sphere, generate_cube_flat, generate_plane
-from geometry.mesh import Mesh
+from meshes.geometry.cube import generate_cube
+from meshes.geometry.plane import generate_plane
+from meshes.geometry.uv_sphere import generate_uv_sphere
+from meshes.mesh import Mesh
 from math_utils import vec3
 from shading.material import Material, ShaderType
 
@@ -87,17 +89,17 @@ class Game(Application):
             "u_AO": 0.05,
         })
 
-        sphere_vertices, sphere_indices = generate_sphere(radius=0.5, stacks=20, sectors=40)
-        cube_vertices, cube_indices = generate_cube_flat(size=1.0)
+        uv_sphere_vertices, uv_sphere_indices = generate_uv_sphere(radius=0.5, stacks=20, sectors=40)
+        cube_vertices, cube_indices = generate_cube(size=1.0)
         plane_vertices, plane_indices = generate_plane()
 
-        # orange sphere entity
+        # orange UV sphere entity
         e1 = self.registry.create_entity()
         self.registry.add_components(
             e1,
-            EntityFlags(name="Sphere"),
+            EntityFlags(name="UV sphere"),
             Transform(position=vec3(0.0, 0.5, 0)),
-            Visuals(Mesh(sphere_vertices, sphere_indices), mat_orange)
+            Visuals(Mesh(uv_sphere_vertices, uv_sphere_indices), mat_orange)
         )
 
         # blue cube entity

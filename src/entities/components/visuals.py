@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from geometry.mesh import Mesh
+from meshes.mesh import Mesh
 from shading.material import Material
 
 

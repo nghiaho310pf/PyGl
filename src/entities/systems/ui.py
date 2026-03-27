@@ -12,8 +12,11 @@ from entities.components.ui_state import UiState, AddType
 from entities.components.visuals import Visuals
 from entities.components.entity_flags import EntityFlags
 from entities.registry import Registry
-from geometry.geometry import generate_cube_flat, generate_plane, generate_sphere
-from geometry.mesh import Mesh
+from meshes.geometry.cube import generate_cube
+from meshes.geometry.plane import generate_plane
+from meshes.geometry.tetrahedron import generate_tetrahedron
+from meshes.geometry.uv_sphere import generate_uv_sphere
+from meshes.mesh import Mesh
 from math_utils import vec3
 from shading.material import Material, ShaderType
 
@@ -53,14 +56,17 @@ class UiSystem:
         else:
             changed_type = False
 
-            if imgui.radio_button("Sphere", ui_state.add_mesh_type == AddType.Sphere):
-                ui_state.add_mesh_type = AddType.Sphere
+            if imgui.radio_button("Plane", ui_state.add_mesh_type == AddType.Plane):
+                ui_state.add_mesh_type = AddType.Plane
                 changed_type = True
             if imgui.radio_button("Cube", ui_state.add_mesh_type == AddType.Cube):
                 ui_state.add_mesh_type = AddType.Cube
                 changed_type = True
-            if imgui.radio_button("Plane", ui_state.add_mesh_type == AddType.Plane):
-                ui_state.add_mesh_type = AddType.Plane
+            if imgui.radio_button("UV sphere", ui_state.add_mesh_type == AddType.UVSphere):
+                ui_state.add_mesh_type = AddType.UVSphere
+                changed_type = True
+            if imgui.radio_button("Tetrahedron", ui_state.add_mesh_type == AddType.Tetrahedron):
+                ui_state.add_mesh_type = AddType.Tetrahedron
                 changed_type = True
             if imgui.radio_button("Light", ui_state.add_mesh_type == AddType.PointLight):
                 ui_state.add_mesh_type = AddType.PointLight
@@ -71,14 +77,16 @@ class UiSystem:
 
             mesh_changed = not ui_state.preview_visual_initialized or changed_type
 
-            if ui_state.add_mesh_type == AddType.Sphere:
+            if ui_state.add_mesh_type == AddType.Cube:
+                changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
+                mesh_changed = mesh_changed or changed_s
+            elif ui_state.add_mesh_type == AddType.UVSphere:
                 changed_r, ui_state.sphere_radius = imgui.drag_float("Radius", ui_state.sphere_radius, 0.01, 0.01, 10.0)
-                changed_st, ui_state.sphere_stacks = imgui.slider_int("Stacks", ui_state.sphere_stacks, 3, 50)
-                changed_se, ui_state.sphere_sectors = imgui.slider_int("Sectors", ui_state.sphere_sectors, 3, 50)
+                changed_st, ui_state.uv_sphere_stacks = imgui.slider_int("Stacks", ui_state.uv_sphere_stacks, 3, 50)
+                changed_se, ui_state.uv_sphere_sectors = imgui.slider_int("Sectors", ui_state.uv_sphere_sectors, 3, 50)
                 mesh_changed = mesh_changed or changed_r or changed_st or changed_se
-
-            elif ui_state.add_mesh_type == AddType.Cube:
-                changed_s, ui_state.cube_size = imgui.drag_float("Size", ui_state.cube_size, 0.01, 0.01, 10.0)
+            elif ui_state.add_mesh_type == AddType.Tetrahedron:
+                changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
                 mesh_changed = mesh_changed or changed_s
 
             if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera):
@@ -87,12 +95,14 @@ class UiSystem:
                 ui_visuals.enabled = True
                 if mesh_changed:
                     vi = None
-                    if ui_state.add_mesh_type == AddType.Sphere:
-                        vi = generate_sphere(ui_state.sphere_radius, ui_state.sphere_stacks, ui_state.sphere_sectors)
-                    elif ui_state.add_mesh_type == AddType.Cube:
-                        vi = generate_cube_flat(ui_state.cube_size)
-                    elif ui_state.add_mesh_type == AddType.Plane:
+                    if ui_state.add_mesh_type == AddType.Plane:
                         vi = generate_plane()
+                    elif ui_state.add_mesh_type == AddType.Cube:
+                        vi = generate_cube(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.UVSphere:
+                        vi = generate_uv_sphere(ui_state.sphere_radius, ui_state.uv_sphere_stacks, ui_state.uv_sphere_sectors)
+                    elif ui_state.add_mesh_type == AddType.Tetrahedron:
+                        vi = generate_tetrahedron(ui_state.general_mesh_size)
 
                     if vi is not None:
                         ui_visuals.mesh = Mesh(*vi)
@@ -102,14 +112,16 @@ class UiSystem:
             if imgui.button("Add to scene"):
                 new_entity = registry.create_entity()
 
-                if ui_state.add_mesh_type in (AddType.Sphere, AddType.Cube, AddType.Plane):
+                if ui_state.add_mesh_type in (AddType.Plane, AddType.Cube, AddType.UVSphere, AddType.Tetrahedron):
                     vi = None
-                    if ui_state.add_mesh_type == AddType.Sphere:
-                        vi = generate_sphere(ui_state.sphere_radius, ui_state.sphere_stacks, ui_state.sphere_sectors)
-                    elif ui_state.add_mesh_type == AddType.Cube:
-                        vi = generate_cube_flat(ui_state.cube_size)
-                    elif ui_state.add_mesh_type == AddType.Plane:
+                    if ui_state.add_mesh_type == AddType.Plane:
                         vi = generate_plane()
+                    elif ui_state.add_mesh_type == AddType.Cube:
+                        vi = generate_cube(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.UVSphere:
+                        vi = generate_uv_sphere(ui_state.sphere_radius, ui_state.uv_sphere_stacks, ui_state.uv_sphere_sectors)
+                    elif ui_state.add_mesh_type == AddType.Tetrahedron:
+                        vi = generate_tetrahedron(ui_state.general_mesh_size)
 
                     if vi is not None:
                         new_material = Material(
