@@ -72,13 +72,13 @@ class UiSystem:
             mesh_changed = not ui_state.preview_visual_initialized or changed_type
 
             if ui_state.add_mesh_type == AddType.Sphere:
-                changed_r, ui_state.sphere_radius = imgui.slider_float("Radius", ui_state.sphere_radius, 0.1, 5.0)
+                changed_r, ui_state.sphere_radius = imgui.drag_float("Radius", ui_state.sphere_radius, 0.01, 0.01, 10.0)
                 changed_st, ui_state.sphere_stacks = imgui.slider_int("Stacks", ui_state.sphere_stacks, 3, 50)
                 changed_se, ui_state.sphere_sectors = imgui.slider_int("Sectors", ui_state.sphere_sectors, 3, 50)
                 mesh_changed = mesh_changed or changed_r or changed_st or changed_se
 
             elif ui_state.add_mesh_type == AddType.Cube:
-                changed_s, ui_state.cube_size = imgui.slider_float("Size", ui_state.cube_size, 0.1, 5.0)
+                changed_s, ui_state.cube_size = imgui.drag_float("Size", ui_state.cube_size, 0.01, 0.01, 10.0)
                 mesh_changed = mesh_changed or changed_s
 
             if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera):
