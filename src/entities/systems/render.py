@@ -11,9 +11,9 @@ from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals
 from entities.registry import Registry
-from shading.material import Material
+from shading.material import Material, ShaderType
 from shading.shader import Shader, ShaderGlobals
-from shading.shaders import depth_shader
+from shading.shaders import blinn_phong, gouraud, depth_shader, flat_shader
 
 
 class RenderSystem:
@@ -24,7 +24,13 @@ class RenderSystem:
         self.default_camera_transform = Transform()
         self.default_camera_component = Camera()
 
+        self.flat_shader = flat_shader.make_shader()
+        self.blinn_phong_shader = blinn_phong.make_shader()
+        self.gouraud_shader = gouraud.make_shader()
         self.depth_shader = depth_shader.make_shader()
+        self.attach_shader(self.flat_shader)
+        self.attach_shader(self.blinn_phong_shader)
+        self.attach_shader(self.gouraud_shader)
         self.attach_shader(self.depth_shader)
 
     def attach_shader(self, shader: Shader):
@@ -105,27 +111,34 @@ class RenderSystem:
 
         self.shader_globals.update(proj_matrix, view_matrix, camera_transform.position, time)
 
-        shader_batches: dict[Shader, dict[Material,
+        shader_batches: dict[ShaderType, dict[Material,
                                           list[Tuple[Transform, Visuals]]]] = {}
         for entity, (transform, visuals) in registry.view(Transform, Visuals):
             if not visuals.enabled:
                 continue
 
-            if render_state.draw_mode == DrawMode.DepthOnly:
-                shader = self.depth_shader
-            else:
-                shader = visuals.material.shader
-
+            shader_type = visuals.material.shader_type
             mat = visuals.material
 
-            if shader not in shader_batches:
-                shader_batches[shader] = {}
-            if mat not in shader_batches[shader]:
-                shader_batches[shader][mat] = []
+            if shader_type not in shader_batches:
+                shader_batches[shader_type] = {}
+            if mat not in shader_batches[shader_type]:
+                shader_batches[shader_type][mat] = []
 
-            shader_batches[shader][mat].append((transform, visuals))
+            shader_batches[shader_type][mat].append((transform, visuals))
 
-        for shader, material_group in shader_batches.items():
+        for shader_type, material_group in shader_batches.items():
+            if render_state.draw_mode == DrawMode.DepthOnly:
+                shader = self.depth_shader
+            elif shader_type == ShaderType.Flat:
+                shader = self.flat_shader
+            elif shader_type == ShaderType.BlinnPhong:
+                shader = self.blinn_phong_shader
+            elif shader_type == ShaderType.Gouraud:
+                shader = self.gouraud_shader
+            else:
+                shader = self.flat_shader
+
             shader.use()
 
             if render_state.draw_mode == DrawMode.DepthOnly:
@@ -138,7 +151,7 @@ class RenderSystem:
 
             for material, entities in material_group.items():
                 if render_state.draw_mode != DrawMode.DepthOnly:
-                    material.setup_properties()
+                    self.setup_shader_properties(shader, material)
 
                 for transform, visuals in entities:
                     model_matrix = math_utils.create_transformation_matrix(
@@ -147,3 +160,15 @@ class RenderSystem:
                     shader.set_mat4("u_Model", model_matrix)
 
                     visuals.mesh.draw()
+
+    def setup_shader_properties(self, shader: Shader, material: Material):
+        for name, value in material.properties.items():
+            if isinstance(value, float):
+                shader.set_float(name, value)
+            elif isinstance(value, int):
+                shader.set_int(name, value)
+            elif isinstance(value, (list, tuple)):
+                if len(value) == 3:
+                    shader.set_vec3(name, value)
+                elif len(value) == 4:
+                    shader.set_vec4(name, value)

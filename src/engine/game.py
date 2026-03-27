@@ -19,8 +19,7 @@ from entities.systems.camera_control import CameraControlSystem
 from geometry.geometry import generate_sphere, generate_cube_flat, generate_plane
 from geometry.mesh import Mesh
 from math_utils import vec3
-from shading.material import Material
-from shading.shaders import blinn_phong
+from shading.material import Material, ShaderType
 
 
 class Game(Application):
@@ -35,17 +34,14 @@ class Game(Application):
         self.ui_system = UiSystem()
         self.camera_control_system = CameraControlSystem()
 
-        # == shader setup ==
-        shader = blinn_phong.make_shader()
-        self.render_system.attach_shader(shader)
-
-        mat_preview = Material(shader, {
+        # == material setup ==
+        mat_preview = Material(ShaderType.BlinnPhong, {
             "u_Albedo": [0.4, 0.9, 0.4],
             "u_Roughness": 0.5,
             "u_Reflectance": 0.1,
             "u_AO": 0.0,
         })
-        mat_default = Material(shader, {
+        mat_default = Material(ShaderType.BlinnPhong, {
             "u_Albedo": [0.3, 0.3, 0.3],
             "u_Roughness": 0.5,
             "u_Reflectance": 0.1,
@@ -72,19 +68,19 @@ class Game(Application):
 
         # == demo setup ==
 
-        mat_orange = Material(shader, {
+        mat_orange = Material(ShaderType.BlinnPhong, {
             "u_Albedo": [1.0, 0.318, 0.133],
             "u_Roughness": 0.6,
             "u_Reflectance": 0.25,
             "u_AO": 0.05,
         })
-        mat_blue = Material(shader, {
+        mat_blue = Material(ShaderType.BlinnPhong, {
             "u_Albedo": [0.276, 0.481, 1.0],
             "u_Roughness": 0.6,
             "u_Reflectance": 0.25,
             "u_AO": 0.05,
         })
-        mat_grey = Material(shader, {
+        mat_grey = Material(ShaderType.BlinnPhong, {
             "u_Albedo": [0.08, 0.08, 0.08],
             "u_Roughness": 0.6,
             "u_Reflectance": 0.01,

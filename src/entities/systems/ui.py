@@ -15,7 +15,7 @@ from entities.registry import Registry
 from geometry.geometry import generate_cube_flat, generate_plane, generate_sphere
 from geometry.mesh import Mesh
 from math_utils import vec3
-from shading.material import Material
+from shading.material import Material, ShaderType
 
 
 class UiSystem:
@@ -113,7 +113,7 @@ class UiSystem:
 
                     if vi is not None:
                         new_material = Material(
-                            ui_state.default_material.shader,
+                            ui_state.default_material.shader_type,
                             copy.deepcopy(ui_state.default_material.properties)
                         )
 
@@ -314,13 +314,17 @@ class UiSystem:
                     "Shown", comp.enabled)
                 if changed_enabled:
                     comp.enabled = new_enabled
+                
+                
 
-                imgui.tree_pop()
+                if imgui.radio_button("Flat", comp.material.shader_type == ShaderType.Flat):
+                    comp.material.shader_type = ShaderType.Flat
+                if imgui.radio_button("Blinn-Phong", comp.material.shader_type == ShaderType.BlinnPhong):
+                    comp.material.shader_type = ShaderType.BlinnPhong
+                if imgui.radio_button("Gouraud", comp.material.shader_type == ShaderType.Gouraud):
+                    comp.material.shader_type = ShaderType.Gouraud
 
-            # hardcode "Material", there might be a separate mesh-related dropdown later
-            if imgui.tree_node_ex("Material", imgui.TreeNodeFlags_.default_open):
                 # for now just a hardcoded whitelist of the parameters
-
                 albedo = comp.material.properties["u_Albedo"]
                 if albedo is not None:
                     changed_albedo, new_albedo = imgui.color_edit3(
