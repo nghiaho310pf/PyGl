@@ -6,7 +6,7 @@ from imgui_bundle import imgui, icons_fontawesome_6
 
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
-from entities.components.render_state import RenderState
+from entities.components.render_state import DrawMode, RenderState
 from entities.components.transform import Transform
 from entities.components.ui_state import UiState, AddType
 from entities.components.visuals import Visuals
@@ -21,10 +21,12 @@ from shading.material import Material
 class UiSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r = registry.get_singleton(UiState, Visuals)
-        if r is None:
+        r_ui = registry.get_singleton(UiState, Visuals)
+        r_render = registry.get_singleton(RenderState)
+        if r_ui is None or r_render is None:
             return
-        ui_state_entity, (ui_state, ui_visuals) = r
+        ui_state_entity, (ui_state, ui_visuals) = r_ui
+        render_state_entity, (render_state, ) = r_render
 
         viewport = imgui.get_main_viewport()
 
@@ -206,12 +208,18 @@ class UiSystem:
             if imgui.collapsing_header(header_title, imgui.TreeNodeFlags_.default_open):
                 for comp_type, component in selected_components.items():
                     UiSystem.draw_component_properties(
-                        registry, 
-                        ui_state, 
-                        ui_state.selected_entity, 
-                        comp_type, 
-                        component
+                        ui_state, render_state,
+                        ui_state.selected_entity, comp_type, component
                     )
+
+        # == debug section ==
+        if imgui.collapsing_header("Debug", imgui.TreeNodeFlags_.default_open):
+            if imgui.radio_button("Draw normally", render_state.draw_mode == DrawMode.Normal):
+                render_state.draw_mode = DrawMode.Normal
+            if imgui.radio_button("Draw wireframe", render_state.draw_mode == DrawMode.Wireframe):
+                render_state.draw_mode = DrawMode.Wireframe
+            if imgui.radio_button("Draw depth", render_state.draw_mode == DrawMode.DepthOnly):
+                render_state.draw_mode = DrawMode.DepthOnly
 
         imgui.end()
 
@@ -221,7 +229,10 @@ class UiSystem:
             registry.remove_entity(e)
 
     @staticmethod
-    def draw_component_properties(registry: Registry, ui_state: UiState, entity_id: int, comp_type: Type[Any], comp: Any):
+    def draw_component_properties(
+            ui_state: UiState, render_state: RenderState,
+            entity_id: int, comp_type: Type[Any], comp: Any
+    ):
         if isinstance(comp, EntityFlags):
             changed_name, new_name = imgui.input_text(
                 "Name", comp.name if comp.name is not None else "")
@@ -274,16 +285,12 @@ class UiSystem:
 
         elif isinstance(comp, Camera):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
-                r = registry.get_singleton(RenderState)
-                if r is not None:
-                    render_state_entity, (render_state, ) = r
-                    imgui.begin_disabled(
-                        render_state.target_camera == entity_id)
-                    changed_targeted, new_targeted = imgui.checkbox(
-                        "Main camera", render_state.target_camera == entity_id)
-                    if changed_targeted:
-                        render_state.target_camera = entity_id
-                    imgui.end_disabled()
+                is_targeted = render_state.target_camera == entity_id
+                imgui.begin_disabled(is_targeted)
+                changed_targeted, new_targeted = imgui.checkbox("Main camera", is_targeted)
+                if changed_targeted:
+                    render_state.target_camera = entity_id
+                imgui.end_disabled()
 
                 changed_fov, new_fov = imgui.drag_float(
                     "FOV", comp.fov, 1.0, 10.0, 150.0)

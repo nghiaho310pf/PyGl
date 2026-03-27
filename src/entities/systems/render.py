@@ -4,7 +4,7 @@ import numpy as np
 from OpenGL import GL
 
 import math_utils
-from entities.components.render_state import RenderState
+from entities.components.render_state import RenderState, DrawMode
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.transform import Transform
@@ -18,9 +18,12 @@ class RenderSystem:
     def __init__(self):
         # == unorthodox: global state ==
         self.shader_globals = ShaderGlobals()
-        self.depth_shader = depth_shader.make_shader()
+
         self.default_camera_transform = Transform()
         self.default_camera_component = Camera()
+
+        self.depth_shader = depth_shader.make_shader()
+        self.attach_shader(self.depth_shader)
 
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
@@ -87,6 +90,11 @@ class RenderSystem:
         GL.glEnable(GL.GL_CULL_FACE)
         GL.glCullFace(GL.GL_BACK)
 
+        if render_state.draw_mode == DrawMode.Wireframe:
+            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE)
+        else:
+            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
+
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         GL.glViewport(0, 0, width, height)
 
@@ -100,7 +108,11 @@ class RenderSystem:
             if not visuals.enabled:
                 continue
 
-            shader = visuals.material.shader
+            if render_state.draw_mode == DrawMode.DepthOnly:
+                shader = self.depth_shader
+            else:
+                shader = visuals.material.shader
+
             mat = visuals.material
 
             if shader not in shader_batches:
@@ -113,12 +125,17 @@ class RenderSystem:
         for shader, material_group in shader_batches.items():
             shader.use()
 
-            shader.set_vec3_array("u_LightPos", point_light_positions)
-            shader.set_vec3_array("u_LightColor", point_light_colors)
-            shader.set_int("u_NumLights", num_lights)
+            if render_state.draw_mode == DrawMode.DepthOnly:
+                shader.set_float("u_Near", camera.near)
+                shader.set_float("u_Far", camera.far)
+            else:
+                shader.set_vec3_array("u_LightPos", point_light_positions)
+                shader.set_vec3_array("u_LightColor", point_light_colors)
+                shader.set_int("u_NumLights", num_lights)
 
             for material, entities in material_group.items():
-                material.setup_properties()
+                if render_state.draw_mode != DrawMode.DepthOnly:
+                    material.setup_properties()
 
                 for transform, visuals in entities:
                     model_matrix = math_utils.create_transformation_matrix(
