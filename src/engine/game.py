@@ -11,9 +11,11 @@ from entities.components.render_state import RenderState
 from entities.components.transform import Transform
 from entities.components.ui_state import UiState
 from entities.components.visuals import Visuals
+from entities.components.camera_control_state import CameraControlState
 from entities.registry import Registry
 from entities.systems.render import RenderSystem
 from entities.systems.ui import UiSystem
+from entities.systems.camera_control import CameraControlSystem
 from geometry.geometry import generate_sphere, generate_cube_flat, generate_plane
 from geometry.mesh import Mesh
 from math_utils import vec3
@@ -31,6 +33,7 @@ class Game(Application):
 
         self.render_system = RenderSystem()
         self.ui_system = UiSystem()
+        self.camera_control_system = CameraControlSystem()
 
         # == shader setup ==
         shader = blinn_phong.make_shader()
@@ -53,7 +56,8 @@ class Game(Application):
         self.registry.add_components(
             self.registry.create_entity(),
             EntityFlags(is_internal=True),
-            RenderState()
+            RenderState(),
+            CameraControlState(),
         )
         self.registry.add_components(
             self.registry.create_entity(),
@@ -158,16 +162,13 @@ class Game(Application):
             self.last_update = now
         dt = now - self.last_update
 
-        # == logic ==
-        self.imgui_renderer.process_inputs()
-
-        # == graphics ==
-        self.render_system.update(self.registry, self.get_window_size(), now, dt)
-
-        # == ui ==
+        # == logic & graphics ==
         # a bit unorthodox to ECS because of calling special ImGui commands
-        # here instead of in UiSystem. might or might not fix later
+        # here instead of in systems, but this is simpler.
+        self.imgui_renderer.process_inputs()
         imgui.new_frame()
+        self.camera_control_system.update(self.registry, now, dt)
+        self.render_system.update(self.registry, self.get_window_size(), now, dt)
         self.ui_system.update(self.registry, now, dt)
         imgui.render()
         self.imgui_renderer.render(imgui.get_draw_data())
