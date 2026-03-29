@@ -10,10 +10,11 @@ from entities.components.camera import Camera
 from entities.components.camera_state import CameraState
 from entities.components.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
-from entities.components.render_state import DrawMode, RenderState
+from entities.components.render_state import GlobalDrawMode, RenderState
+from entities.components.surface_function import CompilationStatus, SurfaceFunction
 from entities.components.transform import Transform
 from entities.components.ui_state import UiState, AddType
-from entities.components.visuals import Visuals
+from entities.components.visuals import DrawMode, Visuals
 from entities.components.entity_flags import EntityFlags
 from entities.registry import Registry
 from meshes.surfaces.arrow import generate_arrow
@@ -130,6 +131,10 @@ class UiSystem:
             imgui.same_line()
             if imgui.radio_button("Tetrahedron", ui_state.add_mesh_type == AddType.Tetrahedron):
                 ui_state.add_mesh_type = AddType.Tetrahedron
+                changed_type = True
+
+            if imgui.radio_button("Function surface", ui_state.add_mesh_type == AddType.FunctionSurface):
+                ui_state.add_mesh_type = AddType.FunctionSurface
                 changed_type = True
 
             if imgui.radio_button("Prism", ui_state.add_mesh_type == AddType.Prism):
@@ -252,7 +257,7 @@ class UiSystem:
                 changed_tse, ui_state.torus_tube_sectors = imgui.slider_int("Tube sectors", ui_state.torus_tube_sectors, 3, 50)
                 mesh_changed = mesh_changed or changed_mr or changed_tr or changed_mse or changed_tse
 
-            if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera):
+            if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera, AddType.FunctionSurface):
                 preview_visuals.enabled = False
             else:
                 preview_visuals.enabled = True
@@ -358,6 +363,22 @@ class UiSystem:
                             dataclasses.replace(preview_transform),
                             Visuals(Mesh(*vi), new_material)
                         )
+                elif ui_state.add_mesh_type == AddType.FunctionSurface:
+                    new_material = Material(
+                        ui_state.default_material.shader_type,
+                        copy.deepcopy(ui_state.default_material.properties)
+                    )
+
+                    # We create an initial plane mesh as a placeholder until the System ticks
+                    vi = generate_plane(10.0)
+
+                    registry.add_components(
+                        new_entity,
+                        EntityFlags(name="Function surface"),
+                        Transform(position=vec3(0.0, 0.0, 0.0)),
+                        Visuals(Mesh(*vi), new_material, cull_back_faces=False),
+                        SurfaceFunction() # Our new component
+                    )
                 elif ui_state.add_mesh_type == AddType.PointLight:
                     registry.add_components(
                         new_entity,
@@ -446,11 +467,11 @@ class UiSystem:
                         "Name", entity_flags.name if entity_flags.name is not None else "")
                     if changed_name:
                         entity_flags.name = new_name if new_name != "" else None
+                    imgui.same_line()  # for the Delete button
 
                 imgui.push_style_color(imgui.Col_.button, (0.8, 0.2, 0.2, 1.0))
                 imgui.push_style_color(imgui.Col_.button_hovered, (0.9, 0.3, 0.3, 1.0))
                 imgui.push_style_color(imgui.Col_.button_active, (1.0, 0.4, 0.4, 1.0))
-                imgui.same_line()
                 if imgui.button("Delete"):
                     ui_state.entities_to_dispose.append(ui_state.selected_entity)
                 imgui.pop_style_color(3)
@@ -515,14 +536,14 @@ class UiSystem:
                 imgui.text("Draw")
 
                 imgui.table_next_column()
-                if imgui.radio_button("normally", render_state.draw_mode == DrawMode.Normal):
-                    render_state.draw_mode = DrawMode.Normal
+                if imgui.radio_button("normally", render_state.global_draw_mode == GlobalDrawMode.Normal):
+                    render_state.global_draw_mode = GlobalDrawMode.Normal
                 imgui.same_line()
-                if imgui.radio_button("wireframe", render_state.draw_mode == DrawMode.Wireframe):
-                    render_state.draw_mode = DrawMode.Wireframe
+                if imgui.radio_button("wireframe", render_state.global_draw_mode == GlobalDrawMode.Wireframe):
+                    render_state.global_draw_mode = GlobalDrawMode.Wireframe
                 imgui.same_line()
-                if imgui.radio_button("depthmap", render_state.draw_mode == DrawMode.DepthOnly):
-                    render_state.draw_mode = DrawMode.DepthOnly
+                if imgui.radio_button("depthmap", render_state.global_draw_mode == GlobalDrawMode.DepthOnly):
+                    render_state.global_draw_mode = GlobalDrawMode.DepthOnly
 
                 imgui.end_table()
 
@@ -597,11 +618,19 @@ class UiSystem:
                     "Shown", comp.enabled)
                 if changed_enabled:
                     comp.enabled = new_enabled
+                imgui.same_line()
+                if imgui.radio_button("Fill", comp.draw_mode == DrawMode.Normal):
+                    comp.draw_mode = DrawMode.Normal
+                imgui.same_line()
+                if imgui.radio_button("Wireframe", comp.draw_mode == DrawMode.Wireframe):
+                    comp.draw_mode = DrawMode.Wireframe
 
                 if imgui.radio_button("Flat", comp.material.shader_type == ShaderType.Flat):
                     comp.material.shader_type = ShaderType.Flat
+                imgui.same_line()
                 if imgui.radio_button("Blinn-Phong", comp.material.shader_type == ShaderType.BlinnPhong):
                     comp.material.shader_type = ShaderType.BlinnPhong
+                imgui.same_line()
                 if imgui.radio_button("Gouraud", comp.material.shader_type == ShaderType.Gouraud):
                     comp.material.shader_type = ShaderType.Gouraud
 
@@ -632,6 +661,40 @@ class UiSystem:
                     changed_ao, new_ao = imgui.slider_float("AO", ao, 0.0, 1.0)
                     if changed_ao:
                         comp.material.properties["u_AO"] = new_ao
+
+                imgui.tree_pop()
+
+        elif isinstance(comp, SurfaceFunction):
+            if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+                changed_res, new_res = imgui.slider_int("Resolution", comp.resolution, 2, 200)
+                if changed_res:
+                    comp.resolution = new_res
+                    comp.generated = False
+
+                changed_size, new_size = imgui.drag_float("Size", comp.size, 0.1, 0.1, 100.0)
+                if changed_size:
+                    comp.size = new_size
+                    comp.generated = False
+
+                imgui.separator()
+
+                label = "*Expression" if comp.expression_dirty else "Expression"
+                changed_expr, new_expr = imgui.input_text(f"{label}###expr_input", comp.expression)
+
+                if changed_expr:
+                    comp.expression = new_expr
+                    comp.expression_dirty = True
+
+                if imgui.button("Compile"):
+                    comp.expression_dirty = False
+                    comp.generated = False
+
+                if comp.error_status == CompilationStatus.Ok:
+                    imgui.text_colored((0.2, 0.8, 0.2, 1.0), comp.error_string)
+                elif comp.error_status == CompilationStatus.Warning:
+                    imgui.text_colored((0.8, 0.2, 0.2, 1.0), comp.error_string)
+                elif comp.error_status == CompilationStatus.Error:
+                    imgui.text_colored((0.9, 0.2, 0.2, 1.0), comp.error_string)
 
                 imgui.tree_pop()
 

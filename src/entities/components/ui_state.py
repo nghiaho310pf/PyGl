@@ -16,6 +16,8 @@ class AddType(Enum):
     Star = auto()
     Arrow = auto()
 
+    FunctionSurface = auto()
+
     Cube = auto()
     Tetrahedron = auto()
     Prism = auto()

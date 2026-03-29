@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-class DrawMode(Enum):
+class GlobalDrawMode(Enum):
     Normal = 0
     Wireframe = 1
     DepthOnly = 2
@@ -10,4 +10,4 @@ class DrawMode(Enum):
 
 @dataclass
 class RenderState:
-    draw_mode: DrawMode = DrawMode.Normal
+    global_draw_mode: GlobalDrawMode = GlobalDrawMode.Normal

@@ -6,11 +6,11 @@ from OpenGL import GL
 
 from entities.components.camera_state import CameraState
 import math_utils
-from entities.components.render_state import RenderState, DrawMode
+from entities.components.render_state import RenderState, GlobalDrawMode
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.transform import Transform
-from entities.components.visuals import Visuals
+from entities.components.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from shading.material import Material, ShaderType
 from shading.shader import Shader, ShaderGlobals
@@ -39,7 +39,6 @@ class RenderSystem:
 
     def update(self, registry: Registry, window_size: tuple[int, int], time: float, delta_time: float):
         # == camera setup ==
-
         width, height = window_size
         aspect_ratio = width / height if height > 0 else 1.0
 
@@ -56,6 +55,7 @@ class RenderSystem:
             if r is not None:
                 camera_transform, camera = r
 
+        # == lights setup ==
         point_light_positions = []
         point_light_colors = []
 
@@ -71,26 +71,19 @@ class RenderSystem:
             point_light_colors = point_light_colors[:MAX_LIGHTS]
             num_lights = MAX_LIGHTS
 
-        GL.glEnable(GL.GL_DEPTH_TEST)
-        GL.glEnable(GL.GL_CULL_FACE)
-        GL.glCullFace(GL.GL_BACK)
-
-        if render_state.draw_mode == DrawMode.Wireframe:
-            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE)
-        else:
-            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
-
+        # == global pre-render setup ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         GL.glViewport(0, 0, width, height)
-
         GL.glClearColor(0.004, 0.004, 0.004, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+        GL.glEnable(GL.GL_DEPTH_TEST)
 
         self.shader_globals.update(camera_state.projection_matrix,
                                    camera_state.view_matrix, camera_transform.position, time)
 
-        shader_batches: dict[ShaderType, dict[Material,
-                                          list[Tuple[Transform, Visuals]]]] = {}
+        # == batching ==
+        batches: dict[tuple[ShaderType, DrawMode, bool], dict[Material, list[Tuple[Transform, Visuals]]]] = {}
+
         for entity, (transform, visuals) in registry.view(Transform, Visuals):
             if not visuals.enabled:
                 continue
@@ -98,15 +91,34 @@ class RenderSystem:
             shader_type = visuals.material.shader_type
             mat = visuals.material
 
-            if shader_type not in shader_batches:
-                shader_batches[shader_type] = {}
-            if mat not in shader_batches[shader_type]:
-                shader_batches[shader_type][mat] = []
+            if render_state.global_draw_mode == GlobalDrawMode.Wireframe:
+                actual_draw_mode = DrawMode.Wireframe
+            else:
+                actual_draw_mode = visuals.draw_mode
 
-            shader_batches[shader_type][mat].append((transform, visuals))
+            cull_faces = visuals.cull_back_faces
 
-        for shader_type, material_group in shader_batches.items():
-            if render_state.draw_mode == DrawMode.DepthOnly:
+            batch_key = (shader_type, actual_draw_mode, cull_faces)
+
+            if batch_key not in batches:
+                batches[batch_key] = {}
+            if mat not in batches[batch_key]:
+                batches[batch_key][mat] = []
+
+            batches[batch_key][mat].append((transform, visuals))
+
+        # == render ==
+        sorted_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1].name, k[2]))
+
+        current_shader = None
+        current_draw_mode = None
+        current_cull_faces = None
+
+        for batch_key in sorted_keys:
+            shader_type, draw_mode, cull_faces = batch_key
+            material_group = batches[batch_key]
+
+            if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
                 shader = self.depth_shader
             elif shader_type == ShaderType.Flat:
                 shader = self.flat_shader
@@ -117,25 +129,42 @@ class RenderSystem:
             else:
                 shader = self.flat_shader
 
-            shader.use()
+            # 'shader != current_shader' would suffice, Pylance is just bad
+            if current_shader is None or shader != current_shader:
+                shader.use()
+                if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
+                    shader.set_float("u_Near", camera.near)
+                    shader.set_float("u_Far", camera.far)
+                else:
+                    shader.set_vec3_array("u_LightPos", point_light_positions)
+                    shader.set_vec3_array("u_LightColor", point_light_colors)
+                    shader.set_int("u_NumLights", num_lights)
+                current_shader = shader
 
-            if render_state.draw_mode == DrawMode.DepthOnly:
-                shader.set_float("u_Near", camera.near)
-                shader.set_float("u_Far", camera.far)
-            else:
-                shader.set_vec3_array("u_LightPos", point_light_positions)
-                shader.set_vec3_array("u_LightColor", point_light_colors)
-                shader.set_int("u_NumLights", num_lights)
+            if draw_mode != current_draw_mode:
+                if draw_mode == DrawMode.Wireframe:
+                    GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE)
+                else:
+                    GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
+                current_draw_mode = draw_mode
+
+            if cull_faces != current_cull_faces:
+                if cull_faces:
+                    GL.glEnable(GL.GL_CULL_FACE)
+                    GL.glCullFace(GL.GL_BACK)
+                else:
+                    GL.glDisable(GL.GL_CULL_FACE)
+                current_cull_faces = cull_faces
 
             for material, entities in material_group.items():
-                if render_state.draw_mode != DrawMode.DepthOnly:
-                    self.setup_shader_properties(shader, material)
+                if render_state.global_draw_mode != GlobalDrawMode.DepthOnly:
+                    self.setup_shader_properties(current_shader, material)
 
                 for transform, visuals in entities:
                     model_matrix = math_utils.create_transformation_matrix(
                         transform.position, transform.rotation, transform.scale
                     )
-                    shader.set_mat4("u_Model", model_matrix)
+                    current_shader.set_mat4("u_Model", model_matrix)
 
                     visuals.mesh.draw()
 
