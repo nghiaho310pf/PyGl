@@ -6,7 +6,16 @@ from shading.material import Material
 
 
 class AddType(Enum):
+    Triangle = auto()
     Plane = auto()
+    Pentagon = auto()
+    Hexagon = auto()
+    Circle = auto()
+    Ellipse = auto()
+    Trapezoid = auto()
+    Star = auto()
+    Arrow = auto()
+
     Cube = auto()
     Tetrahedron = auto()
     Prism = auto()
@@ -16,6 +25,7 @@ class AddType(Enum):
     Tetrasphere = auto()
     Icosphere = auto()
     Torus = auto()
+
     PointLight = auto()
     Camera = auto()
 
@@ -28,7 +38,25 @@ class UiState:
     # == mesh creation configuration state ==
 
     add_mesh_type: AddType = AddType.Cube
-    
+
+    # circles & ellipses
+    ellipse_radius_x: float = 5.0
+    ellipse_radius_z: float = 3.0
+    round_surface_sides: int = 32
+
+    # trapezoids
+    trapezoid_top_width: float = 3.0
+    trapezoid_bottom_width: float = 5.0
+    trapezoid_height: float = 3.0
+
+    # stars
+    star_outer_radius: float = 5.0
+    star_inner_radius: float = 3.0
+    star_points: int = 4
+
+    # arrows
+    arrow_tail_length: float = 5.0
+ 
     # spheres
     sphere_radius: float = 0.5
     uv_sphere_stacks: int = 20
@@ -47,7 +75,6 @@ class UiState:
     torus_main_sectors: int = 32
     torus_tube_sectors: int = 16
 
-    # cubes & tetrahedrons
     general_mesh_size: float = 1.0
 
     preview_visual_initialized: bool = False

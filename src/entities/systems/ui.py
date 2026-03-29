@@ -16,7 +16,15 @@ from entities.components.ui_state import UiState, AddType
 from entities.components.visuals import Visuals
 from entities.components.entity_flags import EntityFlags
 from entities.registry import Registry
+from meshes.surfaces.arrow import generate_arrow
+from meshes.surfaces.circle import generate_circle
+from meshes.surfaces.ellipse import generate_ellipse
+from meshes.surfaces.hexagon import generate_hexagon
+from meshes.surfaces.pentagon import generate_pentagon
 from meshes.surfaces.plane import generate_plane
+from meshes.surfaces.star import generate_star
+from meshes.surfaces.trapezoid import generate_trapezoid
+from meshes.surfaces.triangle import generate_triangle
 from meshes.volumes.cone import generate_cone
 from meshes.volumes.cube import generate_cube
 from meshes.volumes.cylinder import generate_cylinder
@@ -82,8 +90,38 @@ class UiSystem:
 
             changed_type = False
 
+            if imgui.radio_button("Triangle", ui_state.add_mesh_type == AddType.Triangle):
+                ui_state.add_mesh_type = AddType.Triangle
+                changed_type = True
+            imgui.same_line()
             if imgui.radio_button("Plane", ui_state.add_mesh_type == AddType.Plane):
                 ui_state.add_mesh_type = AddType.Plane
+                changed_type = True
+            imgui.same_line()
+            if imgui.radio_button("Pentagon", ui_state.add_mesh_type == AddType.Pentagon):
+                ui_state.add_mesh_type = AddType.Pentagon
+                changed_type = True
+            imgui.same_line()
+            if imgui.radio_button("Hexagon", ui_state.add_mesh_type == AddType.Hexagon):
+                ui_state.add_mesh_type = AddType.Hexagon
+                changed_type = True
+            if imgui.radio_button("Circle", ui_state.add_mesh_type == AddType.Circle):
+                ui_state.add_mesh_type = AddType.Circle
+                changed_type = True
+            imgui.same_line()
+            if imgui.radio_button("Ellipse", ui_state.add_mesh_type == AddType.Ellipse):
+                ui_state.add_mesh_type = AddType.Ellipse
+                changed_type = True
+            if imgui.radio_button("Trapezoid", ui_state.add_mesh_type == AddType.Trapezoid):
+                ui_state.add_mesh_type = AddType.Trapezoid
+                changed_type = True
+            imgui.same_line()
+            if imgui.radio_button("Star", ui_state.add_mesh_type == AddType.Star):
+                ui_state.add_mesh_type = AddType.Star
+                changed_type = True
+            imgui.same_line()
+            if imgui.radio_button("Arrow", ui_state.add_mesh_type == AddType.Arrow):
+                ui_state.add_mesh_type = AddType.Arrow
                 changed_type = True
 
             if imgui.radio_button("Cube", ui_state.add_mesh_type == AddType.Cube):
@@ -132,7 +170,47 @@ class UiSystem:
 
             mesh_changed = not ui_state.preview_visual_initialized or changed_type
 
-            if ui_state.add_mesh_type == AddType.Cube:
+            if ui_state.add_mesh_type == AddType.Triangle:
+                changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
+                mesh_changed = mesh_changed or changed_s
+            elif ui_state.add_mesh_type == AddType.Plane:
+                changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
+                mesh_changed = mesh_changed or changed_s
+            elif ui_state.add_mesh_type == AddType.Pentagon:
+                changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
+                mesh_changed = mesh_changed or changed_s
+            elif ui_state.add_mesh_type == AddType.Hexagon:
+                changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
+                mesh_changed = mesh_changed or changed_s
+            elif ui_state.add_mesh_type == AddType.Circle:
+                changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
+                changed_se, ui_state.round_surface_sides = imgui.slider_int("Sides", ui_state.round_surface_sides, 3, 50)
+                mesh_changed = mesh_changed or changed_s or changed_se
+            elif ui_state.add_mesh_type == AddType.Ellipse:
+                changed_rx, ui_state.ellipse_radius_x = imgui.drag_float("X radius", ui_state.ellipse_radius_x, 0.01, 0.01, 10.0)
+                changed_rz, ui_state.ellipse_radius_z = imgui.drag_float("Z radius", ui_state.ellipse_radius_z, 0.01, 0.01, 10.0)
+                changed_se, ui_state.round_surface_sides = imgui.slider_int("Sides", ui_state.round_surface_sides, 3, 50)
+                mesh_changed = mesh_changed or changed_rx or changed_rz or changed_se
+            elif ui_state.add_mesh_type == AddType.Ellipse:
+                changed_rx, ui_state.ellipse_radius_x = imgui.drag_float("X radius", ui_state.ellipse_radius_x, 0.01, 0.01, 10.0)
+                changed_rz, ui_state.ellipse_radius_z = imgui.drag_float("Z radius", ui_state.ellipse_radius_z, 0.01, 0.01, 10.0)
+                changed_se, ui_state.round_surface_sides = imgui.slider_int("Sides", ui_state.round_surface_sides, 3, 50)
+                mesh_changed = mesh_changed or changed_rx or changed_rz or changed_se
+            elif ui_state.add_mesh_type == AddType.Trapezoid:
+                changed_tw, ui_state.trapezoid_top_width = imgui.drag_float("Top width", ui_state.trapezoid_top_width, 0.01, 0.01, 10.0)
+                changed_bw, ui_state.trapezoid_bottom_width = imgui.drag_float("Bottom width", ui_state.trapezoid_bottom_width, 0.01, 0.01, 10.0)
+                changed_h, ui_state.trapezoid_height = imgui.drag_float("Height", ui_state.trapezoid_height, 0.01, 0.01, 10.0)
+                mesh_changed = mesh_changed or changed_tw or changed_bw or changed_h
+            elif ui_state.add_mesh_type == AddType.Star:
+                changed_ir, ui_state.star_inner_radius = imgui.drag_float("Inner radius", ui_state.star_inner_radius, 0.01, 0.01, 10.0)
+                changed_or, ui_state.star_outer_radius = imgui.drag_float("Outer radius", ui_state.star_outer_radius, 0.01, 0.01, 10.0)
+                changed_p, ui_state.star_points = imgui.slider_int("Points", ui_state.star_points, 2, 20)
+                mesh_changed = mesh_changed or changed_ir or changed_or or changed_p
+            elif ui_state.add_mesh_type == AddType.Arrow:
+                changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
+                changed_tl, ui_state.arrow_tail_length = imgui.drag_float("Tail length", ui_state.arrow_tail_length, 0.01, 0.01, 10.0)
+                mesh_changed = mesh_changed or changed_s or changed_tl
+            elif ui_state.add_mesh_type == AddType.Cube:
                 changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
                 mesh_changed = mesh_changed or changed_s
             elif ui_state.add_mesh_type == AddType.Tetrahedron:
@@ -180,8 +258,24 @@ class UiSystem:
                 preview_visuals.enabled = True
                 if mesh_changed:
                     vi = None
-                    if ui_state.add_mesh_type == AddType.Plane:
-                        vi = generate_plane()
+                    if ui_state.add_mesh_type == AddType.Triangle:
+                        vi = generate_triangle(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Plane:
+                        vi = generate_plane(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Pentagon:
+                        vi = generate_pentagon(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Hexagon:
+                        vi = generate_hexagon(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Circle:
+                        vi = generate_circle(ui_state.general_mesh_size, ui_state.round_surface_sides)
+                    elif ui_state.add_mesh_type == AddType.Ellipse:
+                        vi = generate_ellipse(ui_state.ellipse_radius_x, ui_state.ellipse_radius_z, ui_state.round_surface_sides)
+                    elif ui_state.add_mesh_type == AddType.Trapezoid:
+                        vi = generate_trapezoid(ui_state.trapezoid_top_width, ui_state.trapezoid_bottom_width, ui_state.trapezoid_height)
+                    elif ui_state.add_mesh_type == AddType.Star:
+                        vi = generate_star(ui_state.star_outer_radius, ui_state.star_inner_radius, ui_state.star_points)
+                    elif ui_state.add_mesh_type == AddType.Arrow:
+                        vi = generate_arrow(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.Cube:
                         vi = generate_cube(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.Tetrahedron:
@@ -210,15 +304,29 @@ class UiSystem:
                 new_entity = registry.create_entity()
 
                 if ui_state.add_mesh_type in (
-                    AddType.Plane, AddType.Cube, AddType.Tetrahedron,
+                    AddType.Triangle, AddType.Plane, AddType.Pentagon, AddType.Hexagon,
+                    AddType.Circle, AddType.Ellipse, AddType.Trapezoid, AddType.Star, AddType.Arrow,
+                    AddType.Cube, AddType.Tetrahedron,
                     AddType.Prism, AddType.Cone, AddType.Cylinder,
                     AddType.UVSphere, AddType.Tetrasphere, AddType.Icosphere, AddType.Torus
                 ):
                     vi = None
-                    if ui_state.add_mesh_type == AddType.Plane:
-                        vi = generate_plane()
-                    elif ui_state.add_mesh_type == AddType.Cube:
-                        vi = generate_cube(ui_state.general_mesh_size)
+                    if ui_state.add_mesh_type == AddType.Triangle:
+                        vi = generate_triangle(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Plane:
+                        vi = generate_plane(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Pentagon:
+                        vi = generate_pentagon(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Hexagon:
+                        vi = generate_hexagon(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Circle:
+                        vi = generate_circle(ui_state.general_mesh_size, ui_state.round_surface_sides)
+                    elif ui_state.add_mesh_type == AddType.Ellipse:
+                        vi = generate_ellipse(ui_state.ellipse_radius_x, ui_state.ellipse_radius_z, ui_state.round_surface_sides)
+                    elif ui_state.add_mesh_type == AddType.Trapezoid:
+                        vi = generate_trapezoid(ui_state.trapezoid_top_width, ui_state.trapezoid_bottom_width, ui_state.trapezoid_height)
+                    elif ui_state.add_mesh_type == AddType.Star:
+                        vi = generate_star(ui_state.star_outer_radius, ui_state.star_inner_radius, ui_state.star_points)
                     elif ui_state.add_mesh_type == AddType.Tetrahedron:
                         vi = generate_tetrahedron(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.Prism:
