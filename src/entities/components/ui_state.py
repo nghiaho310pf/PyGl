@@ -1,19 +1,19 @@
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 
 from meshes.mesh import Mesh
 from shading.material import Material
 
 
 class AddType(Enum):
-    Plane = 0
-    Cube = 1
-    UVSphere = 2
-    Tetrasphere = 3
-    Icosphere = 4
-    Tetrahedron = 5
-    PointLight = 6
-    Camera = 7
+    Plane = auto()
+    Cube = auto()
+    Tetrahedron = auto()
+    UVSphere = auto()
+    Tetrasphere = auto()
+    Icosphere = auto()
+    PointLight = auto()
+    Camera = auto()
 
 
 @dataclass
