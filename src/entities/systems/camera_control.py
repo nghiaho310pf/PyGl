@@ -5,7 +5,7 @@ from imgui_bundle import imgui
 from entities.components.camera import Camera
 from entities.components.transform import Transform
 from entities.components.render_state import RenderState
-from entities.components.camera_control_state import CameraControlState
+from entities.components.camera_state import CameraState
 from entities.registry import Registry
 from math_utils import vec3
 
@@ -13,7 +13,7 @@ from math_utils import vec3
 class CameraControlSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r_ctrl = registry.get_singleton(CameraControlState)
+        r_ctrl = registry.get_singleton(CameraState)
         r_render = registry.get_singleton(RenderState)
 
         if r_ctrl is None or r_render is None:

@@ -7,7 +7,7 @@ import numpy as np
 from imgui_bundle import imgui, icons_fontawesome_6
 
 from entities.components.camera import Camera
-from entities.components.camera_control_state import CameraControlState
+from entities.components.camera_state import CameraState
 from entities.components.point_light import PointLight
 from entities.components.render_state import DrawMode, RenderState
 from entities.components.transform import Transform
@@ -34,7 +34,7 @@ class UiSystem:
     def update(registry: Registry, time: float, delta_time: float):
         r_ui = registry.get_singleton(UiState, Transform, Visuals)
         r_render = registry.get_singleton(RenderState)
-        r_camera_control = registry.get_singleton(CameraControlState)
+        r_camera_control = registry.get_singleton(CameraState)
         if r_ui is None or r_render is None or r_camera_control is None:
             return
         ui_state_entity, (ui_state, ui_transform, ui_visuals) = r_ui
@@ -356,7 +356,7 @@ class UiSystem:
     @staticmethod
     def draw_component_properties(
             registry: Registry,
-            ui_state: UiState, render_state: RenderState, camera_control_state: CameraControlState,
+            ui_state: UiState, render_state: RenderState, camera_control_state: CameraState,
             entity_id: int, comp_type: Type[Any], comp: Any
     ):
         if isinstance(comp, EntityFlags):

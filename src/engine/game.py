@@ -11,7 +11,7 @@ from entities.components.render_state import RenderState
 from entities.components.transform import Transform
 from entities.components.ui_state import UiState
 from entities.components.visuals import Visuals
-from entities.components.camera_control_state import CameraControlState
+from entities.components.camera_state import CameraState
 from entities.registry import Registry
 from entities.systems.render import RenderSystem
 from entities.systems.ui import UiSystem
@@ -57,7 +57,7 @@ class Game(Application):
             self.registry.create_entity(),
             EntityFlags(is_internal=True),
             RenderState(),
-            CameraControlState(),
+            CameraState(),
         )
         self.registry.add_components(
             self.registry.create_entity(),

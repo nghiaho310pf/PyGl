@@ -4,7 +4,7 @@ import numpy as np
 
 
 @dataclass
-class CameraControlState:
+class CameraState:
     is_panning: bool = False
     is_zooming: bool = False
     is_rotating: bool = False
