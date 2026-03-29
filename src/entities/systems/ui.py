@@ -331,14 +331,45 @@ class UiSystem:
             header_title = f"Inspector: {entity_label}###InspectorHeader"
 
             if imgui.collapsing_header(header_title, imgui.TreeNodeFlags_.default_open):
+                if entity_flags is not None:
+                    changed_name, new_name = imgui.input_text(
+                        "Name", entity_flags.name if entity_flags.name is not None else "")
+                    if changed_name:
+                        entity_flags.name = new_name if new_name != "" else None
+
+                imgui.push_style_color(imgui.Col_.button, (0.8, 0.2, 0.2, 1.0))
+                imgui.push_style_color(imgui.Col_.button_hovered, (0.9, 0.3, 0.3, 1.0))
+                imgui.push_style_color(imgui.Col_.button_active, (1.0, 0.4, 0.4, 1.0))
+                imgui.same_line()
+                if imgui.button("Delete"):
+                    ui_state.entities_to_dispose.append(ui_state.selected_entity)
+                imgui.pop_style_color(3)
+
+                target_camera = camera_state.target_camera
+                if target_camera is not None and target_camera != ui_state.selected_entity:
+                    cam_comps = registry.get_components(target_camera, Transform, Camera)
+                    target_comps = registry.get_components(ui_state.selected_entity, Transform)
+
+                    if cam_comps is not None and target_comps is not None:
+                        if imgui.button("Focus camera on this"):
+                            (cam_transform, camera) = cam_comps
+                            (target_transform, ) = target_comps
+
+                            UiSystem.focus_camera_on_transform(
+                                camera_state,
+                                camera,
+                                cam_transform,
+                                target_transform
+                            )
+
+                imgui.separator()
+
                 for comp_type, component in selected_components.items():
-                    UiSystem.draw_component_properties(
-                        registry,
-                        camera_state,
-                        render_state, icon_render_state,
-                        ui_state,
-                        ui_state.selected_entity, comp_type, component
-                    )
+                    if comp_type != EntityFlags:
+                        UiSystem.draw_component_properties(
+                            ui_state.selected_entity, comp_type, component,
+                            camera_state,
+                        )
 
         # == debug section ==
         if imgui.collapsing_header("Debug", imgui.TreeNodeFlags_.default_open):
@@ -394,55 +425,10 @@ class UiSystem:
 
     @staticmethod
     def draw_component_properties(
-            registry: Registry,
+            entity_id: int, comp_type: Type[Any], comp: Any,
             camera_state: CameraState,
-            render_state: RenderState, icon_render_state: IconRenderState,
-            ui_state: UiState,
-            entity_id: int, comp_type: Type[Any], comp: Any
     ):
-        if isinstance(comp, EntityFlags):
-            changed_name, new_name = imgui.input_text(
-                "Name", comp.name if comp.name is not None else "")
-            if changed_name:
-                comp.name = new_name if new_name != "" else None
-            
-            imgui.spacing()
-
-            if imgui.button("Focus camera on this"):
-                camera_entity = camera_state.target_camera
-                if camera_entity is not None:
-                    cam_comps = registry.get_components(camera_entity, Transform, Camera)
-                    target_comps = registry.get_components(entity_id, Transform)
-
-                    if cam_comps is not None and target_comps is not None:
-                        (cam_transform, camera) = cam_comps
-                        (target_transform, ) = target_comps
-
-                        camera_state.focal_point = np.array(target_transform.position, dtype=np.float32)
-
-                        pitch_rad, yaw_rad, roll_rad = np.radians(cam_transform.rotation)
-                        front = np.array([
-                            math.cos(yaw_rad) * math.cos(pitch_rad),
-                            math.sin(pitch_rad),
-                            math.sin(yaw_rad) * math.cos(pitch_rad)
-                        ], dtype=np.float32)
-
-                        norm = np.linalg.norm(front)
-                        if norm > 0:
-                            front /= norm
-
-                        cam_pos = camera_state.focal_point - front * camera.focal_point_distance
-                        cam_transform.position = vec3(*cam_pos)
-
-            imgui.push_style_color(imgui.Col_.button, (0.8, 0.2, 0.2, 1.0))
-            imgui.push_style_color(imgui.Col_.button_hovered, (0.9, 0.3, 0.3, 1.0))
-            imgui.push_style_color(imgui.Col_.button_active, (1.0, 0.4, 0.4, 1.0))            
-            if imgui.button("Delete"):
-                ui_state.entities_to_dispose.append(entity_id)
-            imgui.pop_style_color(3)
-            imgui.separator()
-
-        elif isinstance(comp, Transform):
+        if isinstance(comp, Transform):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
                 changed_pos, new_pos = imgui.drag_float3(
                     "Position", comp.position.tolist(), 0.1)
@@ -501,8 +487,6 @@ class UiSystem:
                     "Shown", comp.enabled)
                 if changed_enabled:
                     comp.enabled = new_enabled
-                
-                
 
                 if imgui.radio_button("Flat", comp.material.shader_type == ShaderType.Flat):
                     comp.material.shader_type = ShaderType.Flat
@@ -553,3 +537,26 @@ class UiSystem:
         imgui.bullet_text(text)
         imgui.pop_style_color(1)
         imgui.pop_style_var(1)
+
+    @staticmethod
+    def focus_camera_on_transform(
+        camera_state: CameraState,
+        camera: Camera,
+        camera_transform: Transform,
+        target_transform: Transform,
+    ):
+        camera_state.focal_point = np.array(target_transform.position, dtype=np.float32)
+
+        pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
+        front = np.array([
+            math.cos(yaw_rad) * math.cos(pitch_rad),
+            math.sin(pitch_rad),
+            math.sin(yaw_rad) * math.cos(pitch_rad)
+        ], dtype=np.float32)
+
+        norm = np.linalg.norm(front)
+        if norm > 0:
+            front /= norm
+
+        cam_pos = camera_state.focal_point - front * camera.focal_point_distance
+        camera_transform.position = vec3(*cam_pos)
