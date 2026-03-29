@@ -10,7 +10,7 @@ T5 = TypeVar("T5")
 
 
 # a pretty special component that Registry explicitly works with, so it's defined here.
-@dataclass
+@dataclass(slots=True)
 class Hierarchy:
     parent: int | None = None
     children: Set[int] = field(default_factory=set)
@@ -123,13 +123,19 @@ class Registry:
         if any(not store for store in stores):
             return
 
-        sorted_stores = sorted(stores, key=len)
+        if len(stores) == 1:
+            store = stores[0]
+            for entity, comp in store.items():
+                yield entity, (comp,)
+            return
 
-        common_entities = set(sorted_stores[0].keys())
-        for store in sorted_stores[1:]:
-            common_entities.intersection_update(store.keys())
+        sorted_stores = sorted(stores, key=len)
+        common_entities = sorted_stores[0].keys() & sorted_stores[1].keys()
+
+        for store in sorted_stores[2:]:
             if not common_entities:
                 return
+            common_entities &= store.keys()
 
         for entity in common_entities:
             yield entity, tuple(store[entity] for store in stores)
@@ -163,7 +169,28 @@ class Registry:
         """
         Returns the first entity with all requested components.
         """
-        return next(self.view(*comp_types), None)
+        if not comp_types:
+            return None
+
+        stores = [self._components.get(ct, {}) for ct in comp_types]
+        if any(not store for store in stores):
+            return
+
+        if len(stores) == 1:
+            common_entities = stores[0].keys()
+        else:
+            sorted_stores = sorted(stores, key=len)
+            common_entities = sorted_stores[0].keys() & sorted_stores[1].keys()
+            for store in sorted_stores[2:]:
+                if not common_entities:
+                    return None
+                common_entities &= store.keys()
+
+        if not common_entities:
+            return None
+
+        lowest_entity = min(common_entities)
+        return lowest_entity, tuple(store[lowest_entity] for store in stores)
 
     def set_parent(self, child: int, new_parent: int | None) -> None:
         if child == new_parent:
