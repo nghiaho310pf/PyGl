@@ -24,7 +24,6 @@ class CameraSystem:
             if r is None:
                 return
             camera_entity, (camera_transform, camera) = r
-            print(f"Defaulting to camera #{camera_entity}")
             registry.set_parent(camera_state_entity, camera_entity)
         else:
             r = registry.get_components(camera_state_hierarchy.parent, Transform, Camera)
