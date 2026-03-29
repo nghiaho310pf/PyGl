@@ -16,7 +16,7 @@ def generate_plane(size=10.0, uv_scale=1.0):
         -s, 0.0, -s, 0, 1, 0, 0, uv_scale,
         -s, 0.0, s, 0, 1, 0, 0, 0,
         s, 0.0, s, 0, 1, 0, uv_scale, 0,
-        s, 0.0, -s, 0, 1, 0, uv_scale, uv_scale
+        s, 0.0, -s, 0, 1, 0, uv_scale, uv_scale,
         -s, 0.0, -s, 0, -1, 0, 0, uv_scale,
         -s, 0.0, s, 0, -1, 0, 0, 0,
         s, 0.0, s, 0, -1, 0, uv_scale, 0,
