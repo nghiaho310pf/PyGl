@@ -689,6 +689,7 @@ class UiSystem:
                     comp.expression_dirty = False
                     comp.generated = False
 
+                imgui.push_text_wrap_pos(0.0)
                 if comp.error_status == CompilationStatus.Ok:
                     imgui.text_colored((0.2, 0.8, 0.2, 1.0), comp.error_string)
                 elif comp.error_status == CompilationStatus.Warning:
@@ -697,6 +698,7 @@ class UiSystem:
                 elif comp.error_status == CompilationStatus.Error:
                     imgui.text_colored(
                         (0.9, 0.2, 0.2, 1.0), f"{icons_fontawesome_6.ICON_FA_CIRCLE_EXCLAMATION} {comp.error_string}")
+                imgui.pop_text_wrap_pos()
 
                 imgui.tree_pop()
 
