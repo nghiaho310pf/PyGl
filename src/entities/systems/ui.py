@@ -382,7 +382,7 @@ class UiSystem:
                 elif ui_state.add_mesh_type == AddType.PointLight:
                     registry.add_components(
                         new_entity,
-                        EntityFlags(name="Point Light"),
+                        EntityFlags(name="Point light"),
                         Transform(position=vec3(0.0, 0.0, 0.0)),
                         PointLight()
                     )
