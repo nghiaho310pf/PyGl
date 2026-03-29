@@ -9,9 +9,11 @@ class AddType(Enum):
     Plane = 0
     Cube = 1
     UVSphere = 2
-    Tetrahedron = 3
-    PointLight = 4
-    Camera = 5
+    Tetrasphere = 3
+    Icosphere = 4
+    Tetrahedron = 5
+    PointLight = 6
+    Camera = 7
 
 
 @dataclass
@@ -24,6 +26,7 @@ class UiState:
     sphere_radius: float = 0.5
     uv_sphere_stacks: int = 20
     uv_sphere_sectors: int = 40
+    subdiv_sphere_subdivisions: int = 3
     general_mesh_size: float = 1.0
     preview_visual_initialized: bool = False
 

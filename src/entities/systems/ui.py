@@ -14,6 +14,7 @@ from entities.components.entity_flags import EntityFlags
 from entities.registry import Registry
 from meshes.geometry.cube import generate_cube
 from meshes.geometry.plane import generate_plane
+from meshes.geometry.subdivided_spheres import generate_icosphere, generate_tetrasphere
 from meshes.geometry.tetrahedron import generate_tetrahedron
 from meshes.geometry.uv_sphere import generate_uv_sphere
 from meshes.mesh import Mesh
@@ -65,6 +66,12 @@ class UiSystem:
             if imgui.radio_button("UV sphere", ui_state.add_mesh_type == AddType.UVSphere):
                 ui_state.add_mesh_type = AddType.UVSphere
                 changed_type = True
+            if imgui.radio_button("Tetrasphere", ui_state.add_mesh_type == AddType.Tetrasphere):
+                ui_state.add_mesh_type = AddType.Tetrasphere
+                changed_type = True
+            if imgui.radio_button("Icosphere", ui_state.add_mesh_type == AddType.Icosphere):
+                ui_state.add_mesh_type = AddType.Icosphere
+                changed_type = True
             if imgui.radio_button("Tetrahedron", ui_state.add_mesh_type == AddType.Tetrahedron):
                 ui_state.add_mesh_type = AddType.Tetrahedron
                 changed_type = True
@@ -85,6 +92,14 @@ class UiSystem:
                 changed_st, ui_state.uv_sphere_stacks = imgui.slider_int("Stacks", ui_state.uv_sphere_stacks, 3, 50)
                 changed_se, ui_state.uv_sphere_sectors = imgui.slider_int("Sectors", ui_state.uv_sphere_sectors, 3, 50)
                 mesh_changed = mesh_changed or changed_r or changed_st or changed_se
+            elif ui_state.add_mesh_type == AddType.Tetrasphere:
+                changed_r, ui_state.sphere_radius = imgui.drag_float("Radius", ui_state.sphere_radius, 0.01, 0.01, 10.0)
+                changed_sss, ui_state.subdiv_sphere_subdivisions = imgui.slider_int("Subdivisions", ui_state.subdiv_sphere_subdivisions, 1, 6)
+                mesh_changed = mesh_changed or changed_r or changed_sss
+            elif ui_state.add_mesh_type == AddType.Icosphere:
+                changed_r, ui_state.sphere_radius = imgui.drag_float("Radius", ui_state.sphere_radius, 0.01, 0.01, 10.0)
+                changed_sss, ui_state.subdiv_sphere_subdivisions = imgui.slider_int("Subdivisions", ui_state.subdiv_sphere_subdivisions, 1, 6)
+                mesh_changed = mesh_changed or changed_r or changed_sss
             elif ui_state.add_mesh_type == AddType.Tetrahedron:
                 changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
                 mesh_changed = mesh_changed or changed_s
@@ -101,6 +116,10 @@ class UiSystem:
                         vi = generate_cube(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.UVSphere:
                         vi = generate_uv_sphere(ui_state.sphere_radius, ui_state.uv_sphere_stacks, ui_state.uv_sphere_sectors)
+                    elif ui_state.add_mesh_type == AddType.Tetrasphere:
+                        vi = generate_tetrasphere(ui_state.sphere_radius, ui_state.subdiv_sphere_subdivisions)
+                    elif ui_state.add_mesh_type == AddType.Icosphere:
+                        vi = generate_icosphere(ui_state.sphere_radius, ui_state.subdiv_sphere_subdivisions)
                     elif ui_state.add_mesh_type == AddType.Tetrahedron:
                         vi = generate_tetrahedron(ui_state.general_mesh_size)
 
@@ -120,6 +139,10 @@ class UiSystem:
                         vi = generate_cube(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.UVSphere:
                         vi = generate_uv_sphere(ui_state.sphere_radius, ui_state.uv_sphere_stacks, ui_state.uv_sphere_sectors)
+                    elif ui_state.add_mesh_type == AddType.Tetrasphere:
+                        vi = generate_tetrasphere(ui_state.sphere_radius, ui_state.subdiv_sphere_subdivisions)
+                    elif ui_state.add_mesh_type == AddType.Icosphere:
+                        vi = generate_icosphere(ui_state.sphere_radius, ui_state.subdiv_sphere_subdivisions)
                     elif ui_state.add_mesh_type == AddType.Tetrahedron:
                         vi = generate_tetrahedron(ui_state.general_mesh_size)
 
