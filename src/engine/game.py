@@ -44,13 +44,13 @@ class Game(Application):
             "u_Albedo": [0.4, 0.9, 0.4],
             "u_Roughness": 0.5,
             "u_Reflectance": 0.1,
-            "u_AO": 0.0,
+            "u_AO": 0.1,
         })
         mat_default = Material(ShaderType.BlinnPhong, {
             "u_Albedo": [0.3, 0.3, 0.3],
             "u_Roughness": 0.5,
             "u_Reflectance": 0.1,
-            "u_AO": 0.0,
+            "u_AO": 0.1,
         })
 
         # == singleton entities required for above systems ==
@@ -81,19 +81,19 @@ class Game(Application):
             "u_Albedo": [1.0, 0.318, 0.133],
             "u_Roughness": 0.6,
             "u_Reflectance": 0.25,
-            "u_AO": 0.05,
+            "u_AO": 0.1,
         })
         mat_blue = Material(ShaderType.BlinnPhong, {
             "u_Albedo": [0.276, 0.481, 1.0],
             "u_Roughness": 0.6,
             "u_Reflectance": 0.25,
-            "u_AO": 0.05,
+            "u_AO": 0.1,
         })
         mat_grey = Material(ShaderType.BlinnPhong, {
             "u_Albedo": [0.08, 0.08, 0.08],
             "u_Roughness": 0.6,
             "u_Reflectance": 0.01,
-            "u_AO": 0.05,
+            "u_AO": 0.1,
         })
 
         uv_sphere_vertices, uv_sphere_indices = generate_uv_sphere(radius=0.5, stacks=20, sectors=40)
