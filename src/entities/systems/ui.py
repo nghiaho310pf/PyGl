@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 import math
 from typing import Any, Type
 
@@ -14,10 +15,14 @@ from entities.components.ui_state import UiState, AddType
 from entities.components.visuals import Visuals
 from entities.components.entity_flags import EntityFlags
 from entities.registry import Registry
+from meshes.geometry.cone import generate_cone
 from meshes.geometry.cube import generate_cube
+from meshes.geometry.cylinder import generate_cylinder
 from meshes.geometry.plane import generate_plane
+from meshes.geometry.prism import generate_prism
 from meshes.geometry.subdivided_spheres import generate_icosphere, generate_tetrasphere
 from meshes.geometry.tetrahedron import generate_tetrahedron
+from meshes.geometry.torus import generate_torus
 from meshes.geometry.uv_sphere import generate_uv_sphere
 from meshes.mesh import Mesh
 from math_utils import vec3
@@ -27,12 +32,12 @@ from shading.material import Material, ShaderType
 class UiSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r_ui = registry.get_singleton(UiState, Visuals)
+        r_ui = registry.get_singleton(UiState, Transform, Visuals)
         r_render = registry.get_singleton(RenderState)
         r_camera_control = registry.get_singleton(CameraControlState)
         if r_ui is None or r_render is None or r_camera_control is None:
             return
-        ui_state_entity, (ui_state, ui_visuals) = r_ui
+        ui_state_entity, (ui_state, ui_transform, ui_visuals) = r_ui
         render_state_entity, (render_state, ) = r_render
         camera_control_state_entity, (camera_control_state, ) = r_camera_control
 
@@ -59,11 +64,27 @@ class UiSystem:
         if not add_menu_expanded:
             ui_visuals.enabled = False
         else:
+            changed_pos, new_pos = imgui.drag_float3(
+                "Position", ui_transform.position.tolist(), 0.1)
+            if changed_pos:
+                ui_transform.position = vec3(*new_pos)
+
+            changed_rot, new_rot = imgui.drag_float3(
+                "Rotation", ui_transform.rotation.tolist(), 1.0)
+            if changed_rot:
+                ui_transform.rotation = vec3(*new_rot)
+
+            changed_scale, new_scale = imgui.drag_float3(
+                "Scale", ui_transform.scale.tolist(), 0.1)
+            if changed_scale:
+                ui_transform.scale = vec3(*new_scale)
+
             changed_type = False
 
             if imgui.radio_button("Plane", ui_state.add_mesh_type == AddType.Plane):
                 ui_state.add_mesh_type = AddType.Plane
                 changed_type = True
+
             if imgui.radio_button("Cube", ui_state.add_mesh_type == AddType.Cube):
                 ui_state.add_mesh_type = AddType.Cube
                 changed_type = True
@@ -71,6 +92,19 @@ class UiSystem:
             if imgui.radio_button("Tetrahedron", ui_state.add_mesh_type == AddType.Tetrahedron):
                 ui_state.add_mesh_type = AddType.Tetrahedron
                 changed_type = True
+
+            if imgui.radio_button("Prism", ui_state.add_mesh_type == AddType.Prism):
+                ui_state.add_mesh_type = AddType.Prism
+                changed_type = True
+            imgui.same_line()
+            if imgui.radio_button("Cone", ui_state.add_mesh_type == AddType.Cone):
+                ui_state.add_mesh_type = AddType.Cone
+                changed_type = True
+            imgui.same_line()
+            if imgui.radio_button("Cylinder", ui_state.add_mesh_type == AddType.Cylinder):
+                ui_state.add_mesh_type = AddType.Cylinder
+                changed_type = True
+
             if imgui.radio_button("UV sphere", ui_state.add_mesh_type == AddType.UVSphere):
                 ui_state.add_mesh_type = AddType.UVSphere
                 changed_type = True
@@ -82,6 +116,11 @@ class UiSystem:
             if imgui.radio_button("Icosphere", ui_state.add_mesh_type == AddType.Icosphere):
                 ui_state.add_mesh_type = AddType.Icosphere
                 changed_type = True
+
+            if imgui.radio_button("Torus", ui_state.add_mesh_type == AddType.Torus):
+                ui_state.add_mesh_type = AddType.Torus
+                changed_type = True
+
             if imgui.radio_button("Light", ui_state.add_mesh_type == AddType.PointLight):
                 ui_state.add_mesh_type = AddType.PointLight
                 changed_type = True
@@ -98,6 +137,22 @@ class UiSystem:
             elif ui_state.add_mesh_type == AddType.Tetrahedron:
                 changed_s, ui_state.general_mesh_size = imgui.drag_float("Size", ui_state.general_mesh_size, 0.01, 0.01, 10.0)
                 mesh_changed = mesh_changed or changed_s
+            elif ui_state.add_mesh_type == AddType.Prism:
+                changed_rb, ui_state.column_radius_bottom = imgui.drag_float("Radius", ui_state.column_radius_bottom, 0.01, 0.01, 10.0)
+                changed_h, ui_state.column_height = imgui.drag_float("Height", ui_state.column_height, 0.01, 0.01, 10.0)
+                changed_se, ui_state.column_sectors = imgui.slider_int("Sectors", ui_state.column_sectors, 3, 50)
+                mesh_changed = mesh_changed or changed_rb or changed_h or changed_se
+            elif ui_state.add_mesh_type == AddType.Cone:
+                changed_rb, ui_state.column_radius_bottom = imgui.drag_float("Bottom radius", ui_state.column_radius_bottom, 0.01, 0.01, 10.0)
+                changed_h, ui_state.column_height = imgui.drag_float("Height", ui_state.column_height, 0.01, 0.01, 10.0)
+                changed_se, ui_state.column_sectors = imgui.slider_int("Sectors", ui_state.column_sectors, 3, 50)
+                mesh_changed = mesh_changed or changed_rb or changed_h or changed_se
+            elif ui_state.add_mesh_type == AddType.Cylinder:
+                changed_rb, ui_state.column_radius_bottom = imgui.drag_float("Bottom radius", ui_state.column_radius_bottom, 0.01, 0.01, 10.0)
+                changed_rt, ui_state.cylinder_radius_top = imgui.drag_float("Top radius", ui_state.cylinder_radius_top, 0.01, 0.01, 10.0)
+                changed_h, ui_state.column_height = imgui.drag_float("Height", ui_state.column_height, 0.01, 0.01, 10.0)
+                changed_se, ui_state.column_sectors = imgui.slider_int("Sectors", ui_state.column_sectors, 3, 50)
+                mesh_changed = mesh_changed or changed_rb or changed_rt or changed_h or changed_se
             elif ui_state.add_mesh_type == AddType.UVSphere:
                 changed_r, ui_state.sphere_radius = imgui.drag_float("Radius", ui_state.sphere_radius, 0.01, 0.01, 10.0)
                 changed_st, ui_state.uv_sphere_stacks = imgui.slider_int("Stacks", ui_state.uv_sphere_stacks, 3, 50)
@@ -111,6 +166,12 @@ class UiSystem:
                 changed_r, ui_state.sphere_radius = imgui.drag_float("Radius", ui_state.sphere_radius, 0.01, 0.01, 10.0)
                 changed_sss, ui_state.subdiv_sphere_subdivisions = imgui.slider_int("Subdivisions", ui_state.subdiv_sphere_subdivisions, 1, 6)
                 mesh_changed = mesh_changed or changed_r or changed_sss
+            elif ui_state.add_mesh_type == AddType.Torus:
+                changed_mr, ui_state.torus_main_radius = imgui.drag_float("Main radius", ui_state.torus_main_radius, 0.01, 0.01, 10.0)
+                changed_tr, ui_state.torus_tube_radius = imgui.drag_float("Tube radius", ui_state.torus_tube_radius, 0.01, 0.01, 10.0)
+                changed_mse, ui_state.torus_main_sectors = imgui.slider_int("Main sectors", ui_state.torus_main_sectors, 3, 50)
+                changed_tse, ui_state.torus_tube_sectors = imgui.slider_int("Tube sectors", ui_state.torus_tube_sectors, 3, 50)
+                mesh_changed = mesh_changed or changed_mr or changed_tr or changed_mse or changed_tse
 
             if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera):
                 ui_visuals.enabled = False
@@ -124,12 +185,20 @@ class UiSystem:
                         vi = generate_cube(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.Tetrahedron:
                         vi = generate_tetrahedron(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Prism:
+                        vi = generate_prism(ui_state.column_sectors, ui_state.column_radius_bottom, ui_state.column_height)
+                    elif ui_state.add_mesh_type == AddType.Cone:
+                        vi = generate_cone(ui_state.column_radius_bottom, ui_state.column_height, ui_state.column_sectors)
+                    elif ui_state.add_mesh_type == AddType.Cylinder:
+                        vi = generate_cylinder(ui_state.column_radius_bottom, ui_state.cylinder_radius_top, ui_state.column_height, ui_state.column_sectors)
                     elif ui_state.add_mesh_type == AddType.UVSphere:
                         vi = generate_uv_sphere(ui_state.sphere_radius, ui_state.uv_sphere_stacks, ui_state.uv_sphere_sectors)
                     elif ui_state.add_mesh_type == AddType.Tetrasphere:
                         vi = generate_tetrasphere(ui_state.sphere_radius, ui_state.subdiv_sphere_subdivisions)
                     elif ui_state.add_mesh_type == AddType.Icosphere:
                         vi = generate_icosphere(ui_state.sphere_radius, ui_state.subdiv_sphere_subdivisions)
+                    elif ui_state.add_mesh_type == AddType.Torus:
+                        vi = generate_torus(ui_state.torus_main_radius, ui_state.torus_tube_radius, ui_state.torus_main_sectors, ui_state.torus_tube_sectors)
 
                     if vi is not None:
                         ui_visuals.mesh = Mesh(*vi)
@@ -139,7 +208,11 @@ class UiSystem:
             if imgui.button("Add to scene"):
                 new_entity = registry.create_entity()
 
-                if ui_state.add_mesh_type in (AddType.Plane, AddType.Cube, AddType.UVSphere, AddType.Tetrahedron):
+                if ui_state.add_mesh_type in (
+                    AddType.Plane, AddType.Cube, AddType.Tetrahedron,
+                    AddType.Prism, AddType.Cone, AddType.Cylinder,
+                    AddType.UVSphere, AddType.Tetrasphere, AddType.Icosphere, AddType.Torus
+                ):
                     vi = None
                     if ui_state.add_mesh_type == AddType.Plane:
                         vi = generate_plane()
@@ -147,12 +220,20 @@ class UiSystem:
                         vi = generate_cube(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.Tetrahedron:
                         vi = generate_tetrahedron(ui_state.general_mesh_size)
+                    elif ui_state.add_mesh_type == AddType.Prism:
+                        vi = generate_prism(ui_state.column_sectors, ui_state.column_radius_bottom, ui_state.column_height)
+                    elif ui_state.add_mesh_type == AddType.Cone:
+                        vi = generate_cone(ui_state.column_radius_bottom, ui_state.column_height, ui_state.column_sectors)
+                    elif ui_state.add_mesh_type == AddType.Cylinder:
+                        vi = generate_cylinder(ui_state.column_radius_bottom, ui_state.cylinder_radius_top, ui_state.column_height, ui_state.column_sectors)
                     elif ui_state.add_mesh_type == AddType.UVSphere:
                         vi = generate_uv_sphere(ui_state.sphere_radius, ui_state.uv_sphere_stacks, ui_state.uv_sphere_sectors)
                     elif ui_state.add_mesh_type == AddType.Tetrasphere:
                         vi = generate_tetrasphere(ui_state.sphere_radius, ui_state.subdiv_sphere_subdivisions)
                     elif ui_state.add_mesh_type == AddType.Icosphere:
                         vi = generate_icosphere(ui_state.sphere_radius, ui_state.subdiv_sphere_subdivisions)
+                    elif ui_state.add_mesh_type == AddType.Torus:
+                        vi = generate_torus(ui_state.torus_main_radius, ui_state.torus_tube_radius, ui_state.torus_main_sectors, ui_state.torus_tube_sectors)
 
                     if vi is not None:
                         new_material = Material(
@@ -163,7 +244,7 @@ class UiSystem:
                         registry.add_components(
                             new_entity,
                             EntityFlags(name=f"{ui_state.add_mesh_type.name}"),
-                            Transform(position=vec3(0.0, 0.0, 0.0)),
+                            dataclasses.replace(ui_transform),
                             Visuals(Mesh(*vi), new_material)
                         )
                 elif ui_state.add_mesh_type == AddType.PointLight:
