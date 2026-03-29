@@ -5,6 +5,7 @@ import numpy as np
 
 from engine.application import Application
 from entities.components.camera import Camera
+from entities.components.disposal import Disposal
 from entities.components.entity_flags import EntityFlags
 from entities.components.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
@@ -14,6 +15,7 @@ from entities.components.ui_state import UiState
 from entities.components.visuals import Visuals
 from entities.components.camera_state import CameraState
 from entities.registry import Registry
+from entities.systems.disposal import DisposalSystem
 from entities.systems.function_surface import FunctionSurfaceSystem
 from entities.systems.render import RenderSystem
 from entities.systems.ui import UiSystem
@@ -35,12 +37,8 @@ class Game(Application):
 
         self.registry = Registry()
 
+        # unorthodox system with OpenGL state that we need to make an instance of
         self.render_system = RenderSystem()
-        self.ui_system = UiSystem()
-        self.camera_system = CameraSystem()
-        self.icon_renderer_system = IconRenderSystem()
-
-        self.function_surface_system = FunctionSurfaceSystem()
 
         # == material setup ==
         mat_preview = Material(ShaderType.BlinnPhong, {
@@ -72,6 +70,9 @@ class Game(Application):
         self.registry.add_components(
             self.registry.create_entity(),
             EntityFlags(is_internal=True),
+
+            Disposal(),
+
             CameraState(),
             UiState(preview_entity=preview_entity, default_material=mat_default),
             RenderState(),
@@ -176,13 +177,16 @@ class Game(Application):
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
         window_size = self.get_window_size()
-        self.camera_system.update(self.registry, window_size, now, dt)
-        self.ui_system.update(self.registry, now, dt)
-        self.function_surface_system.update(self.registry, now, dt)
+        CameraSystem.update(self.registry, window_size, now, dt)
+        UiSystem.update(self.registry, now, dt)
+        FunctionSurfaceSystem.update(self.registry, now, dt)
         self.render_system.update(self.registry, window_size, now, dt)
-        self.icon_renderer_system.update(self.registry, window_size)
+        IconRenderSystem.update(self.registry, window_size)
         imgui.render()
         self.imgui_renderer.render(imgui.get_draw_data())
+
+        # == disposal ==
+        DisposalSystem.update(self.registry)
 
         # == wrapup ==
         self.last_update = now
