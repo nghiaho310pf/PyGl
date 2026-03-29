@@ -275,7 +275,7 @@ class UiSystem:
                     elif ui_state.add_mesh_type == AddType.Star:
                         vi = generate_star(ui_state.star_outer_radius, ui_state.star_inner_radius, ui_state.star_points)
                     elif ui_state.add_mesh_type == AddType.Arrow:
-                        vi = generate_arrow(ui_state.general_mesh_size)
+                        vi = generate_arrow(ui_state.general_mesh_size, ui_state.arrow_tail_length)
                     elif ui_state.add_mesh_type == AddType.Cube:
                         vi = generate_cube(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.Tetrahedron:
@@ -327,6 +327,8 @@ class UiSystem:
                         vi = generate_trapezoid(ui_state.trapezoid_top_width, ui_state.trapezoid_bottom_width, ui_state.trapezoid_height)
                     elif ui_state.add_mesh_type == AddType.Star:
                         vi = generate_star(ui_state.star_outer_radius, ui_state.star_inner_radius, ui_state.star_points)
+                    elif ui_state.add_mesh_type == AddType.Arrow:
+                        vi = generate_arrow(ui_state.general_mesh_size, ui_state.arrow_tail_length)
                     elif ui_state.add_mesh_type == AddType.Tetrahedron:
                         vi = generate_tetrahedron(ui_state.general_mesh_size)
                     elif ui_state.add_mesh_type == AddType.Prism:

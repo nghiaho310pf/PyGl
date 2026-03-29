@@ -32,10 +32,10 @@ def generate_trapezoid(top_width=6.0, bottom_width=10.0, height=8.0):
         data.extend([p[0], 0.0, p[1], 0, -1, 0, p[2], p[3]])
 
     indices = [
-        0, 1, 2,
-        0, 2, 3,
-        4, 6, 5,
-        4, 7, 6
+        0, 2, 1,
+        0, 3, 2,
+        4, 5, 6,
+        4, 6, 7
     ]
 
     return np.array(data, dtype=np.float32), np.array(indices, dtype=np.uint32)

@@ -40,11 +40,11 @@ def generate_arrow(size=4.0, tail_length=5.0):
         data.extend([x, 0.0, z, 0, -1, 0, get_u(x), get_v(z)])
 
     indices = [
-        0, 6, 1,
-        5, 4, 3,
-        5, 3, 2,
+        0, 1, 6,
+        5, 3, 4,
+        5, 2, 3,
 
-        7, 8, 13,
+        7, 13, 8,
         12, 11, 10,
         12, 10, 9
     ]

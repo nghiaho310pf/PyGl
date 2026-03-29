@@ -32,7 +32,7 @@ def generate_ellipse(radius_x=5.0, radius_z=3.0, sides=32):
     indices = []
     for i in range(1, sides + 1):
         nxt = i + 1 if i < sides else 1
-        indices.extend([0, i, nxt])
-        indices.extend([offset, offset + nxt, offset + i])
+        indices.extend([0, nxt, i])
+        indices.extend([offset, offset + i, offset + nxt])
 
     return np.array(data, dtype=np.float32), np.array(indices, dtype=np.uint32)

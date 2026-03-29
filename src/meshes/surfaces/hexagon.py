@@ -1,7 +1,6 @@
 import numpy as np
 import math
 
-
 def generate_hexagon(size=10.0):
     """
     Generates a regular hexagon on the XZ plane.
@@ -30,15 +29,15 @@ def generate_hexagon(size=10.0):
         data.extend([p[0], 0.0, p[1], 0, -1, 0, p[2], p[3]])
 
     indices = [
-        0, 1, 2,
-        0, 2, 3,
-        0, 3, 4,
-        0, 4, 5,
+        0, 2, 1,
+        0, 3, 2,
+        0, 4, 3,
+        0, 5, 4,
 
-        6, 8, 7,
-        6, 9, 8,
-        6, 10, 9,
-        6, 11, 10
+        6, 7, 8,
+        6, 8, 9,
+        6, 9, 10,
+        6, 10, 11
     ]
 
     return np.array(data, dtype=np.float32), np.array(indices, dtype=np.uint32)

@@ -30,8 +30,8 @@ def generate_triangle(size=10.0):
         data.extend([p[0], 0.0, p[1], 0, -1, 0, p[2], p[3]])
 
     indices = [
-        0, 1, 2,
-        3, 5, 4
+        0, 2, 1,
+        3, 4, 5
     ]
 
     return np.array(data, dtype=np.float32), np.array(indices, dtype=np.uint32)

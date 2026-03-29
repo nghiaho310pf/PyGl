@@ -30,8 +30,8 @@ def generate_pentagon(size=10.0):
         data.extend([p[0], 0.0, p[1], 0, -1, 0, p[2], p[3]])
 
     indices = [
-        0, 1, 2,   0, 2, 3,   0, 3, 4, # Top
-        5, 7, 6,   5, 8, 7,   5, 9, 8  # Bottom
+        0, 2, 1,   0, 3, 2,   0, 4, 3,
+        5, 6, 7,   5, 7, 8,   5, 8, 9
     ]
 
     return np.array(data, dtype=np.float32), np.array(indices, dtype=np.uint32)

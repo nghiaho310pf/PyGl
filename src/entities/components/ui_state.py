@@ -40,22 +40,22 @@ class UiState:
     add_mesh_type: AddType = AddType.Cube
 
     # circles & ellipses
-    ellipse_radius_x: float = 5.0
-    ellipse_radius_z: float = 3.0
+    ellipse_radius_x: float = 1.2
+    ellipse_radius_z: float = 0.8
     round_surface_sides: int = 32
 
     # trapezoids
-    trapezoid_top_width: float = 3.0
-    trapezoid_bottom_width: float = 5.0
-    trapezoid_height: float = 3.0
+    trapezoid_top_width: float = 0.8
+    trapezoid_bottom_width: float = 1.2
+    trapezoid_height: float = 1.0
 
     # stars
-    star_outer_radius: float = 5.0
-    star_inner_radius: float = 3.0
+    star_outer_radius: float = 0.4
+    star_inner_radius: float = 1.2
     star_points: int = 4
 
     # arrows
-    arrow_tail_length: float = 5.0
+    arrow_tail_length: float = 1.0
  
     # spheres
     sphere_radius: float = 0.5
