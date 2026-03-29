@@ -22,6 +22,7 @@ class AddType(Enum):
 
 @dataclass
 class UiState:
+    preview_entity: int
     default_material: Material
 
     # == mesh creation configuration state ==

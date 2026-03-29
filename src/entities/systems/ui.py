@@ -32,14 +32,14 @@ from shading.material import Material, ShaderType
 class UiSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r_ui = registry.get_singleton(UiState, Transform, Visuals)
-        r_render = registry.get_singleton(RenderState)
-        r_camera_control = registry.get_singleton(CameraState)
-        if r_ui is None or r_render is None or r_camera_control is None:
+        r_admin = registry.get_singleton(UiState, RenderState, CameraState)
+        if r_admin is None:
             return
-        ui_state_entity, (ui_state, ui_transform, ui_visuals) = r_ui
-        render_state_entity, (render_state, ) = r_render
-        camera_control_state_entity, (camera_control_state, ) = r_camera_control
+        admin_entity, (ui_state, render_state, camera_control_state, ) = r_admin
+        r_preview = registry.get_components(ui_state.preview_entity, Transform, Visuals)
+        if r_preview is None:
+            return
+        (preview_transform, preview_visuals) = r_preview
 
         viewport = imgui.get_main_viewport()
 
@@ -62,22 +62,22 @@ class UiSystem:
         add_menu_expanded = imgui.collapsing_header("Add")
 
         if not add_menu_expanded:
-            ui_visuals.enabled = False
+            preview_visuals.enabled = False
         else:
             changed_pos, new_pos = imgui.drag_float3(
-                "Position", ui_transform.position.tolist(), 0.1)
+                "Position", preview_transform.position.tolist(), 0.1)
             if changed_pos:
-                ui_transform.position = vec3(*new_pos)
+                preview_transform.position = vec3(*new_pos)
 
             changed_rot, new_rot = imgui.drag_float3(
-                "Rotation", ui_transform.rotation.tolist(), 1.0)
+                "Rotation", preview_transform.rotation.tolist(), 1.0)
             if changed_rot:
-                ui_transform.rotation = vec3(*new_rot)
+                preview_transform.rotation = vec3(*new_rot)
 
             changed_scale, new_scale = imgui.drag_float3(
-                "Scale", ui_transform.scale.tolist(), 0.1)
+                "Scale", preview_transform.scale.tolist(), 0.1)
             if changed_scale:
-                ui_transform.scale = vec3(*new_scale)
+                preview_transform.scale = vec3(*new_scale)
 
             changed_type = False
 
@@ -174,9 +174,9 @@ class UiSystem:
                 mesh_changed = mesh_changed or changed_mr or changed_tr or changed_mse or changed_tse
 
             if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera):
-                ui_visuals.enabled = False
+                preview_visuals.enabled = False
             else:
-                ui_visuals.enabled = True
+                preview_visuals.enabled = True
                 if mesh_changed:
                     vi = None
                     if ui_state.add_mesh_type == AddType.Plane:
@@ -201,7 +201,7 @@ class UiSystem:
                         vi = generate_torus(ui_state.torus_main_radius, ui_state.torus_tube_radius, ui_state.torus_main_sectors, ui_state.torus_tube_sectors)
 
                     if vi is not None:
-                        ui_visuals.mesh = Mesh(*vi)
+                        preview_visuals.mesh = Mesh(*vi)
                     ui_state.preview_visual_initialized = True
 
             imgui.separator()
@@ -244,7 +244,7 @@ class UiSystem:
                         registry.add_components(
                             new_entity,
                             EntityFlags(name=f"{ui_state.add_mesh_type.name}"),
-                            dataclasses.replace(ui_transform),
+                            dataclasses.replace(preview_transform),
                             Visuals(Mesh(*vi), new_material)
                         )
                 elif ui_state.add_mesh_type == AddType.PointLight:

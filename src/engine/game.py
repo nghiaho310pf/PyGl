@@ -53,21 +53,24 @@ class Game(Application):
         })
 
         # == singleton entities required for above systems ==
+        # preview entity for adding meshes
+        preview_entity = self.registry.create_entity()
         self.registry.add_components(
-            self.registry.create_entity(),
+            preview_entity,
             EntityFlags(is_internal=True),
-            RenderState(),
-            CameraState(),
-        )
-        self.registry.add_components(
-            self.registry.create_entity(),
-            EntityFlags(is_internal=True),
-            UiState(default_material=mat_default),
             Transform(position=vec3(0.0, 0.0, 0.0)),
             Visuals(
                 Mesh(np.array([], dtype=np.float32), np.array([], dtype=np.uint32)),
                 material=mat_preview, enabled=False, is_internal=True
             ) 
+        )
+        # admin entity for singletons
+        self.registry.add_components(
+            self.registry.create_entity(),
+            EntityFlags(is_internal=True),
+            RenderState(),
+            CameraState(),
+            UiState(preview_entity=preview_entity, default_material=mat_default),
         )
 
         # == demo setup ==
