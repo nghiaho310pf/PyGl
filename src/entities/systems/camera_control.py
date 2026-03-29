@@ -26,11 +26,11 @@ class CameraControlSystem:
         if camera_entity is None:
             return
 
-        r_cam = registry.get_components(camera_entity, Transform)
+        r_cam = registry.get_components(camera_entity, Transform, Camera)
         if r_cam is None:
             return
 
-        (transform, ) = r_cam
+        (transform, camera) = r_cam
         io = imgui.get_io()
 
         if imgui.is_mouse_clicked(0) and not io.want_capture_mouse:
@@ -76,20 +76,20 @@ class CameraControlSystem:
         up /= np.linalg.norm(up)
 
         if ctrl_state.is_panning:
-            pan_amount = ctrl_state.focal_point_distance * ctrl_state.pan_speed
+            pan_amount = camera.focal_point_distance * ctrl_state.pan_speed
             pan_move = (right * -io.mouse_delta.x + up *
                         io.mouse_delta.y) * pan_amount
             ctrl_state.focal_point += pan_move
 
         if ctrl_state.is_zooming:
             zoom_factor = io.mouse_delta.y * ctrl_state.zoom_speed
-            ctrl_state.focal_point_distance *= (1.0 + zoom_factor)
+            camera.focal_point_distance *= (1.0 + zoom_factor)
 
         if not io.want_capture_mouse and io.mouse_wheel != 0.0:
             zoom_factor = -io.mouse_wheel * ctrl_state.scroll_zoom_speed
-            ctrl_state.focal_point_distance *= (1.0 + zoom_factor)
+            camera.focal_point_distance *= (1.0 + zoom_factor)
 
-        ctrl_state.focal_point_distance = max(0.1, ctrl_state.focal_point_distance)
+        camera.focal_point_distance = max(0.1, camera.focal_point_distance)
 
         is_input_active = (
             ctrl_state.is_rotating or 
@@ -99,7 +99,7 @@ class CameraControlSystem:
         )
 
         if is_input_active:
-            cam_pos = ctrl_state.focal_point - front * ctrl_state.focal_point_distance
+            cam_pos = ctrl_state.focal_point - front * camera.focal_point_distance
             transform.position = vec3(*cam_pos)
         else:
-            ctrl_state.focal_point = np.array(transform.position + front * ctrl_state.focal_point_distance, dtype=np.float32)
+            ctrl_state.focal_point = np.array(transform.position + front * camera.focal_point_distance, dtype=np.float32)

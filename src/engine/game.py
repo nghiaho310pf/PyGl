@@ -16,6 +16,7 @@ from entities.registry import Registry
 from entities.systems.render import RenderSystem
 from entities.systems.ui import UiSystem
 from entities.systems.camera_control import CameraControlSystem
+from entities.systems.icon_renderer import IconRendererSystem
 from meshes.geometry.cube import generate_cube
 from meshes.geometry.plane import generate_plane
 from meshes.geometry.uv_sphere import generate_uv_sphere
@@ -35,6 +36,7 @@ class Game(Application):
         self.render_system = RenderSystem()
         self.ui_system = UiSystem()
         self.camera_control_system = CameraControlSystem()
+        self.icon_renderer_system = IconRendererSystem()
 
         # == material setup ==
         mat_preview = Material(ShaderType.BlinnPhong, {
@@ -167,6 +169,7 @@ class Game(Application):
         imgui.new_frame()
         self.camera_control_system.update(self.registry, now, dt)
         self.render_system.update(self.registry, self.get_window_size(), now, dt)
+        self.icon_renderer_system.update(self.registry, self.get_window_size())
         self.ui_system.update(self.registry, now, dt)
         imgui.render()
         self.imgui_renderer.render(imgui.get_draw_data())

@@ -370,12 +370,12 @@ class UiSystem:
             if imgui.button("Focus camera on this"):
                 camera_entity = render_state.target_camera
                 if camera_entity is not None:
-                    cam_comps = registry.get_components(camera_entity, Transform)
+                    cam_comps = registry.get_components(camera_entity, Transform, Camera)
                     target_comps = registry.get_components(entity_id, Transform)
 
                     if cam_comps is not None and target_comps is not None:
-                        cam_transform = cam_comps[0]
-                        target_transform = target_comps[0]
+                        (cam_transform, camera) = cam_comps
+                        (target_transform, ) = target_comps
 
                         camera_control_state.focal_point = np.array(target_transform.position, dtype=np.float32)
 
@@ -390,7 +390,7 @@ class UiSystem:
                         if norm > 0:
                             front /= norm
 
-                        cam_pos = camera_control_state.focal_point - front * camera_control_state.focal_point_distance
+                        cam_pos = camera_control_state.focal_point - front * camera.focal_point_distance
                         cam_transform.position = vec3(*cam_pos)
 
             imgui.push_style_color(imgui.Col_.button, (0.8, 0.2, 0.2, 1.0))
@@ -443,19 +443,13 @@ class UiSystem:
                 if changed_targeted:
                     render_state.target_camera = entity_id
                 imgui.end_disabled()
-
-                changed_fov, new_fov = imgui.drag_float(
-                    "FOV", comp.fov, 1.0, 10.0, 150.0)
+                changed_fov, new_fov = imgui.drag_float("FOV", comp.fov, 1.0, 10.0, 150.0)
                 if changed_fov:
                     comp.fov = new_fov
-
-                changed_near, new_near = imgui.drag_float(
-                    "Near Plane", comp.near, 0.01)
+                changed_near, new_near = imgui.drag_float("Near plane", comp.near, 0.01)
                 if changed_near:
                     comp.near = new_near
-
-                changed_far, new_far = imgui.drag_float(
-                    "Far Plane", comp.far, 1.0)
+                changed_far, new_far = imgui.drag_float("Far plane", comp.far, 1.0)
                 if changed_far:
                     comp.far = new_far
                 imgui.tree_pop()

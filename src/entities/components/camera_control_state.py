@@ -15,4 +15,3 @@ class CameraControlState:
     rotation_speed: float = 0.2
 
     focal_point = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-    focal_point_distance = 5.0
