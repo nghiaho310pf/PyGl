@@ -1,10 +1,12 @@
 import copy
+import math
 from typing import Any, Type
 
 import numpy as np
 from imgui_bundle import imgui, icons_fontawesome_6
 
 from entities.components.camera import Camera
+from entities.components.camera_control_state import CameraControlState
 from entities.components.point_light import PointLight
 from entities.components.render_state import DrawMode, RenderState
 from entities.components.transform import Transform
@@ -27,10 +29,12 @@ class UiSystem:
     def update(registry: Registry, time: float, delta_time: float):
         r_ui = registry.get_singleton(UiState, Visuals)
         r_render = registry.get_singleton(RenderState)
-        if r_ui is None or r_render is None:
+        r_camera_control = registry.get_singleton(CameraControlState)
+        if r_ui is None or r_render is None or r_camera_control is None:
             return
         ui_state_entity, (ui_state, ui_visuals) = r_ui
         render_state_entity, (render_state, ) = r_render
+        camera_control_state_entity, (camera_control_state, ) = r_camera_control
 
         viewport = imgui.get_main_viewport()
 
@@ -243,7 +247,8 @@ class UiSystem:
             if imgui.collapsing_header(header_title, imgui.TreeNodeFlags_.default_open):
                 for comp_type, component in selected_components.items():
                     UiSystem.draw_component_properties(
-                        ui_state, render_state,
+                        registry,
+                        ui_state, render_state, camera_control_state,
                         ui_state.selected_entity, comp_type, component
                     )
 
@@ -265,7 +270,8 @@ class UiSystem:
 
     @staticmethod
     def draw_component_properties(
-            ui_state: UiState, render_state: RenderState,
+            registry: Registry,
+            ui_state: UiState, render_state: RenderState, camera_control_state: CameraControlState,
             entity_id: int, comp_type: Type[Any], comp: Any
     ):
         if isinstance(comp, EntityFlags):
@@ -275,6 +281,32 @@ class UiSystem:
                 comp.name = new_name if new_name != "" else None
             
             imgui.spacing()
+
+            if imgui.button("Focus camera on this"):
+                camera_entity = render_state.target_camera
+                if camera_entity is not None:
+                    cam_comps = registry.get_components(camera_entity, Transform)
+                    target_comps = registry.get_components(entity_id, Transform)
+
+                    if cam_comps is not None and target_comps is not None:
+                        cam_transform = cam_comps[0]
+                        target_transform = target_comps[0]
+
+                        camera_control_state.focal_point = np.array(target_transform.position, dtype=np.float32)
+
+                        pitch_rad, yaw_rad, roll_rad = np.radians(cam_transform.rotation)
+                        front = np.array([
+                            math.cos(yaw_rad) * math.cos(pitch_rad),
+                            math.sin(pitch_rad),
+                            math.sin(yaw_rad) * math.cos(pitch_rad)
+                        ], dtype=np.float32)
+
+                        norm = np.linalg.norm(front)
+                        if norm > 0:
+                            front /= norm
+
+                        cam_pos = camera_control_state.focal_point - front * camera_control_state.focal_point_distance
+                        cam_transform.position = vec3(*cam_pos)
 
             imgui.push_style_color(imgui.Col_.button, (0.8, 0.2, 0.2, 1.0))
             imgui.push_style_color(imgui.Col_.button_hovered, (0.9, 0.3, 0.3, 1.0))
