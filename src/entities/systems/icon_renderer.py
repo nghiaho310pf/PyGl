@@ -2,6 +2,7 @@ import math
 import numpy as np
 from imgui_bundle import imgui, icons_fontawesome_6
 
+from entities.components.camera_state import CameraState
 from entities.components.point_light import PointLight
 import math_utils
 from entities.components.camera import Camera
@@ -19,12 +20,12 @@ class IconRendererSystem:
 
         aspect_ratio = width / height
 
-        r = registry.get_singleton(RenderState)
-        if r is None:
+        r_admin = registry.get_singleton(RenderState, CameraState)
+        if r_admin is None:
             return
-        _, (render_state, ) = r
+        _, (render_state, camera_state) = r_admin
 
-        target_camera_entity = render_state.target_camera
+        target_camera_entity = camera_state.target_camera
         if target_camera_entity is None:
             r_cam = registry.get_singleton(Transform, Camera)
             if r_cam is None:

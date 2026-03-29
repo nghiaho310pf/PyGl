@@ -356,7 +356,7 @@ class UiSystem:
     @staticmethod
     def draw_component_properties(
             registry: Registry,
-            ui_state: UiState, render_state: RenderState, camera_control_state: CameraState,
+            ui_state: UiState, render_state: RenderState, camera_state: CameraState,
             entity_id: int, comp_type: Type[Any], comp: Any
     ):
         if isinstance(comp, EntityFlags):
@@ -368,7 +368,7 @@ class UiSystem:
             imgui.spacing()
 
             if imgui.button("Focus camera on this"):
-                camera_entity = render_state.target_camera
+                camera_entity = camera_state.target_camera
                 if camera_entity is not None:
                     cam_comps = registry.get_components(camera_entity, Transform, Camera)
                     target_comps = registry.get_components(entity_id, Transform)
@@ -377,7 +377,7 @@ class UiSystem:
                         (cam_transform, camera) = cam_comps
                         (target_transform, ) = target_comps
 
-                        camera_control_state.focal_point = np.array(target_transform.position, dtype=np.float32)
+                        camera_state.focal_point = np.array(target_transform.position, dtype=np.float32)
 
                         pitch_rad, yaw_rad, roll_rad = np.radians(cam_transform.rotation)
                         front = np.array([
@@ -390,7 +390,7 @@ class UiSystem:
                         if norm > 0:
                             front /= norm
 
-                        cam_pos = camera_control_state.focal_point - front * camera.focal_point_distance
+                        cam_pos = camera_state.focal_point - front * camera.focal_point_distance
                         cam_transform.position = vec3(*cam_pos)
 
             imgui.push_style_color(imgui.Col_.button, (0.8, 0.2, 0.2, 1.0))
@@ -437,11 +437,11 @@ class UiSystem:
 
         elif isinstance(comp, Camera):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
-                is_targeted = render_state.target_camera == entity_id
+                is_targeted = camera_state.target_camera == entity_id
                 imgui.begin_disabled(is_targeted)
                 changed_targeted, new_targeted = imgui.checkbox("Main camera", is_targeted)
                 if changed_targeted:
-                    render_state.target_camera = entity_id
+                    camera_state.target_camera = entity_id
                 imgui.end_disabled()
                 changed_fov, new_fov = imgui.drag_float("FOV", comp.fov, 1.0, 10.0, 150.0)
                 if changed_fov:

@@ -5,6 +5,8 @@ import numpy as np
 
 @dataclass
 class CameraState:
+    target_camera: int | None = None
+
     is_panning: bool = False
     is_zooming: bool = False
     is_rotating: bool = False

@@ -15,7 +15,7 @@ from entities.components.camera_state import CameraState
 from entities.registry import Registry
 from entities.systems.render import RenderSystem
 from entities.systems.ui import UiSystem
-from entities.systems.camera_control import CameraControlSystem
+from entities.systems.camera import CameraSystem
 from entities.systems.icon_renderer import IconRendererSystem
 from meshes.geometry.cube import generate_cube
 from meshes.geometry.plane import generate_plane
@@ -35,7 +35,7 @@ class Game(Application):
 
         self.render_system = RenderSystem()
         self.ui_system = UiSystem()
-        self.camera_control_system = CameraControlSystem()
+        self.camera_control_system = CameraSystem()
         self.icon_renderer_system = IconRendererSystem()
 
         # == material setup ==

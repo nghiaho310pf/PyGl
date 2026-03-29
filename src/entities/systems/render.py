@@ -4,6 +4,7 @@ from typing import Tuple
 import numpy as np
 from OpenGL import GL
 
+from entities.components.camera_state import CameraState
 import math_utils
 from entities.components.render_state import RenderState, DrawMode
 from entities.components.camera import Camera
@@ -45,23 +46,15 @@ class RenderSystem:
         camera_transform = self.default_camera_transform
         camera = self.default_camera_component
 
-        r = registry.get_singleton(RenderState)
-        if r is None:
+        r_admin = registry.get_singleton(RenderState, CameraState)
+        if r_admin is None:
             return
-        render_state_entity, (render_state, ) = r
+        admin_entity, (render_state, camera_state) = r_admin
 
-        if render_state.target_camera is not None:
-            r = registry.get_components(render_state.target_camera, Transform, Camera)
-            if r is None:
-                render_state.target_camera = None
-            else:
-                camera_transform, camera = r
-
-        if render_state.target_camera is None:
-            r = registry.get_singleton(Transform, Camera)
+        if camera_state.target_camera is not None:
+            r = registry.get_components(camera_state.target_camera, Transform, Camera)
             if r is not None:
-                camera_entity, (camera_transform, camera) = r
-                render_state.target_camera = camera_entity
+                camera_transform, camera = r
 
         point_light_positions = []
         point_light_colors = []

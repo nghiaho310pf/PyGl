@@ -10,5 +10,4 @@ class DrawMode(Enum):
 
 @dataclass
 class RenderState:
-    target_camera: int | None = None
     draw_mode: DrawMode = DrawMode.Normal
