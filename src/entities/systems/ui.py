@@ -8,15 +8,16 @@ from imgui_bundle import imgui, icons_fontawesome_6
 
 from entities.components.camera import Camera
 from entities.components.camera_state import CameraState
-from entities.components.icon_render_state import IconRenderState
+from entities.components.disposal import Disposal
+from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
 from entities.components.render_state import GlobalDrawMode, RenderState
 from entities.components.surface_function import CompilationStatus, SurfaceFunction
 from entities.components.transform import Transform
-from entities.components.ui_state import UiState, AddType
+from entities.components.ui.ui_state import UiState, AddType
 from entities.components.visuals import DrawMode, Visuals
 from entities.components.entity_flags import EntityFlags
-from entities.registry import Registry
+from entities.registry import Hierarchy, Registry
 from meshes.surfaces.arrow import generate_arrow
 from meshes.surfaces.circle import generate_circle
 from meshes.surfaces.ellipse import generate_ellipse
@@ -42,14 +43,23 @@ from shading.material import Material, ShaderType
 class UiSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r_admin = registry.get_singleton(UiState, CameraState, RenderState, IconRenderState)
-        if r_admin is None:
+        r_admin = registry.get_singleton(UiState, RenderState, IconRenderState, Disposal)
+        r_camera_state = registry.get_singleton(CameraState, Hierarchy)
+        if r_admin is None or r_camera_state is None:
             return
-        admin_entity, (ui_state, camera_state, render_state, icon_render_state) = r_admin
+        admin_entity, (ui_state, render_state, icon_render_state, disposal) = r_admin
+        camera_state_entity, (camera_state, camera_state_hierarchy) = r_camera_state
+
         r_preview = registry.get_components(ui_state.preview_entity, Transform, Visuals)
         if r_preview is None:
             return
         (preview_transform, preview_visuals) = r_preview
+        r_selection_child = registry.get_components(ui_state.selection_child_entity, Hierarchy)
+        if r_selection_child is None:
+            return
+        (selection_child_hierarchy, ) = r_selection_child
+
+        selected_entity = selection_child_hierarchy.parent
 
         viewport = imgui.get_main_viewport()
 
@@ -64,6 +74,10 @@ class UiSystem:
         if not main_expanded:
             imgui.end()
             return
+
+        # warn when there's no camera
+        if camera_state_hierarchy.parent is None:
+            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} No camera.")
 
         # == creation section ==
         if ui_state.should_close_add_menu:
@@ -383,7 +397,7 @@ class UiSystem:
                         Camera()
                     )
 
-                ui_state.selected_entity = new_entity
+                registry.set_parent(ui_state.selection_child_entity, new_entity)
                 ui_state.should_close_add_menu = True
 
         # == entity list section ==
@@ -425,10 +439,10 @@ class UiSystem:
                 id_str = f"#{entity_id}"
                 selectable_label = f"{display_name}###entity_{entity_id}"
 
-                clicked, _ = imgui.selectable(
-                    selectable_label, ui_state.selected_entity == entity_id)
+                clicked, _ = imgui.selectable(selectable_label, selected_entity == entity_id)
                 if clicked:
-                    ui_state.selected_entity = entity_id
+                    registry.set_parent(ui_state.selection_child_entity, entity_id)
+                    selected_entity = entity_id  # is this necessary?
 
                 id_width = imgui.calc_text_size(id_str).x
                 align_x = content_max_x - id_width
@@ -437,15 +451,14 @@ class UiSystem:
                 imgui.text_disabled(id_str)
 
         # == inspector section ==
-        if ui_state.selected_entity is not None:
-            selected_components = registry.get_all_components(
-                ui_state.selected_entity)
+        if selected_entity is not None:
+            selected_components = registry.get_all_components(selected_entity)
 
             entity_flags = selected_components.get(EntityFlags)
             if entity_flags is not None and entity_flags.name is not None:
-                entity_label = f"{entity_flags.name} (#{ui_state.selected_entity})"
+                entity_label = f"{entity_flags.name} (#{selected_entity})"
             else:
-                entity_label = f"Entity #{ui_state.selected_entity}"
+                entity_label = f"Entity #{selected_entity}"
 
             # We use '###' so ImGui tracks the open/close state of the header even if the entity changes
             header_title = f"Inspector: {entity_label}###InspectorHeader"
@@ -462,13 +475,13 @@ class UiSystem:
                 imgui.push_style_color(imgui.Col_.button_hovered, (0.9, 0.3, 0.3, 1.0))
                 imgui.push_style_color(imgui.Col_.button_active, (1.0, 0.4, 0.4, 1.0))
                 if imgui.button("Delete"):
-                    ui_state.entities_to_dispose.append(ui_state.selected_entity)
+                    disposal.entities_to_dispose.add(selected_entity)
                 imgui.pop_style_color(3)
 
-                target_camera = camera_state.target_camera
-                if target_camera is not None and target_camera != ui_state.selected_entity:
+                target_camera = camera_state_hierarchy.parent
+                if target_camera is not None and target_camera != selected_entity:
                     cam_comps = registry.get_components(target_camera, Transform, Camera)
-                    target_comps = registry.get_components(ui_state.selected_entity, Transform)
+                    target_comps = registry.get_components(selected_entity, Transform)
 
                     if cam_comps is not None and target_comps is not None:
                         if imgui.button("Focus camera on this"):
@@ -487,8 +500,9 @@ class UiSystem:
                 for comp_type, component in selected_components.items():
                     if comp_type != EntityFlags:
                         UiSystem.draw_component_properties(
-                            ui_state.selected_entity, comp_type, component,
-                            camera_state,
+                            registry,
+                            selected_entity, comp_type, component,
+                            camera_state_entity, camera_state, camera_state_hierarchy
                         )
 
         # == debug section ==
@@ -538,15 +552,12 @@ class UiSystem:
 
         imgui.end()
 
-        for e in ui_state.entities_to_dispose:
-            if e == ui_state.selected_entity:
-                ui_state.selected_entity = None
-            registry.remove_entity(e)
 
     @staticmethod
     def draw_component_properties(
+            registry: Registry,
             entity_id: int, comp_type: Type[Any], comp: Any,
-            camera_state: CameraState,
+            camera_state_entity: int, camera_state: CameraState, camera_state_hierarchy: Hierarchy,
     ):
         if isinstance(comp, Transform):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
@@ -584,11 +595,11 @@ class UiSystem:
 
         elif isinstance(comp, Camera):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
-                is_targeted = camera_state.target_camera == entity_id
+                is_targeted = camera_state_hierarchy.parent == entity_id
                 imgui.begin_disabled(is_targeted)
                 changed_targeted, new_targeted = imgui.checkbox("Main camera", is_targeted)
                 if changed_targeted:
-                    camera_state.target_camera = entity_id
+                    registry.set_parent(camera_state_entity, entity_id if new_targeted else None)
                 imgui.end_disabled()
                 changed_fov, new_fov = imgui.drag_float("FOV", comp.fov, 1.0, 10.0, 150.0)
                 if changed_fov:
@@ -681,9 +692,11 @@ class UiSystem:
                 if comp.error_status == CompilationStatus.Ok:
                     imgui.text_colored((0.2, 0.8, 0.2, 1.0), comp.error_string)
                 elif comp.error_status == CompilationStatus.Warning:
-                    imgui.text_colored((0.8, 0.2, 0.2, 1.0), comp.error_string)
+                    imgui.text_colored(
+                        (1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} {comp.error_string}")
                 elif comp.error_status == CompilationStatus.Error:
-                    imgui.text_colored((0.9, 0.2, 0.2, 1.0), comp.error_string)
+                    imgui.text_colored(
+                        (0.9, 0.2, 0.2, 1.0), f"{icons_fontawesome_6.ICON_FA_CIRCLE_EXCLAMATION} {comp.error_string}")
 
                 imgui.tree_pop()
 

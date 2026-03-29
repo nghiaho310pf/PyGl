@@ -35,6 +35,7 @@ class AddType(Enum):
 @dataclass
 class UiState:
     preview_entity: int
+    selection_child_entity: int
     default_material: Material
 
     # == mesh creation configuration state ==
@@ -82,6 +83,4 @@ class UiState:
     preview_visual_initialized: bool = False
 
     # == other stuff ==
-    selected_entity: int | None = None
     should_close_add_menu: bool = False
-    entities_to_dispose: list[int] = field(default_factory=lambda: [])

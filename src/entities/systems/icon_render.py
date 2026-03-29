@@ -2,43 +2,52 @@ import numpy as np
 from imgui_bundle import imgui, icons_fontawesome_6
 
 from entities.components.camera_state import CameraState
-from entities.components.icon_render_state import IconRenderState
+from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
-from entities.components.ui_state import UiState
+from entities.components.ui.ui_state import UiState
 from entities.components.camera import Camera
 from entities.components.transform import Transform
 from entities.components.render_state import RenderState
-from entities.registry import Registry
+from entities.registry import Hierarchy, Registry
 
 
 class IconRenderSystem:
     @staticmethod
     def update(registry: Registry, window_size: tuple[int, int]):
-        r_admin = registry.get_singleton(
-            IconRenderState, RenderState, CameraState, UiState)
+        r_admin = registry.get_singleton(IconRenderState, RenderState, UiState)
         if r_admin is None:
-            return
-        _, (icon_render_state, render_state, camera_state, ui_state) = r_admin
+            raise RuntimeError("IconRenderSystem is missing a (IconRenderState, RenderState, UiState) singleton")
+        _, (icon_render_state, render_state, ui_state) = r_admin
+        
+        r_camera_state = registry.get_singleton(CameraState, Hierarchy)
+        if r_camera_state is None:
+            raise RuntimeError("IconRenderSystem is missing a (CameraState, Hierarchy) singleton")
+        _, (camera_state, camera_state_hierarchy) = r_camera_state
+
+        r_selection = registry.get_components(ui_state.selection_child_entity, Hierarchy)
+        if r_selection is None:
+            raise RuntimeError("UiState#selection_child_entity points to an entity that is non-existent or missing Hierarchy component")
+        (selection_hierarchy, ) = r_selection
 
         draw_list = imgui.get_background_draw_list()
 
         if icon_render_state.draw_camera_icons:
             for entity, (transform, camera) in registry.view(Transform, Camera):
-                if entity == camera_state.target_camera:
+                if entity == camera_state_hierarchy.parent:
                     continue
                 IconRenderSystem._draw_entity_icon(
                     draw_list, transform, camera_state.view_projection_matrix, window_size, 
-                    entity == ui_state.selected_entity, icons_fontawesome_6.ICON_FA_CAMERA,
+                    entity == selection_hierarchy.parent, icons_fontawesome_6.ICON_FA_CAMERA,
                     np.array([1.0, 1.0, 1.0])
                 )
 
         if icon_render_state.draw_light_icons:
             for entity, (transform, light) in registry.view(Transform, PointLight):
-                if entity == camera_state.target_camera:
+                if entity == camera_state_hierarchy.parent:
                     continue
                 IconRenderSystem._draw_entity_icon(
                     draw_list, transform, camera_state.view_projection_matrix, window_size, 
-                    entity == ui_state.selected_entity, icons_fontawesome_6.ICON_FA_LIGHTBULB,
+                    entity == selection_hierarchy.parent, icons_fontawesome_6.ICON_FA_LIGHTBULB,
                     light.color * 0.6 + np.array([1.0, 1.0, 1.0]) * 0.4
                 )
 

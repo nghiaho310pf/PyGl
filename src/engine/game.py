@@ -7,14 +7,14 @@ from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.disposal import Disposal
 from entities.components.entity_flags import EntityFlags
-from entities.components.icon_render_state import IconRenderState
+from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
 from entities.components.render_state import RenderState
 from entities.components.transform import Transform
-from entities.components.ui_state import UiState
+from entities.components.ui.ui_state import UiState
 from entities.components.visuals import Visuals
 from entities.components.camera_state import CameraState
-from entities.registry import Registry
+from entities.registry import Hierarchy, Registry
 from entities.systems.disposal import DisposalSystem
 from entities.systems.function_surface import FunctionSurfaceSystem
 from entities.systems.render import RenderSystem
@@ -66,15 +66,38 @@ class Game(Application):
                 material=mat_preview, enabled=False, is_internal=True
             ) 
         )
-        # admin entity for singletons
+        # cheap trick: this is a singleton as a sibling of
+        # Hierarchy(parent=selected_entity, dispose_alongside_parent=False),
+        # so that DisposalSystem can do the work of getting rid of dangling IDs for us.
+        # this would instead be a tagging component if we had to implement selecting
+        # multiple entities, but we just need 1.
+        selection_child_entity = self.registry.create_entity()
+        self.registry.add_components(
+            selection_child_entity,
+            EntityFlags(is_internal=True),
+            Hierarchy(dispose_alongside_parent=False)
+        )
+        # similar trick to the above for camera & camera control state
+        camera_state_entity = self.registry.create_entity()
+        self.registry.add_components(
+            camera_state_entity,
+            EntityFlags(is_internal=True),
+            Hierarchy(dispose_alongside_parent=False),
+            CameraState(),
+        )
+
+        # admin entity for overarching singletons
         self.registry.add_components(
             self.registry.create_entity(),
             EntityFlags(is_internal=True),
 
             Disposal(),
 
-            CameraState(),
-            UiState(preview_entity=preview_entity, default_material=mat_default),
+            UiState(
+                preview_entity=preview_entity,
+                selection_child_entity=selection_child_entity,
+                default_material=mat_default
+            ),
             RenderState(),
             IconRenderState(),
         )

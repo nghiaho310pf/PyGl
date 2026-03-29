@@ -11,7 +11,7 @@ from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals, DrawMode
-from entities.registry import Registry
+from entities.registry import Hierarchy, Registry
 from shading.material import Material, ShaderType
 from shading.shader import Shader, ShaderGlobals
 from shading.shaders import blinn_phong, gouraud, depth_shader, flat_shader
@@ -21,9 +21,6 @@ class RenderSystem:
     def __init__(self):
         # == unorthodox: global state ==
         self.shader_globals = ShaderGlobals()
-
-        self.default_camera_transform = Transform()
-        self.default_camera_component = Camera()
 
         self.flat_shader = flat_shader.make_shader()
         self.blinn_phong_shader = blinn_phong.make_shader()
@@ -38,22 +35,33 @@ class RenderSystem:
         self.shader_globals.attach_to(shader)
 
     def update(self, registry: Registry, window_size: tuple[int, int], time: float, delta_time: float):
-        # == camera setup ==
+        # == global pre-render setup ==
         width, height = window_size
         aspect_ratio = width / height if height > 0 else 1.0
 
-        camera_transform = self.default_camera_transform
-        camera = self.default_camera_component
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        GL.glViewport(0, 0, width, height)
+        GL.glClearColor(0.004, 0.004, 0.004, 1.0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+        GL.glEnable(GL.GL_DEPTH_TEST)
 
-        r_admin = registry.get_singleton(RenderState, CameraState)
+        # == camera setup ==
+        r_admin = registry.get_singleton(RenderState)
         if r_admin is None:
-            return
-        admin_entity, (render_state, camera_state) = r_admin
+            raise RuntimeError("DisposalSystem is missing a RenderState singleton")
+        admin_entity, (render_state, ) = r_admin
 
-        if camera_state.target_camera is not None:
-            r = registry.get_components(camera_state.target_camera, Transform, Camera)
-            if r is not None:
-                camera_transform, camera = r
+        r_camera_state = registry.get_singleton(CameraState, Hierarchy)
+        if r_camera_state is None:
+            raise RuntimeError("RenderSystem is missing a (CameraState, Hierarchy) singleton")
+        _, (camera_state, camera_state_hierarchy) = r_camera_state
+
+        if camera_state_hierarchy.parent is None:
+            return
+        r_camera = registry.get_components(camera_state_hierarchy.parent, Transform, Camera)
+        if r_camera is None:
+            raise RuntimeError("CameraState singleton parented to an entity without (Transform, Camera)")
+        (camera_transform, camera) = r_camera
 
         # == lights setup ==
         point_light_positions = []
@@ -70,13 +78,6 @@ class RenderSystem:
             point_light_positions = point_light_positions[:MAX_LIGHTS]
             point_light_colors = point_light_colors[:MAX_LIGHTS]
             num_lights = MAX_LIGHTS
-
-        # == global pre-render setup ==
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-        GL.glViewport(0, 0, width, height)
-        GL.glClearColor(0.004, 0.004, 0.004, 1.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-        GL.glEnable(GL.GL_DEPTH_TEST)
 
         self.shader_globals.update(camera_state.projection_matrix,
                                    camera_state.view_matrix, camera_transform.position, time)

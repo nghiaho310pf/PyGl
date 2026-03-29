@@ -7,7 +7,7 @@ class DisposalSystem:
     def update(registry: Registry) -> None:
         r_disposal = registry.get_singleton(Disposal)
         if not r_disposal:
-            return
+            raise RuntimeError("DisposalSystem is missing a Disposal singleton")
             
         _, (disposal, ) = r_disposal
         if not disposal.entities_to_dispose:
