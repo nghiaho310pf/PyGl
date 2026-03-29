@@ -342,18 +342,48 @@ class UiSystem:
 
         # == debug section ==
         if imgui.collapsing_header("Debug", imgui.TreeNodeFlags_.default_open):
-            changed_li, new_li = imgui.checkbox("Visualize lights", icon_render_state.draw_light_icons)
-            if changed_li:
-                icon_render_state.draw_light_icons = new_li
-            changed_ci, new_ci = imgui.checkbox("Visualize cameras", icon_render_state.draw_camera_icons)
-            if changed_ci:
-                icon_render_state.draw_camera_icons = new_ci
-            if imgui.radio_button("Draw normally", render_state.draw_mode == DrawMode.Normal):
-                render_state.draw_mode = DrawMode.Normal
-            if imgui.radio_button("Draw wireframe", render_state.draw_mode == DrawMode.Wireframe):
-                render_state.draw_mode = DrawMode.Wireframe
-            if imgui.radio_button("Draw depth", render_state.draw_mode == DrawMode.DepthOnly):
-                render_state.draw_mode = DrawMode.DepthOnly
+            if imgui.begin_table("debug_visualize_icons", 2):
+                imgui.table_setup_column("Label", imgui.TableColumnFlags_.width_fixed)
+                imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)
+
+                imgui.table_next_row()
+                
+                imgui.table_next_column()
+                imgui.align_text_to_frame_padding()
+                imgui.text("Visualize")
+
+                imgui.table_next_column()
+                changed_li, new_li = imgui.checkbox("lights", icon_render_state.draw_light_icons)
+                if changed_li:
+                    icon_render_state.draw_light_icons = new_li
+                imgui.same_line()
+                changed_ci, new_ci = imgui.checkbox("cameras", icon_render_state.draw_camera_icons)
+                if changed_ci:
+                    icon_render_state.draw_camera_icons = new_ci
+
+                imgui.end_table()
+
+            if imgui.begin_table("debug_render_mode", 2):
+                imgui.table_setup_column("Label", imgui.TableColumnFlags_.width_fixed)
+                imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)
+
+                imgui.table_next_row()
+                
+                imgui.table_next_column()
+                imgui.align_text_to_frame_padding()
+                imgui.text("Draw")
+
+                imgui.table_next_column()
+                if imgui.radio_button("normally", render_state.draw_mode == DrawMode.Normal):
+                    render_state.draw_mode = DrawMode.Normal
+                imgui.same_line()
+                if imgui.radio_button("wireframe", render_state.draw_mode == DrawMode.Wireframe):
+                    render_state.draw_mode = DrawMode.Wireframe
+                imgui.same_line()
+                if imgui.radio_button("depthmap", render_state.draw_mode == DrawMode.DepthOnly):
+                    render_state.draw_mode = DrawMode.DepthOnly
+
+                imgui.end_table()
 
         imgui.end()
 
