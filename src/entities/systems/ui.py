@@ -16,15 +16,15 @@ from entities.components.ui_state import UiState, AddType
 from entities.components.visuals import Visuals
 from entities.components.entity_flags import EntityFlags
 from entities.registry import Registry
-from meshes.geometry.cone import generate_cone
-from meshes.geometry.cube import generate_cube
-from meshes.geometry.cylinder import generate_cylinder
-from meshes.geometry.plane import generate_plane
-from meshes.geometry.prism import generate_prism
-from meshes.geometry.subdivided_spheres import generate_icosphere, generate_tetrasphere
-from meshes.geometry.tetrahedron import generate_tetrahedron
-from meshes.geometry.torus import generate_torus
-from meshes.geometry.uv_sphere import generate_uv_sphere
+from meshes.surfaces.plane import generate_plane
+from meshes.volumes.cone import generate_cone
+from meshes.volumes.cube import generate_cube
+from meshes.volumes.cylinder import generate_cylinder
+from meshes.volumes.prism import generate_prism
+from meshes.volumes.subdivided_spheres import generate_icosphere, generate_tetrasphere
+from meshes.volumes.tetrahedron import generate_tetrahedron
+from meshes.volumes.torus import generate_torus
+from meshes.volumes.uv_sphere import generate_uv_sphere
 from meshes.mesh import Mesh
 from math_utils import vec3
 from shading.material import Material, ShaderType

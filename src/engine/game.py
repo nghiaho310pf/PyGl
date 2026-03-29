@@ -18,9 +18,9 @@ from entities.systems.render import RenderSystem
 from entities.systems.ui import UiSystem
 from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
-from meshes.geometry.cube import generate_cube
-from meshes.geometry.plane import generate_plane
-from meshes.geometry.uv_sphere import generate_uv_sphere
+from meshes.surfaces.plane import generate_plane
+from meshes.volumes.cube import generate_cube
+from meshes.volumes.uv_sphere import generate_uv_sphere
 from meshes.mesh import Mesh
 from math_utils import vec3
 from shading.material import Material, ShaderType
