@@ -6,6 +6,7 @@ import numpy as np
 from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.entity_flags import EntityFlags
+from entities.components.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
 from entities.components.render_state import RenderState
 from entities.components.transform import Transform
@@ -16,7 +17,7 @@ from entities.registry import Registry
 from entities.systems.render import RenderSystem
 from entities.systems.ui import UiSystem
 from entities.systems.camera import CameraSystem
-from entities.systems.icon_renderer import IconRendererSystem
+from entities.systems.icon_render import IconRenderSystem
 from meshes.geometry.cube import generate_cube
 from meshes.geometry.plane import generate_plane
 from meshes.geometry.uv_sphere import generate_uv_sphere
@@ -35,8 +36,8 @@ class Game(Application):
 
         self.render_system = RenderSystem()
         self.ui_system = UiSystem()
-        self.camera_control_system = CameraSystem()
-        self.icon_renderer_system = IconRendererSystem()
+        self.camera_system = CameraSystem()
+        self.icon_renderer_system = IconRenderSystem()
 
         # == material setup ==
         mat_preview = Material(ShaderType.BlinnPhong, {
@@ -68,9 +69,10 @@ class Game(Application):
         self.registry.add_components(
             self.registry.create_entity(),
             EntityFlags(is_internal=True),
-            RenderState(),
             CameraState(),
             UiState(preview_entity=preview_entity, default_material=mat_default),
+            RenderState(),
+            IconRenderState(),
         )
 
         # == demo setup ==
@@ -171,10 +173,10 @@ class Game(Application):
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
         window_size = self.get_window_size()
-        self.camera_control_system.update(self.registry, window_size, now, dt)
+        self.camera_system.update(self.registry, window_size, now, dt)
+        self.ui_system.update(self.registry, now, dt)
         self.render_system.update(self.registry, window_size, now, dt)
         self.icon_renderer_system.update(self.registry, window_size)
-        self.ui_system.update(self.registry, now, dt)
         imgui.render()
         self.imgui_renderer.render(imgui.get_draw_data())
 

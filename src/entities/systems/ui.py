@@ -8,6 +8,7 @@ from imgui_bundle import imgui, icons_fontawesome_6
 
 from entities.components.camera import Camera
 from entities.components.camera_state import CameraState
+from entities.components.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
 from entities.components.render_state import DrawMode, RenderState
 from entities.components.transform import Transform
@@ -32,10 +33,10 @@ from shading.material import Material, ShaderType
 class UiSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r_admin = registry.get_singleton(UiState, RenderState, CameraState)
+        r_admin = registry.get_singleton(UiState, CameraState, RenderState, IconRenderState)
         if r_admin is None:
             return
-        admin_entity, (ui_state, render_state, camera_control_state, ) = r_admin
+        admin_entity, (ui_state, camera_state, render_state, icon_render_state) = r_admin
         r_preview = registry.get_components(ui_state.preview_entity, Transform, Visuals)
         if r_preview is None:
             return
@@ -333,12 +334,20 @@ class UiSystem:
                 for comp_type, component in selected_components.items():
                     UiSystem.draw_component_properties(
                         registry,
-                        ui_state, render_state, camera_control_state,
+                        camera_state,
+                        render_state, icon_render_state,
+                        ui_state,
                         ui_state.selected_entity, comp_type, component
                     )
 
         # == debug section ==
         if imgui.collapsing_header("Debug", imgui.TreeNodeFlags_.default_open):
+            changed_li, new_li = imgui.checkbox("Visualize lights", icon_render_state.draw_light_icons)
+            if changed_li:
+                icon_render_state.draw_light_icons = new_li
+            changed_ci, new_ci = imgui.checkbox("Visualize cameras", icon_render_state.draw_camera_icons)
+            if changed_ci:
+                icon_render_state.draw_camera_icons = new_ci
             if imgui.radio_button("Draw normally", render_state.draw_mode == DrawMode.Normal):
                 render_state.draw_mode = DrawMode.Normal
             if imgui.radio_button("Draw wireframe", render_state.draw_mode == DrawMode.Wireframe):
@@ -356,7 +365,9 @@ class UiSystem:
     @staticmethod
     def draw_component_properties(
             registry: Registry,
-            ui_state: UiState, render_state: RenderState, camera_state: CameraState,
+            camera_state: CameraState,
+            render_state: RenderState, icon_render_state: IconRenderState,
+            ui_state: UiState,
             entity_id: int, comp_type: Type[Any], comp: Any
     ):
         if isinstance(comp, EntityFlags):
