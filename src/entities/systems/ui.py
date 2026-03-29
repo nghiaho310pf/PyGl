@@ -74,20 +74,9 @@ class UiSystem:
         if not add_menu_expanded:
             preview_visuals.enabled = False
         else:
-            changed_pos, new_pos = imgui.drag_float3(
-                "Position", preview_transform.position.tolist(), 0.1)
-            if changed_pos:
-                preview_transform.position = vec3(*new_pos)
-
-            changed_rot, new_rot = imgui.drag_float3(
-                "Rotation", preview_transform.rotation.tolist(), 1.0)
-            if changed_rot:
-                preview_transform.rotation = vec3(*new_rot)
-
-            changed_scale, new_scale = imgui.drag_float3(
-                "Scale", preview_transform.scale.tolist(), 0.1)
-            if changed_scale:
-                preview_transform.scale = vec3(*new_scale)
+            preview_transform.position = vec3(*camera_state.focal_point)
+            preview_transform.rotation = vec3(0.0, 0.0, 0.0)
+            preview_transform.scale = vec3(1.0, 1.0, 1.0)
 
             changed_type = False
 
@@ -375,7 +364,7 @@ class UiSystem:
                     registry.add_components(
                         new_entity,
                         EntityFlags(name="Function surface"),
-                        Transform(position=vec3(0.0, 0.0, 0.0)),
+                        Transform(position=vec3(*camera_state.focal_point)),
                         Visuals(Mesh(*vi), new_material, cull_back_faces=False),
                         SurfaceFunction() # Our new component
                     )
@@ -383,14 +372,14 @@ class UiSystem:
                     registry.add_components(
                         new_entity,
                         EntityFlags(name="Point light"),
-                        Transform(position=vec3(0.0, 0.0, 0.0)),
+                        Transform(position=vec3(*camera_state.focal_point)),
                         PointLight()
                     )
                 elif ui_state.add_mesh_type == AddType.Camera:
                     registry.add_components(
                         new_entity,
                         EntityFlags(name="Camera"),
-                        Transform(position=vec3(0.0, 0.0, 0.0)),
+                        Transform(position=vec3(*camera_state.focal_point)),
                         Camera()
                     )
 
@@ -719,17 +708,5 @@ class UiSystem:
         target_transform: Transform,
     ):
         camera_state.focal_point = np.array(target_transform.position, dtype=np.float32)
-
-        pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
-        front = np.array([
-            math.cos(yaw_rad) * math.cos(pitch_rad),
-            math.sin(pitch_rad),
-            math.sin(yaw_rad) * math.cos(pitch_rad)
-        ], dtype=np.float32)
-
-        norm = np.linalg.norm(front)
-        if norm > 0:
-            front /= norm
-
-        cam_pos = camera_state.focal_point - front * camera.focal_point_distance
+        cam_pos = camera_state.focal_point - camera_state.front * camera.focal_point_distance
         camera_transform.position = vec3(*cam_pos)
