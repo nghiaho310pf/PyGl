@@ -498,7 +498,7 @@ class UiSystem:
                 imgui.separator()
 
                 for comp_type, component in selected_components.items():
-                    if comp_type != EntityFlags:
+                    if comp_type not in (EntityFlags, Hierarchy):
                         UiSystem.draw_component_properties(
                             registry,
                             selected_entity, comp_type, component,
