@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-
+from dataclasses import dataclass, field
 import numpy as np
 
 
@@ -16,4 +15,11 @@ class CameraState:
     scroll_zoom_speed: float = 0.1
     rotation_speed: float = 0.2
 
-    focal_point = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+    focal_point: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0], dtype=np.float32))
+
+    front: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 1.0], dtype=np.float32))
+    right: np.ndarray = field(default_factory=lambda: np.array([1.0, 0.0, 0.0], dtype=np.float32))
+    up: np.ndarray = field(default_factory=lambda: np.array([0.0, 1.0, 0.0], dtype=np.float32))
+    view_matrix: np.ndarray = field(default_factory=lambda: np.eye(4, dtype=np.float32))
+    projection_matrix: np.ndarray = field(default_factory=lambda: np.eye(4, dtype=np.float32))
+    view_projection_matrix: np.ndarray = field(default_factory=lambda: np.eye(4, dtype=np.float32))

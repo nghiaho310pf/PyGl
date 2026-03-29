@@ -71,22 +71,6 @@ class RenderSystem:
             point_light_colors = point_light_colors[:MAX_LIGHTS]
             num_lights = MAX_LIGHTS
 
-        pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
-        front = math_utils.normalize(np.array([
-            math.cos(yaw_rad) * math.cos(pitch_rad),
-            math.sin(pitch_rad),
-            math.sin(yaw_rad) * math.cos(pitch_rad)
-        ]))
-        right = math_utils.normalize(np.cross(front, np.array([0.0, 1.0, 0.0])))
-        up = math_utils.normalize(np.cross(right, front)) * math.cos(roll_rad) + right * math.sin(roll_rad)
-
-        target = camera_transform.position + front
-        view_matrix = math_utils.create_look_at(camera_transform.position, target, up)
-
-        proj_matrix = math_utils.create_perspective_projection(
-            camera.fov, aspect_ratio, camera.near, camera.far
-        )
-
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glEnable(GL.GL_CULL_FACE)
         GL.glCullFace(GL.GL_BACK)
@@ -102,7 +86,8 @@ class RenderSystem:
         GL.glClearColor(0.004, 0.004, 0.004, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
-        self.shader_globals.update(proj_matrix, view_matrix, camera_transform.position, time)
+        self.shader_globals.update(camera_state.projection_matrix,
+                                   camera_state.view_matrix, camera_transform.position, time)
 
         shader_batches: dict[ShaderType, dict[Material,
                                           list[Tuple[Transform, Visuals]]]] = {}

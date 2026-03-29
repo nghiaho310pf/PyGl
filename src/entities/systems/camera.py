@@ -8,11 +8,12 @@ from entities.components.render_state import RenderState
 from entities.components.camera_state import CameraState
 from entities.registry import Registry
 from math_utils import vec3
+import math_utils
 
 
 class CameraSystem:
     @staticmethod
-    def update(registry: Registry, time: float, delta_time: float):
+    def update(registry: Registry, window_size: tuple[int, int], time: float, delta_time: float):
         r_admin = registry.get_singleton(CameraState, RenderState)
 
         if r_admin is None:
@@ -104,3 +105,16 @@ class CameraSystem:
             camera_transform.position = vec3(*cam_pos)
         else:
             camera_state.focal_point = np.array(camera_transform.position + front * camera.focal_point_distance, dtype=np.float32)
+
+        window_width, window_height = window_size
+        aspect_ratio = window_width / window_height
+
+        camera_state.front = front
+        camera_state.right = right
+        camera_state.up = up
+        target = camera_transform.position + front
+        camera_state.view_matrix = math_utils.create_look_at(camera_transform.position, target, up)
+        camera_state.projection_matrix = math_utils.create_perspective_projection(
+            camera.fov, aspect_ratio, camera.near, camera.far
+        )
+        camera_state.view_projection_matrix = camera_state.view_matrix @ camera_state.projection_matrix

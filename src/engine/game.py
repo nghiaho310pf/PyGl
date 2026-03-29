@@ -170,9 +170,10 @@ class Game(Application):
         # here instead of in systems, but this is simpler.
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
-        self.camera_control_system.update(self.registry, now, dt)
-        self.render_system.update(self.registry, self.get_window_size(), now, dt)
-        self.icon_renderer_system.update(self.registry, self.get_window_size())
+        window_size = self.get_window_size()
+        self.camera_control_system.update(self.registry, window_size, now, dt)
+        self.render_system.update(self.registry, window_size, now, dt)
+        self.icon_renderer_system.update(self.registry, window_size)
         self.ui_system.update(self.registry, now, dt)
         imgui.render()
         self.imgui_renderer.render(imgui.get_draw_data())

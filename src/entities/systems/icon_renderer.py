@@ -14,11 +14,7 @@ from entities.registry import Registry
 class IconRendererSystem:
     @staticmethod
     def update(registry: Registry, window_size: tuple[int, int]):
-        width, height = window_size
-        if width <= 0 or height <= 0:
-            return
-
-        aspect_ratio = width / height
+        window_width, window_height = window_size
 
         r_admin = registry.get_singleton(RenderState, CameraState)
         if r_admin is None:
@@ -48,15 +44,6 @@ class IconRendererSystem:
         up = math_utils.normalize(
             np.cross(right, front)) * math.cos(roll_rad) + right * math.sin(roll_rad)
 
-        target = camera_transform.position + front
-        view_matrix = math_utils.create_look_at(
-            camera_transform.position, target, up)
-        proj_matrix = math_utils.create_perspective_projection(
-            camera.fov, aspect_ratio, camera.near, camera.far
-        )
-
-        view_proj = view_matrix @ proj_matrix
-
         draw_list = imgui.get_background_draw_list()
 
         for entity, (transform, camera) in registry.view(Transform, Camera):
@@ -65,7 +52,7 @@ class IconRendererSystem:
 
             world_pos = np.array(
                 [transform.position[0], transform.position[1], transform.position[2], 1.0])
-            clip_pos = world_pos @ view_proj
+            clip_pos = world_pos @ camera_state.view_projection_matrix
 
             if clip_pos[3] <= 0:
                 continue
@@ -75,8 +62,8 @@ class IconRendererSystem:
             if abs(ndc[0]) > 1.0 or abs(ndc[1]) > 1.0:
                 continue
 
-            screen_x = (ndc[0] + 1.0) * 0.5 * width
-            screen_y = (1.0 - ndc[1]) * 0.5 * height
+            screen_x = (ndc[0] + 1.0) * 0.5 * window_width
+            screen_y = (1.0 - ndc[1]) * 0.5 * window_height
 
             icon = icons_fontawesome_6.ICON_FA_CAMERA
             text_size = imgui.calc_text_size(icon)
@@ -90,7 +77,7 @@ class IconRendererSystem:
 
             world_pos = np.array(
                 [transform.position[0], transform.position[1], transform.position[2], 1.0])
-            clip_pos = world_pos @ view_proj
+            clip_pos = world_pos @ camera_state.view_projection_matrix
 
             if clip_pos[3] <= 0:
                 continue
@@ -100,8 +87,8 @@ class IconRendererSystem:
             if abs(ndc[0]) > 1.0 or abs(ndc[1]) > 1.0:
                 continue
 
-            screen_x = (ndc[0] + 1.0) * 0.5 * width
-            screen_y = (1.0 - ndc[1]) * 0.5 * height
+            screen_x = (ndc[0] + 1.0) * 0.5 * window_width
+            screen_y = (1.0 - ndc[1]) * 0.5 * window_height
 
             icon = icons_fontawesome_6.ICON_FA_LIGHTBULB
             text_size = imgui.calc_text_size(icon)
