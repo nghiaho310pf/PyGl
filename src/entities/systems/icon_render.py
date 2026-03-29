@@ -5,6 +5,7 @@ from imgui_bundle import imgui, icons_fontawesome_6
 from entities.components.camera_state import CameraState
 from entities.components.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
+from entities.components.ui_state import UiState
 import math_utils
 from entities.components.camera import Camera
 from entities.components.transform import Transform
@@ -17,39 +18,16 @@ class IconRenderSystem:
     def update(registry: Registry, window_size: tuple[int, int]):
         window_width, window_height = window_size
 
-        r_admin = registry.get_singleton(IconRenderState, RenderState, CameraState)
+        r_admin = registry.get_singleton(IconRenderState, RenderState, CameraState, UiState)
         if r_admin is None:
             return
-        _, (icon_render_state, render_state, camera_state) = r_admin
-
-        target_camera_entity = camera_state.target_camera
-        if target_camera_entity is None:
-            r_cam = registry.get_singleton(Transform, Camera)
-            if r_cam is None:
-                return
-            _, r_cam = r_cam
-        else:
-            r_cam = registry.get_components(target_camera_entity, Transform, Camera)
-            if r_cam is None:
-                return
-        camera_transform, camera = r_cam
-
-        pitch_rad, yaw_rad, roll_rad = np.radians(camera_transform.rotation)
-        front = math_utils.normalize(np.array([
-            math.cos(yaw_rad) * math.cos(pitch_rad),
-            math.sin(pitch_rad),
-            math.sin(yaw_rad) * math.cos(pitch_rad)
-        ]))
-        right = math_utils.normalize(
-            np.cross(front, np.array([0.0, 1.0, 0.0])))
-        up = math_utils.normalize(
-            np.cross(right, front)) * math.cos(roll_rad) + right * math.sin(roll_rad)
+        _, (icon_render_state, render_state, camera_state, ui_state) = r_admin
 
         draw_list = imgui.get_background_draw_list()
 
         if icon_render_state.draw_camera_icons:
             for entity, (transform, camera) in registry.view(Transform, Camera):
-                if entity == target_camera_entity:
+                if entity == camera_state.target_camera:
                     continue
 
                 world_pos = np.array(
@@ -71,11 +49,13 @@ class IconRenderSystem:
                 text_size = imgui.calc_text_size(icon)
 
                 pos = (screen_x - text_size.x * 0.5, screen_y - text_size.y * 0.5)
-                draw_list.add_text(pos, imgui.get_color_u32(imgui.Col_.text), icon)
+                selected = entity == ui_state.selected_entity
+                color = imgui.Col_.text if selected else imgui.Col_.text_disabled
+                draw_list.add_text(pos, imgui.get_color_u32(color), icon)
 
         if icon_render_state.draw_light_icons:
             for entity, (transform, light) in registry.view(Transform, PointLight):
-                if entity == target_camera_entity:
+                if entity == camera_state.target_camera:
                     continue
 
                 world_pos = np.array(
@@ -97,4 +77,6 @@ class IconRenderSystem:
                 text_size = imgui.calc_text_size(icon)
 
                 pos = (screen_x - text_size.x * 0.5, screen_y - text_size.y * 0.5)
-                draw_list.add_text(pos, imgui.get_color_u32(imgui.Col_.text), icon)
+                selected = entity == ui_state.selected_entity
+                color = imgui.Col_.text if selected else imgui.Col_.text_disabled
+                draw_list.add_text(pos, imgui.get_color_u32(color), icon)
