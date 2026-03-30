@@ -17,7 +17,7 @@ class Texture:
     filepath: str
 
     status: TextureStatus = TextureStatus.Unloaded
-    gl_id: int = None
+    gl_id: int | None = None
     cpu_data: npt.NDArray | None = field(default=None, repr=False)
     width: int = 0
     height: int = 0

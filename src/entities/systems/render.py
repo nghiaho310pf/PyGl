@@ -190,7 +190,11 @@ class RenderSystem:
 
         GL.glActiveTexture(GL.GL_TEXTURE0)
 
-        if material.albedo_map is not None and material.albedo_map.status == TextureStatus.Ready:
+        if (
+            material.albedo_map is not None and
+            material.albedo_map.status == TextureStatus.Ready and
+            material.albedo_map.gl_id is not None
+        ):
             GL.glBindTexture(GL.GL_TEXTURE_2D, material.albedo_map.gl_id)
             shader.set_int("u_AlbedoMap", 0)
             shader.set_int("u_UseAlbedoMap", 1)
