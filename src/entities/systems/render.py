@@ -55,7 +55,7 @@ class RenderSystem:
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         GL.glViewport(0, 0, width, height)
         GL.glClearColor(0.004, 0.004, 0.004, 1.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT) # type: ignore
         GL.glEnable(GL.GL_DEPTH_TEST)
 
         # == camera setup ==
