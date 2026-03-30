@@ -7,6 +7,7 @@ from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.disposal import Disposal
 from entities.components.entity_flags import EntityFlags
+from entities.components.textures_state import TexturesState
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
 from entities.components.render_state import RenderState
@@ -18,6 +19,7 @@ from entities.registry import Hierarchy, Registry
 from entities.systems.disposal import DisposalSystem
 from entities.systems.function_surface import FunctionSurfaceSystem
 from entities.systems.render import RenderSystem
+from entities.systems.textures import TextureSystem
 from entities.systems.ui import UiSystem
 from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
@@ -25,7 +27,7 @@ from meshes.surfaces.plane import generate_plane
 from meshes.volumes.cube import generate_cube
 from meshes.volumes.uv_sphere import generate_uv_sphere
 from meshes.mesh import Mesh
-from math_utils import vec3
+from math_utils import float1, vec3
 from shading.material import Material, ShaderType
 
 
@@ -41,18 +43,18 @@ class Game(Application):
         self.render_system = RenderSystem()
 
         # == material setup ==
-        mat_preview = Material(ShaderType.BlinnPhong, {
-            "u_Albedo": [0.4, 0.9, 0.4],
-            "u_Roughness": 0.5,
-            "u_Reflectance": 0.1,
-            "u_AO": 0.1,
-        })
-        mat_default = Material(ShaderType.BlinnPhong, {
-            "u_Albedo": [0.3, 0.3, 0.3],
-            "u_Roughness": 0.5,
-            "u_Reflectance": 0.1,
-            "u_AO": 0.1,
-        })
+        mat_preview = Material(ShaderType.BlinnPhong,
+            albedo=vec3(0.4, 0.9, 0.4),
+            roughness=float1(0.5),
+            reflectance=float1(0.1),
+            ao=float1(0.1),
+        )
+        mat_default = Material(ShaderType.BlinnPhong,
+            albedo=vec3(0.3, 0.3, 0.3),
+            roughness=float1(0.5),
+            reflectance=float1(0.1),
+            ao=float1(0.1),
+        )
 
         # == singleton entities required for above systems ==
         # preview entity for adding meshes
@@ -98,30 +100,31 @@ class Game(Application):
                 selection_child_entity=selection_child_entity,
                 default_material=mat_default
             ),
+            TexturesState(),
             RenderState(),
             IconRenderState(),
         )
 
         # == demo setup ==
 
-        mat_orange = Material(ShaderType.BlinnPhong, {
-            "u_Albedo": [1.0, 0.318, 0.133],
-            "u_Roughness": 0.6,
-            "u_Reflectance": 0.25,
-            "u_AO": 0.1,
-        })
-        mat_blue = Material(ShaderType.BlinnPhong, {
-            "u_Albedo": [0.276, 0.481, 1.0],
-            "u_Roughness": 0.6,
-            "u_Reflectance": 0.25,
-            "u_AO": 0.1,
-        })
-        mat_grey = Material(ShaderType.BlinnPhong, {
-            "u_Albedo": [0.08, 0.08, 0.08],
-            "u_Roughness": 0.6,
-            "u_Reflectance": 0.01,
-            "u_AO": 0.1,
-        })
+        mat_orange = Material(ShaderType.BlinnPhong,
+            albedo=vec3(1.0, 0.318, 0.133),
+            roughness=float1(0.6),
+            reflectance=float1(0.25),
+            ao=float1(0.1),
+        )
+        mat_blue = Material(ShaderType.BlinnPhong,
+            albedo=vec3(0.276, 0.481, 1.0),
+            roughness=float1(0.6),
+            reflectance=float1(0.25),
+            ao=float1(0.1),
+        )
+        mat_grey = Material(ShaderType.BlinnPhong,
+            albedo=vec3(0.08, 0.08, 0.08),
+            roughness=float1(0.6),
+            reflectance=float1(0.01),
+            ao=float1(0.1),
+        )
 
         uv_sphere_vertices, uv_sphere_indices = generate_uv_sphere(radius=0.5, stacks=20, sectors=40)
         cube_vertices, cube_indices = generate_cube(size=1.0)
@@ -176,7 +179,7 @@ class Game(Application):
             c1,
             EntityFlags(name="Main light"),
             Transform(position=vec3(1.2, 4.0, 1.2)),
-            PointLight(strength=np.float32(220.0))
+            PointLight(strength=float1(220.0))
         )
 
         c2 = self.registry.create_entity()
@@ -184,7 +187,7 @@ class Game(Application):
             c2,
             EntityFlags(name="Sub light"),
             Transform(position=vec3(-1.0, 5.0, -1.0)),
-            PointLight(strength=np.float32(60.0))
+            PointLight(strength=float1(60.0))
         )
 
     def render(self):
@@ -200,6 +203,7 @@ class Game(Application):
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
         window_size = self.get_window_size()
+        TextureSystem.update(self.registry)
         CameraSystem.update(self.registry, window_size, now, dt)
         UiSystem.update(self.registry, now, dt)
         FunctionSurfaceSystem.update(self.registry, now, dt)

@@ -2,9 +2,10 @@ import copy
 import dataclasses
 import math
 from typing import Any, Type
+import os
 
 import numpy as np
-from imgui_bundle import imgui, icons_fontawesome_6
+from imgui_bundle import imgui, icons_fontawesome_6, portable_file_dialogs as pfd
 
 from entities.components.camera import Camera
 from entities.components.camera_state import CameraState
@@ -17,6 +18,8 @@ from entities.components.transform import Transform
 from entities.components.ui.ui_state import UiState, AddType
 from entities.components.visuals import DrawMode, Visuals
 from entities.components.entity_flags import EntityFlags
+from entities.components.textures_state import TextureStatus, TexturesState
+from entities.systems.textures import TextureSystem
 from entities.registry import Hierarchy, Registry
 from meshes.surfaces.arrow import generate_arrow
 from meshes.surfaces.circle import generate_circle
@@ -36,7 +39,7 @@ from meshes.volumes.tetrahedron import generate_tetrahedron
 from meshes.volumes.torus import generate_torus
 from meshes.volumes.uv_sphere import generate_uv_sphere
 from meshes.mesh import Mesh
-from math_utils import vec3
+from math_utils import float1, vec3
 from shading.material import Material, ShaderType
 
 
@@ -367,12 +370,7 @@ class UiSystem:
                             Visuals(Mesh(*vi), new_material)
                         )
                 elif ui_state.add_mesh_type == AddType.FunctionSurface:
-                    new_material = Material(
-                        ui_state.default_material.shader_type,
-                        copy.deepcopy(ui_state.default_material.properties)
-                    )
-
-                    # We create an initial plane mesh as a placeholder until the System ticks
+                    new_material = copy.deepcopy(ui_state.default_material)
                     vi = generate_plane(10.0)
 
                     registry.add_components(
@@ -380,7 +378,7 @@ class UiSystem:
                         EntityFlags(name="Function surface"),
                         Transform(position=vec3(*camera_state.focal_point)),
                         Visuals(Mesh(*vi), new_material, cull_back_faces=False),
-                        SurfaceFunction() # Our new component
+                        SurfaceFunction()
                     )
                 elif ui_state.add_mesh_type == AddType.PointLight:
                     registry.add_components(
@@ -590,7 +588,7 @@ class UiSystem:
                 changed_strength, new_strength = imgui.drag_float(
                     "Strength", float(comp.strength), 1, 0.0, 1000.0)
                 if changed_strength:
-                    comp.strength = np.float32(new_strength)
+                    comp.strength = float1(new_strength)
                 imgui.tree_pop()
 
         elif isinstance(comp, Camera):
@@ -634,33 +632,88 @@ class UiSystem:
                 if imgui.radio_button("Gouraud", comp.material.shader_type == ShaderType.Gouraud):
                     comp.material.shader_type = ShaderType.Gouraud
 
-                # for now just a hardcoded whitelist of the parameters
-                albedo = comp.material.properties["u_Albedo"]
-                if albedo is not None:
-                    changed_albedo, new_albedo = imgui.color_edit3(
-                        "Albedo", albedo)
-                    if changed_albedo:
-                        comp.material.properties["u_Albedo"] = new_albedo
+                changed_albedo, new_albedo = imgui.color_edit3("Albedo", comp.material.albedo)
+                if changed_albedo:
+                    comp.material.albedo = vec3(*new_albedo)                    
+                changed_roughness, new_roughness = imgui.slider_float("Roughness", comp.material.roughness, 0.0, 1.0)
+                if changed_roughness:
+                    comp.material.roughness = float1(new_roughness)
+                changed_reflectance, new_reflectance = imgui.slider_float("Reflectance", comp.material.reflectance, 0.0, 1.0)
+                if changed_reflectance:
+                    comp.material.reflectance = float1(new_reflectance)
+                changed_ao, new_ao = imgui.slider_float("AO", comp.material.ao, 0.0, 1.0)
+                if changed_ao:
+                    comp.material.ao = float1(new_ao)
 
-                roughness = comp.material.properties["u_Roughness"]
-                if roughness is not None:
-                    changed_roughness, new_roughness = imgui.slider_float(
-                        "Roughness", roughness, 0.0, 1.0)
-                    if changed_roughness:
-                        comp.material.properties["u_Roughness"] = new_roughness
+                if imgui.tree_node_ex("Textures", imgui.TreeNodeFlags_.default_open):
+                    if imgui.begin_table("material_textures_table", 3):
+                        imgui.table_setup_column("Map", imgui.TableColumnFlags_.width_fixed)
+                        imgui.table_setup_column("Status", imgui.TableColumnFlags_.width_fixed, 60.0) 
+                        imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)
 
-                reflectance = comp.material.properties["u_Reflectance"]
-                if reflectance is not None:
-                    changed_reflectance, new_reflectance = imgui.slider_float(
-                        "Reflectance", reflectance, 0.0, 1.0)
-                    if changed_reflectance:
-                        comp.material.properties["u_Reflectance"] = new_reflectance
+                        texture_maps = [
+                            ("Albedo", "albedo_map"),
+                            # ("Normal", "normal_map"),
+                            # ("Specular", "specular_map")
+                        ]
 
-                ao = comp.material.properties["u_AO"]
-                if ao is not None:
-                    changed_ao, new_ao = imgui.slider_float("AO", ao, 0.0, 1.0)
-                    if changed_ao:
-                        comp.material.properties["u_AO"] = new_ao
+                        for display_name, attr_name in texture_maps:
+                            imgui.push_id(attr_name)
+                            imgui.table_next_row()
+
+                            imgui.table_next_column()
+                            imgui.align_text_to_frame_padding()
+                            imgui.text_unformatted(display_name)
+
+                            imgui.table_next_column()
+                            current_tex = getattr(comp.material, attr_name)
+                            
+                            if current_tex is None:
+                                imgui.align_text_to_frame_padding()
+                                imgui.text_disabled("(None)")
+                            elif current_tex.status == TextureStatus.Loading:
+                                imgui.align_text_to_frame_padding()
+                                imgui.text_colored((1.0, 0.8, 0.0, 1.0), "Loading...")
+                            elif current_tex.status == TextureStatus.Failed:
+                                imgui.align_text_to_frame_padding()
+                                imgui.text_colored((1.0, 0.2, 0.2, 1.0), "Failed!")
+                            elif current_tex.status == TextureStatus.Ready:
+                                tex_ref = imgui.ImTextureRef(int(current_tex.gl_id))
+                                imgui.image(tex_ref, imgui.ImVec2(24, 24))
+                                if imgui.is_item_hovered():
+                                    imgui.begin_tooltip()
+                                    imgui.image(tex_ref, imgui.ImVec2(256, 256))
+                                    imgui.end_tooltip()
+
+                            imgui.table_next_column()
+                            if imgui.button("Browse..."):
+                                dialog = pfd.open_file(
+                                    title=f"Select {display_name} Texture",
+                                    default_path="", 
+                                    filters=["Image Files", "*.png *.jpg *.jpeg *.bmp *.tga", "All Files", "*"]
+                                )
+                                result = dialog.result()
+
+                                if result and len(result) > 0:
+                                    filepath = result[0]
+
+                                    r_textures = registry.get_singleton(TexturesState)
+                                    if r_textures:
+                                        _, (textures_state, ) = r_textures
+                                        new_tex = TextureSystem.request_texture(textures_state, filepath)
+                                        setattr(comp.material, attr_name, new_tex)
+
+                            if current_tex is not None:
+                                imgui.same_line()
+                                imgui.push_style_color(imgui.Col_.button, (0.6, 0.2, 0.2, 1.0))
+                                if imgui.button("Clear"):
+                                    setattr(comp.material, attr_name, None)
+                                imgui.pop_style_color()
+
+                            imgui.pop_id()
+
+                        imgui.end_table()
+                    imgui.tree_pop()
 
                 imgui.tree_pop()
 

@@ -3,6 +3,7 @@ out vec4 FragColor;
 
 in vec3 v_Normal;
 in vec3 v_FragPos;
+in vec2 v_UV;
 
 layout (std140) uniform SceneData {
     mat4 u_Projection;
@@ -21,6 +22,9 @@ const int MAX_LIGHTS = 4;
 uniform vec3 u_LightPos[MAX_LIGHTS];
 uniform vec3 u_LightColor[MAX_LIGHTS];
 uniform int u_NumLights;
+
+uniform sampler2D u_AlbedoMap;
+uniform int u_UseAlbedoMap;
 
 float filmGrain(vec2 coords) {
     return fract(sin(dot(coords.xy, vec2(12.9898, 78.233))) * 43758.5453);
@@ -55,8 +59,14 @@ void main() {
 
     diffuseAccumulator *= 0.0033;
     specularAccumulator *= specMultiplier;
-    vec3 result = ((ambient + diffuseAccumulator) * u_Albedo) + specularAccumulator;
 
+    vec3 finalAlbedo = u_Albedo;
+    if (u_UseAlbedoMap == 1) {
+        vec4 albedoTex = texture(u_AlbedoMap, v_UV);
+        finalAlbedo *= albedoTex.xyz;
+    }
+
+    vec3 result = ((ambient + diffuseAccumulator) * finalAlbedo) + specularAccumulator;
     result += (filmGrain(gl_FragCoord.xy + fract(u_Time)) - 0.5) * 0.002;
 
     FragColor = vec4(result, 1.0);

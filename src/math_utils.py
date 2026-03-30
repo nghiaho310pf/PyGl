@@ -3,6 +3,10 @@ import math
 import numpy as np
 
 
+def float1(x):
+    return np.float32(x)
+
+
 def vec3(x, y, z):
     return np.array([x, y, z], dtype=np.float32)
 

@@ -1,5 +1,6 @@
 glfw==2.10.0
 imgui-bundle==1.92.601
 numpy==2.4.3
+opencv-python==4.13.0.92
 PyOpenGL==3.1.10
 PyOpenGL-accelerate==3.1.10

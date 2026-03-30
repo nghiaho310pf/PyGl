@@ -5,6 +5,7 @@ import numpy as np
 from OpenGL import GL
 
 from entities.components.camera_state import CameraState
+from entities.components.textures_state import TextureStatus
 import math_utils
 from entities.components.render_state import RenderState, GlobalDrawMode
 from entities.components.camera import Camera
@@ -30,6 +31,18 @@ class RenderSystem:
         self.attach_shader(self.blinn_phong_shader)
         self.attach_shader(self.gouraud_shader)
         self.attach_shader(self.depth_shader)
+
+        # == default texture for unavailable textures ==
+        self.default_texture_id = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
+        white_pixel = np.array([255, 255, 255, 255], dtype=np.uint8)
+        GL.glTexImage2D(
+            GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, 
+            GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, white_pixel
+        )
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
 
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
@@ -170,13 +183,18 @@ class RenderSystem:
                     visuals.mesh.draw()
 
     def setup_shader_properties(self, shader: Shader, material: Material):
-        for name, value in material.properties.items():
-            if isinstance(value, float):
-                shader.set_float(name, value)
-            elif isinstance(value, int):
-                shader.set_int(name, value)
-            elif isinstance(value, (list, tuple)):
-                if len(value) == 3:
-                    shader.set_vec3(name, value)
-                elif len(value) == 4:
-                    shader.set_vec4(name, value)
+        shader.set_vec3("u_Albedo", material.albedo)
+        shader.set_float("u_Roughness", float(material.roughness))
+        shader.set_float("u_Reflectance", float(material.reflectance))
+        shader.set_float("u_AO", float(material.ao))
+
+        GL.glActiveTexture(GL.GL_TEXTURE0)
+
+        if material.albedo_map is not None and material.albedo_map.status == TextureStatus.Ready:
+            GL.glBindTexture(GL.GL_TEXTURE_2D, material.albedo_map.gl_id)
+            shader.set_int("u_AlbedoMap", 0)
+            shader.set_int("u_UseAlbedoMap", 1)
+        else:
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
+            shader.set_int("u_AlbedoMap", 0)
+            shader.set_int("u_UseAlbedoMap", 0)
