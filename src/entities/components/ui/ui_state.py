@@ -17,6 +17,7 @@ class AddType(Enum):
     Arrow = auto()
 
     FunctionSurface = auto()
+    GradientDescentSurface = auto()
 
     Cube = auto()
     Tetrahedron = auto()

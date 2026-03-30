@@ -10,6 +10,8 @@ from imgui_bundle import imgui, icons_fontawesome_6, portable_file_dialogs as pf
 from entities.components.camera import Camera
 from entities.components.camera_state import CameraState
 from entities.components.disposal import Disposal
+from entities.components.gd.optimizer_state import OptimizerAlgorithm, OptimizerState
+from entities.components.gd.surface import GradientDescentSurface, LossFunctionType
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
 from entities.components.render_state import GlobalDrawMode, RenderState
@@ -86,7 +88,7 @@ class UiSystem:
         if ui_state.should_close_add_menu:
             imgui.set_next_item_open(False)
             ui_state.should_close_add_menu = False
-        add_menu_expanded = imgui.collapsing_header("Add")
+        add_menu_expanded = imgui.collapsing_header("+ Add")
 
         if not add_menu_expanded:
             preview_visuals.enabled = False
@@ -141,6 +143,10 @@ class UiSystem:
 
             if imgui.radio_button("Function surface", ui_state.add_mesh_type == AddType.FunctionSurface):
                 ui_state.add_mesh_type = AddType.FunctionSurface
+                changed_type = True
+            imgui.same_line()
+            if imgui.radio_button("Gradient descent surface", ui_state.add_mesh_type == AddType.GradientDescentSurface):
+                ui_state.add_mesh_type = AddType.GradientDescentSurface
                 changed_type = True
 
             if imgui.radio_button("Prism", ui_state.add_mesh_type == AddType.Prism):
@@ -263,7 +269,7 @@ class UiSystem:
                 changed_tse, ui_state.torus_tube_sectors = imgui.slider_int("Tube sectors", ui_state.torus_tube_sectors, 3, 50)
                 mesh_changed = mesh_changed or changed_mr or changed_tr or changed_mse or changed_tse
 
-            if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera, AddType.FunctionSurface):
+            if ui_state.add_mesh_type in (AddType.PointLight, AddType.Camera, AddType.FunctionSurface, AddType.GradientDescentSurface):
                 preview_visuals.enabled = False
             else:
                 preview_visuals.enabled = True
@@ -358,10 +364,7 @@ class UiSystem:
                         vi = generate_torus(ui_state.torus_main_radius, ui_state.torus_tube_radius, ui_state.torus_main_sectors, ui_state.torus_tube_sectors)
 
                     if vi is not None:
-                        new_material = Material(
-                            ui_state.default_material.shader_type,
-                            copy.deepcopy(ui_state.default_material.properties)
-                        )
+                        new_material = copy.copy(ui_state.default_material)
 
                         registry.add_components(
                             new_entity,
@@ -370,7 +373,7 @@ class UiSystem:
                             Visuals(Mesh(*vi), new_material)
                         )
                 elif ui_state.add_mesh_type == AddType.FunctionSurface:
-                    new_material = copy.deepcopy(ui_state.default_material)
+                    new_material = copy.copy(ui_state.default_material)
                     vi = generate_plane(10.0)
 
                     registry.add_components(
@@ -379,6 +382,19 @@ class UiSystem:
                         Transform(position=vec3(*camera_state.focal_point)),
                         Visuals(Mesh(*vi), new_material, cull_back_faces=False),
                         SurfaceFunction()
+                    )
+                elif ui_state.add_mesh_type == AddType.GradientDescentSurface:
+                    new_material = copy.copy(ui_state.default_material)
+                    vi = generate_plane(10.0)
+
+                    registry.add_components(
+                        new_entity,
+                        EntityFlags(name="Gradient descent surface"),
+                        Hierarchy(),
+
+                        Transform(position=vec3(0.0, 0.0, 0.0), scale=vec3(1.0, 0.01, 1.0)),
+                        GradientDescentSurface(),
+                        Visuals(Mesh(*vi), new_material, cull_back_faces=False),
                     )
                 elif ui_state.add_mesh_type == AddType.PointLight:
                     registry.add_components(
@@ -500,7 +516,8 @@ class UiSystem:
                         UiSystem.draw_component_properties(
                             registry,
                             selected_entity, comp_type, component,
-                            camera_state_entity, camera_state, camera_state_hierarchy
+                            ui_state,
+                            camera_state_entity, camera_state, camera_state_hierarchy,
                         )
 
         # == debug section ==
@@ -555,6 +572,7 @@ class UiSystem:
     def draw_component_properties(
             registry: Registry,
             entity_id: int, comp_type: Type[Any], comp: Any,
+            ui_state: UiState,
             camera_state_entity: int, camera_state: CameraState, camera_state_hierarchy: Hierarchy,
     ):
         if isinstance(comp, Transform):
@@ -632,16 +650,16 @@ class UiSystem:
                 if imgui.radio_button("Gouraud", comp.material.shader_type == ShaderType.Gouraud):
                     comp.material.shader_type = ShaderType.Gouraud
 
-                changed_albedo, new_albedo = imgui.color_edit3("Albedo", comp.material.albedo)
+                changed_albedo, new_albedo = imgui.color_edit3("Albedo", comp.material.albedo.tolist())
                 if changed_albedo:
                     comp.material.albedo = vec3(*new_albedo)                    
-                changed_roughness, new_roughness = imgui.slider_float("Roughness", comp.material.roughness, 0.0, 1.0)
+                changed_roughness, new_roughness = imgui.slider_float("Roughness", float(comp.material.roughness), 0.0, 1.0)
                 if changed_roughness:
                     comp.material.roughness = float1(new_roughness)
-                changed_reflectance, new_reflectance = imgui.slider_float("Reflectance", comp.material.reflectance, 0.0, 1.0)
+                changed_reflectance, new_reflectance = imgui.slider_float("Reflectance", float(comp.material.reflectance), 0.0, 1.0)
                 if changed_reflectance:
                     comp.material.reflectance = float1(new_reflectance)
-                changed_ao, new_ao = imgui.slider_float("AO", comp.material.ao, 0.0, 1.0)
+                changed_ao, new_ao = imgui.slider_float("AO", float(comp.material.ao), 0.0, 1.0)
                 if changed_ao:
                     comp.material.ao = float1(new_ao)
 
@@ -753,6 +771,104 @@ class UiSystem:
                         (0.9, 0.2, 0.2, 1.0), f"{icons_fontawesome_6.ICON_FA_CIRCLE_EXCLAMATION} {comp.error_string}")
                 imgui.pop_text_wrap_pos()
 
+                imgui.tree_pop()
+        
+        elif isinstance(comp, GradientDescentSurface):
+            if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+                changed_run, new_run = imgui.checkbox("Running", comp.is_running)
+                if changed_run:
+                    comp.is_running = new_run
+
+                changed_interval, new_interval = imgui.slider_float("Step interval", comp.step_interval, 0.005, 0.25)
+                if changed_interval:
+                    comp.step_interval = new_interval
+
+                imgui.separator()
+
+                func_names = [e.name for e in LossFunctionType]
+                current_index = list(LossFunctionType).index(comp.function_type)
+                changed_func, new_index = imgui.combo("Function", current_index, func_names)
+                if changed_func:
+                    comp.function_type = list(LossFunctionType)[new_index]
+                    comp.dirty = True
+
+                if comp.function_type == LossFunctionType.Rosenbrock:
+                    changed_a, new_a = imgui.drag_float("a", comp.rosenbrock_a, 0.1)
+                    if changed_a:
+                        comp.rosenbrock_a = new_a
+                        comp.dirty = True
+                    changed_b, new_b = imgui.drag_float("b", comp.rosenbrock_b, 1.0)
+                    if changed_b:
+                        comp.rosenbrock_b = new_b
+                        comp.dirty = True
+
+                changed_res, new_res = imgui.slider_int("Resolution", comp.resolution, 10, 200)
+                if changed_res:
+                    comp.resolution = new_res
+                    comp.dirty = True
+
+                changed_size, new_size = imgui.drag_float("Size", comp.size, 0.1, 1.0, 100.0)
+                if changed_size:
+                    comp.size = new_size
+                    comp.dirty = True
+                
+                imgui.text_disabled(f"Iterations: {comp.iterations}")
+
+                if imgui.button("+ Add optimizer"):
+                    r_transform = registry.get_components(entity_id, Transform)
+                    spawn_pos = vec3(0.0, 0.0, 0.0)
+                    if r_transform:
+                        (surf_trans,) = r_transform
+                        spawn_pos = surf_trans.position.copy()
+
+                    optimizer_mesh = Mesh(*generate_uv_sphere(radius=0.1, stacks=10, sectors=20))
+
+                    new_entity = registry.create_entity()
+                    registry.add_components(
+                        new_entity,
+                        EntityFlags(name=f"Optimizer {new_entity}"),
+                        Hierarchy(),
+                        Transform(position=spawn_pos),
+                        OptimizerState(algorithm=OptimizerAlgorithm.BATCH_GD),
+                        Visuals(optimizer_mesh, copy.copy(ui_state.default_material)),
+                    )
+
+                    registry.set_parent(new_entity, entity_id)
+                    registry.set_parent(ui_state.selection_child_entity, new_entity)
+                
+                imgui.tree_pop()
+
+        elif isinstance(comp, OptimizerState):
+            if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+                alg_names = [e.name for e in OptimizerAlgorithm]
+                current_index = list(OptimizerAlgorithm).index(comp.algorithm)
+                changed_alg, new_index = imgui.combo("Algorithm", current_index, alg_names)
+                if changed_alg:
+                    comp.algorithm = list(OptimizerAlgorithm)[new_index]
+
+                changed_lr, new_lr = imgui.drag_float(
+                    "Learning rate", comp.learning_rate, 0.0001, 0.0001, 1.0, "%.4f")
+                if changed_lr:
+                    comp.learning_rate = new_lr
+
+                if comp.algorithm == OptimizerAlgorithm.MOMENTUM:
+                    changed_mom, new_mom = imgui.slider_float("Momentum Rate", comp.momentum_rate, 0.0, 1.0)
+                    if changed_mom:
+                        comp.momentum_rate = new_mom
+
+                if comp.algorithm in (OptimizerAlgorithm.SGD, OptimizerAlgorithm.MINI_BATCH_SGD):
+                    changed_noise, new_noise = imgui.drag_float("Noise Scale", comp.noise_scale, 0.1, 0.0, 100.0)
+                    if changed_noise:
+                        comp.noise_scale = new_noise
+
+                imgui.separator()
+
+                if imgui.button("Clear trajectory & velocity"):
+                    comp.trajectory.clear()
+                    comp.velocity_x = 0.0
+                    comp.velocity_z = 0.0
+
+                imgui.text_disabled(f"Velocity: ({comp.velocity_x:.4f}, {comp.velocity_z:.4f})")
                 imgui.tree_pop()
 
         else:

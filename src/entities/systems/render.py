@@ -5,8 +5,8 @@ import numpy as np
 from OpenGL import GL
 
 from entities.components.camera_state import CameraState
+from entities.components.gd.optimizer_state import OptimizerState
 from entities.components.textures_state import TextureStatus
-import math_utils
 from entities.components.render_state import RenderState, GlobalDrawMode
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
@@ -16,6 +16,8 @@ from entities.registry import Hierarchy, Registry
 from shading.material import Material, ShaderType
 from shading.shader import Shader, ShaderGlobals
 from shading.shaders import blinn_phong, gouraud, depth_shader, flat_shader
+import math_utils
+from math_utils import float1
 
 
 class RenderSystem:
@@ -43,6 +45,11 @@ class RenderSystem:
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
         GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+
+        # == dynamic line rendering setup ==
+        # very unorthodox, but we have deadlines to meet
+        self.line_vao = GL.glGenVertexArrays(1)
+        self.line_vbo = GL.glGenBuffers(1)
 
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
@@ -181,6 +188,39 @@ class RenderSystem:
                     current_shader.set_mat4("u_Model", model_matrix)
 
                     visuals.mesh.draw()
+        
+        # == trajectory line rendering ==
+        GL.glBindVertexArray(self.line_vao)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.line_vbo)
+    
+        self.flat_shader.use()
+        self.flat_shader.set_mat4("u_Model", np.identity(4, dtype=np.float32))
+        GL.glDisable(GL.GL_CULL_FACE)
+        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
+
+        GL.glDepthRange(0.0, 0.9998)
+        for entity, (optimizer,) in registry.view(OptimizerState):
+            if len(optimizer.trajectory) < 2:
+                continue
+
+            r_visuals = registry.get_components(entity, Visuals)
+            if r_visuals:
+                (vis, ) = r_visuals
+                self.flat_shader.set_vec3("u_Albedo", vis.material.albedo)
+            else:
+                self.flat_shader.set_vec3("u_Albedo", np.array([1.0, 1.0, 1.0], dtype=np.float32))
+
+            points = np.array(optimizer.trajectory, dtype=np.float32).flatten()
+            GL.glBufferData(GL.GL_ARRAY_BUFFER, points.nbytes, points, GL.GL_DYNAMIC_DRAW)
+
+            GL.glEnableVertexAttribArray(0)
+            GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, 3 * 4, None)
+            GL.glDisableVertexAttribArray(1)
+            GL.glDisableVertexAttribArray(2)
+
+            GL.glDrawArrays(GL.GL_LINE_STRIP, 0, len(optimizer.trajectory))
+        GL.glBindVertexArray(0)
+        GL.glDepthRange(0.0, 1.0)
 
     def setup_shader_properties(self, shader: Shader, material: Material):
         shader.set_vec3("u_Albedo", material.albedo)

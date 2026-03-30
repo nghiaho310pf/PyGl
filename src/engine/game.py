@@ -7,6 +7,7 @@ from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.disposal import Disposal
 from entities.components.entity_flags import EntityFlags
+from entities.components.gd.optimizer_state import OptimizerAlgorithm, OptimizerState
 from entities.components.textures_state import TexturesState
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
@@ -18,6 +19,7 @@ from entities.components.camera_state import CameraState
 from entities.registry import Hierarchy, Registry
 from entities.systems.disposal import DisposalSystem
 from entities.systems.function_surface import FunctionSurfaceSystem
+from entities.systems.gradient_descent import GradientDescentSurface, GradientDescentSurfaceSystem
 from entities.systems.render import RenderSystem
 from entities.systems.textures import TextureSystem
 from entities.systems.ui import UiSystem
@@ -197,12 +199,14 @@ class Game(Application):
             self.last_update = now
         dt = now - self.last_update
 
+        window_size = self.get_window_size()
+
         # == logic & graphics ==
         # a bit unorthodox to ECS because of calling special ImGui commands
         # here instead of in systems, but this is simpler.
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
-        window_size = self.get_window_size()
+        GradientDescentSurfaceSystem.update(self.registry, now, dt)
         TextureSystem.update(self.registry)
         CameraSystem.update(self.registry, window_size, now, dt)
         UiSystem.update(self.registry, now, dt)
