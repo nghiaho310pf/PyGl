@@ -56,7 +56,7 @@ class RenderSystem:
         # == camera setup ==
         r_admin = registry.get_singleton(RenderState)
         if r_admin is None:
-            raise RuntimeError("DisposalSystem is missing a RenderState singleton")
+            raise RuntimeError("RenderSystem is missing a RenderState singleton")
         admin_entity, (render_state, ) = r_admin
 
         r_camera_state = registry.get_singleton(CameraState)
