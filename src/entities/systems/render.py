@@ -122,6 +122,7 @@ class RenderSystem:
 
         # == shadow pass ==
         GL.glViewport(0, 0, self.SHADOW_WIDTH, self.SHADOW_HEIGHT)
+        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glEnable(GL.GL_CULL_FACE)
         GL.glCullFace(GL.GL_BACK)
@@ -279,7 +280,9 @@ class RenderSystem:
     def setup_shader_properties(self, shader: Shader, material: Material):
         shader.set_vec3("u_Albedo", material.albedo)
         shader.set_float("u_Roughness", float(material.roughness))
+        shader.set_float("u_Metallic", float(material.metallic))
         shader.set_float("u_Reflectance", float(material.reflectance))
+        shader.set_float("u_Translucency", float(material.translucency))
         shader.set_float("u_AO", float(material.ao))
 
         GL.glActiveTexture(GL.GL_TEXTURE0)

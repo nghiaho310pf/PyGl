@@ -41,32 +41,8 @@ class Game(Application):
         # unorthodox system with OpenGL state that we need to make an instance of
         self.render_system = RenderSystem()
 
-        # == material setup ==
-        mat_preview = Material(
-            albedo=vec3(0.4, 0.9, 0.4),
-            roughness=float1(0.5),
-            reflectance=float1(0.1),
-            ao=float1(0.1),
-        )
-        mat_default = Material(
-            albedo=vec3(0.3, 0.3, 0.3),
-            roughness=float1(0.5),
-            reflectance=float1(0.1),
-            ao=float1(0.1),
-        )
-
         # == singleton entities required for above systems ==
-        # preview entity for adding meshes
-        preview_entity = self.registry.create_entity()
-        self.registry.add_components(
-            preview_entity,
-            EntityFlags(is_internal=True),
-            Transform(position=vec3(0.0, 0.0, 0.0)),
-            Visuals(
-                Mesh(np.array([], dtype=np.float32), np.array([], dtype=np.uint32)),
-                material=mat_preview, enabled=False, is_internal=True
-            ) 
-        )
+
         # cheap trick: this is a singleton as a child of the selected entity,
         # so that DisposalSystem can do the work of getting rid of dangling IDs for us.
         # this would instead be a tagging component if we had to implement selecting
@@ -83,7 +59,6 @@ class Game(Application):
             EntityFlags(is_internal=True, dispose_alongside_parent=False),
             CameraState(),
         )
-
         # admin entity for overarching singletons
         self.registry.add_components(
             self.registry.create_entity(),
@@ -102,19 +77,25 @@ class Game(Application):
         mat_orange = Material(
             albedo=vec3(1.0, 0.318, 0.133),
             roughness=float1(0.6),
+            metallic=float1(0.3),
             reflectance=float1(0.25),
+            translucency=float1(0.0),
             ao=float1(0.1),
         )
         mat_blue = Material(
             albedo=vec3(0.276, 0.481, 1.0),
             roughness=float1(0.6),
+            metallic=float1(0.7),
             reflectance=float1(0.25),
+            translucency=float1(0.0),
             ao=float1(0.1),
         )
         mat_grey = Material(
             albedo=vec3(0.08, 0.08, 0.08),
             roughness=float1(0.6),
+            metallic=float1(0.7),
             reflectance=float1(0.01),
+            translucency=float1(0.0),
             ao=float1(0.1),
         )
 
