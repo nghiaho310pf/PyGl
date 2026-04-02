@@ -7,6 +7,6 @@ from shading.src_utils import read_source_file
 def make_shader():
     p = Path(__file__).parent.absolute()
     return Shader(
-        read_source_file(p / "blinn_phong/vert.glsl"),
-        read_source_file(p / "blinn_phong/frag.glsl")
+        read_source_file(p / "debug_depth_shader/vert.glsl"),
+        read_source_file(p / "debug_depth_shader/frag.glsl")
     )

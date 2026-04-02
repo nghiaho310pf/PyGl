@@ -13,7 +13,7 @@ from entities.components.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from shading.material import Material
 from shading.shader import Shader, ShaderGlobals
-from shading.shaders import tf2_ggx_smith, shadowmap_shader, depth_shader
+from shading.shaders import debug_depth_shader, tf2_ggx_smith, shadowmap_shader
 import math_utils
 
 
@@ -24,13 +24,13 @@ class RenderSystem:
 
         self.tf2_ggx_shader = tf2_ggx_smith.make_shader()
         self.shadowmap_shader = shadowmap_shader.make_shader()
-        self.depth_shader = depth_shader.make_shader()
+        self.depth_shader = debug_depth_shader.make_shader()
         self.attach_shader(self.tf2_ggx_shader)
         self.attach_shader(self.shadowmap_shader)
         self.attach_shader(self.depth_shader)
 
-        self.SHADOW_WIDTH = 768
-        self.SHADOW_HEIGHT = 768
+        self.SHADOW_WIDTH = 2048
+        self.SHADOW_HEIGHT = 2048
 
         # == default texture for unavailable textures ==
         self.default_texture_id = GL.glGenTextures(1)
