@@ -5,7 +5,7 @@ from imgui_bundle import imgui
 from entities.components.camera import Camera
 from entities.components.transform import Transform
 from entities.components.camera_state import CameraState
-from entities.registry import Hierarchy, Registry
+from entities.registry import Registry
 from math_utils import vec3
 import math_utils
 
@@ -13,20 +13,22 @@ import math_utils
 class CameraSystem:
     @staticmethod
     def update(registry: Registry, window_size: tuple[int, int], time: float, delta_time: float):
-        r_camera_state = registry.get_singleton(CameraState, Hierarchy)
+        r_camera_state = registry.get_singleton(CameraState)
 
         if r_camera_state is None:
-            raise RuntimeError("CameraSystem is missing a (CameraState, Hierarchy) singleton")
-        camera_state_entity, (camera_state, camera_state_hierarchy) = r_camera_state
+            raise RuntimeError("CameraSystem is missing a CameraState singleton")
+        camera_state_entity, (camera_state, ) = r_camera_state
 
-        if camera_state_hierarchy.parent is None:
+        parent_entity = registry.get_parent(camera_state_entity)
+
+        if parent_entity is None:
             r = registry.get_singleton(Transform, Camera)
             if r is None:
                 return
             camera_entity, (camera_transform, camera) = r
             registry.set_parent(camera_state_entity, camera_entity)
         else:
-            r = registry.get_components(camera_state_hierarchy.parent, Transform, Camera)
+            r = registry.get_components(parent_entity, Transform, Camera)
             if r is None:
                 raise RuntimeError("CameraState singleton parented to an entity without (Transform, Camera)")
             (camera_transform, camera) = r

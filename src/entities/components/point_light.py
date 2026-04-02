@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 
 
-@dataclass
+@dataclass(slots=True, eq=False)
 class PointLight:
     color: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([1.0, 1.0, 1.0], dtype=np.float32))
     strength: np.float32 = np.float32(300.0)

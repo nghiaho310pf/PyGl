@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from queue import Queue
 from enum import Enum, auto
-import numpy as np
 import numpy.typing as npt
 
 
@@ -12,7 +11,7 @@ class TextureStatus(Enum):
     Failed = auto()
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class Texture:
     filepath: str
 
@@ -23,7 +22,7 @@ class Texture:
     height: int = 0
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class TexturesState:
     textures: dict[str, Texture] = field(default_factory=dict)
     upload_queue: Queue = field(default_factory=Queue)

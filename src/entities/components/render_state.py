@@ -8,6 +8,6 @@ class GlobalDrawMode(Enum):
     DepthOnly = 2
 
 
-@dataclass
+@dataclass(slots=True, eq=False)
 class RenderState:
     global_draw_mode: GlobalDrawMode = GlobalDrawMode.Normal

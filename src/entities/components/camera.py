@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class Camera:
     fov: float = 45.0
     near: float = 0.1

@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 
-@dataclass
+@dataclass(slots=True, eq=False)
 class CameraState:
     is_panning: bool = False
     is_zooming: bool = False

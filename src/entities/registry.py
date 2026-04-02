@@ -1,5 +1,4 @@
 from typing import Any, Dict, Set, Type, TypeVar, Tuple, Iterator, overload
-from dataclasses import dataclass, field
 
 T = TypeVar("T")
 T1 = TypeVar("T1")
@@ -9,30 +8,34 @@ T4 = TypeVar("T4")
 T5 = TypeVar("T5")
 
 
-# a pretty special component that Registry explicitly works with, so it's defined here.
-@dataclass(slots=True)
-class Hierarchy:
-    parent: int | None = None
-    children: Set[int] = field(default_factory=set)
-    dispose_alongside_parent: bool = True
-
-
 class Registry:
     def __init__(self) -> None:
         self._next_id: int = 0
         self._components: Dict[Type[Any], Dict[int, Any]] = {}
         self._entity_components: Dict[int, Dict[Type[Any], Any]] = {}
 
+        self._parents: Dict[int, int] = {}
+        self._children: Dict[int, Set[int]] = {}
+
     def create_entity(self) -> int:
         entity = self._next_id
         self._next_id += 1
         self._entity_components[entity] = {}
+        self._children[entity] = set()
         return entity
 
     # this is entity removal from the perspective of the registry i.e. a bunch of dicts,
     # not logical entity disposal. if used by systems naively, you will get
     # dangling entity IDs.
     def remove_entity(self, entity: int) -> None:
+        parent = self._parents.pop(entity, None)
+        if parent is not None and parent in self._children:
+            self._children[parent].discard(entity)
+
+        for child in self._children.get(entity, set()):
+            self._parents.pop(child, None)
+        self._children.pop(entity, None)
+
         components = self._entity_components.pop(entity, None)
         if components is not None:
             for comp_type in components:
@@ -200,26 +203,21 @@ class Registry:
         if new_parent is not None and new_parent not in self._entity_components:
             raise ValueError(f"Cannot parent entity {child} to non-existent parent {new_parent}")
 
-        r_child = self.get_components(child, Hierarchy)
-        if r_child is None:
-            child_node = Hierarchy()
-            self.add_components(child, child_node)
+        old_parent = self._parents.get(child)
+        if old_parent == new_parent:
+            return
+
+        if old_parent is not None:
+            self._children[old_parent].discard(child)
+
+        if new_parent is None:
+            self._parents.pop(child, None)
         else:
-            (child_node, ) = r_child
+            self._parents[child] = new_parent
+            self._children[new_parent].add(child)
 
-        if child_node.parent is not None:
-            r_old_parent = self.get_components(child_node.parent, Hierarchy)
-            if r_old_parent is not None:
-                (old_parent_hierarchy, ) = r_old_parent
-                if child in old_parent_hierarchy.children:
-                    old_parent_hierarchy.children.remove(child)
+    def get_parent(self, entity: int) -> int | None:
+        return self._parents.get(entity)
 
-        child_node.parent = new_parent
-        if new_parent is not None:
-            r_new_parent = self.get_components(new_parent, Hierarchy)
-            if r_new_parent is None:
-                new_parent_hierarchy = Hierarchy()
-                self.add_components(new_parent, new_parent_hierarchy)
-            else:
-                (new_parent_hierarchy, ) = r_new_parent
-            new_parent_hierarchy.children.add(child)
+    def get_children(self, entity: int) -> Set[int]:
+        return set(self._children.get(entity, set()))

@@ -13,7 +13,7 @@ def background_load_task(filepath: str, upload_queue: Queue):
     try:
         image = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
         if image is None:
-            raise FileNotFoundError(f"Could not load {filepath}")
+            raise FileNotFoundError(f"Could not load texture from {filepath}")
 
         if len(image.shape) == 3 and image.shape[2] == 3:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -21,6 +21,8 @@ def background_load_task(filepath: str, upload_queue: Queue):
         elif len(image.shape) == 3 and image.shape[2] == 4:
             image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
             format_ext = "RGBA"
+        else:
+            raise FileNotFoundError(f"Could not load texture {filepath} with unexpected format")
 
         upload_queue.put((filepath, image, format_ext))
     except Exception as e:

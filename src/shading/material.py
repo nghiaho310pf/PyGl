@@ -8,21 +8,13 @@ from entities.components.textures_state import Texture
 from shading.shader import Shader
 
 
-class ShaderType(Enum):
-    Flat = 0
-    BlinnPhong = 1
-    Gouraud = 2
-
-
 @dataclass(slots=True, eq=False)
 class Material:
-    shader_type: ShaderType
-
     albedo: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 0.0], dtype=np.float32))
     roughness: np.float32 = field(default_factory=lambda: np.float32(0.0))
     reflectance: np.float32 = field(default_factory=lambda: np.float32(0.0))
     ao: np.float32 = field(default_factory=lambda: np.float32(0.0))
 
     albedo_map: Texture | None = None
-    normal_map: Texture | None = None
-    specular_map: Texture | None = None
+    # normal_map: Texture | None = None
+    # specular_map: Texture | None = None

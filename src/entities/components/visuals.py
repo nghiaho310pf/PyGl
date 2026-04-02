@@ -10,7 +10,7 @@ class DrawMode(Enum):
     Wireframe = 1
 
 
-@dataclass
+@dataclass(slots=True, eq=False)
 class Visuals:
     mesh: Mesh
     material: Material

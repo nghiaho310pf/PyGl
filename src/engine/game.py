@@ -1,13 +1,12 @@
 from typing import Any, Type
 
-from imgui_bundle import imgui, icons_fontawesome_6
+from imgui_bundle import imgui
 import numpy as np
 
 from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.disposal import Disposal
 from entities.components.entity_flags import EntityFlags
-from entities.components.gd.optimizer_state import OptimizerAlgorithm, OptimizerState
 from entities.components.textures_state import TexturesState
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
@@ -16,10 +15,8 @@ from entities.components.transform import Transform
 from entities.components.ui.ui_state import UiState
 from entities.components.visuals import Visuals
 from entities.components.camera_state import CameraState
-from entities.registry import Hierarchy, Registry
+from entities.registry import Registry
 from entities.systems.disposal import DisposalSystem
-from entities.systems.function_surface import FunctionSurfaceSystem
-from entities.systems.gradient_descent import GradientDescentSurface, GradientDescentSurfaceSystem
 from entities.systems.render import RenderSystem
 from entities.systems.textures import TextureSystem
 from entities.systems.ui import UiSystem
@@ -27,10 +24,10 @@ from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
 from meshes.surfaces.plane import generate_plane
 from meshes.volumes.cube import generate_cube
-from meshes.volumes.uv_sphere import generate_uv_sphere
+from meshes.volumes.icosphere import generate_icosphere
 from meshes.mesh import Mesh
 from math_utils import float1, vec3
-from shading.material import Material, ShaderType
+from shading.material import Material
 
 
 class Game(Application):
@@ -45,13 +42,13 @@ class Game(Application):
         self.render_system = RenderSystem()
 
         # == material setup ==
-        mat_preview = Material(ShaderType.BlinnPhong,
+        mat_preview = Material(
             albedo=vec3(0.4, 0.9, 0.4),
             roughness=float1(0.5),
             reflectance=float1(0.1),
             ao=float1(0.1),
         )
-        mat_default = Material(ShaderType.BlinnPhong,
+        mat_default = Material(
             albedo=vec3(0.3, 0.3, 0.3),
             roughness=float1(0.5),
             reflectance=float1(0.1),
@@ -70,23 +67,20 @@ class Game(Application):
                 material=mat_preview, enabled=False, is_internal=True
             ) 
         )
-        # cheap trick: this is a singleton as a sibling of
-        # Hierarchy(parent=selected_entity, dispose_alongside_parent=False),
+        # cheap trick: this is a singleton as a child of the selected entity,
         # so that DisposalSystem can do the work of getting rid of dangling IDs for us.
         # this would instead be a tagging component if we had to implement selecting
         # multiple entities, but we just need 1.
         selection_child_entity = self.registry.create_entity()
         self.registry.add_components(
             selection_child_entity,
-            EntityFlags(is_internal=True),
-            Hierarchy(dispose_alongside_parent=False)
+            EntityFlags(is_internal=True, dispose_alongside_parent=False),
         )
         # similar trick to the above for camera & camera control state
         camera_state_entity = self.registry.create_entity()
         self.registry.add_components(
             camera_state_entity,
-            EntityFlags(is_internal=True),
-            Hierarchy(dispose_alongside_parent=False),
+            EntityFlags(is_internal=True, dispose_alongside_parent=False),
             CameraState(),
         )
 
@@ -97,11 +91,7 @@ class Game(Application):
 
             Disposal(),
 
-            UiState(
-                preview_entity=preview_entity,
-                selection_child_entity=selection_child_entity,
-                default_material=mat_default
-            ),
+            UiState(selection_child_entity=selection_child_entity),
             TexturesState(),
             RenderState(),
             IconRenderState(),
@@ -109,36 +99,36 @@ class Game(Application):
 
         # == demo setup ==
 
-        mat_orange = Material(ShaderType.BlinnPhong,
+        mat_orange = Material(
             albedo=vec3(1.0, 0.318, 0.133),
             roughness=float1(0.6),
             reflectance=float1(0.25),
             ao=float1(0.1),
         )
-        mat_blue = Material(ShaderType.BlinnPhong,
+        mat_blue = Material(
             albedo=vec3(0.276, 0.481, 1.0),
             roughness=float1(0.6),
             reflectance=float1(0.25),
             ao=float1(0.1),
         )
-        mat_grey = Material(ShaderType.BlinnPhong,
+        mat_grey = Material(
             albedo=vec3(0.08, 0.08, 0.08),
             roughness=float1(0.6),
             reflectance=float1(0.01),
             ao=float1(0.1),
         )
 
-        uv_sphere_vertices, uv_sphere_indices = generate_uv_sphere(radius=0.5, stacks=20, sectors=40)
+        sphere_vertices, sphere_indices = generate_icosphere(radius=0.5, subdivisions=3)
         cube_vertices, cube_indices = generate_cube(size=1.0)
         plane_vertices, plane_indices = generate_plane()
 
-        # orange UV sphere entity
+        # orange icosphere entity
         e1 = self.registry.create_entity()
         self.registry.add_components(
             e1,
-            EntityFlags(name="UV sphere"),
+            EntityFlags(name="Icosphere"),
             Transform(position=vec3(0.0, 0.5, 0)),
-            Visuals(Mesh(uv_sphere_vertices, uv_sphere_indices), mat_orange)
+            Visuals(Mesh(sphere_vertices, sphere_indices), mat_orange)
         )
 
         # blue cube entity
@@ -206,11 +196,9 @@ class Game(Application):
         # here instead of in systems, but this is simpler.
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
-        GradientDescentSurfaceSystem.update(self.registry, now, dt)
         TextureSystem.update(self.registry)
         CameraSystem.update(self.registry, window_size, now, dt)
         UiSystem.update(self.registry, now, dt)
-        FunctionSurfaceSystem.update(self.registry, now, dt)
         self.render_system.update(self.registry, window_size, now, dt)
         IconRenderSystem.update(self.registry, window_size)
         imgui.render()

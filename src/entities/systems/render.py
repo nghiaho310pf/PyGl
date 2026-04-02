@@ -1,23 +1,20 @@
-import math
 from typing import Tuple
 
 import numpy as np
 from OpenGL import GL
 
 from entities.components.camera_state import CameraState
-from entities.components.gd.optimizer_state import OptimizerState
 from entities.components.textures_state import TextureStatus
 from entities.components.render_state import RenderState, GlobalDrawMode
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals, DrawMode
-from entities.registry import Hierarchy, Registry
-from shading.material import Material, ShaderType
+from entities.registry import Registry
+from shading.material import Material
 from shading.shader import Shader, ShaderGlobals
-from shading.shaders import blinn_phong, gouraud, depth_shader, flat_shader
+from shading.shaders import blinn_phong, depth_shader
 import math_utils
-from math_utils import float1
 
 
 class RenderSystem:
@@ -25,13 +22,9 @@ class RenderSystem:
         # == unorthodox: global state ==
         self.shader_globals = ShaderGlobals()
 
-        self.flat_shader = flat_shader.make_shader()
         self.blinn_phong_shader = blinn_phong.make_shader()
-        self.gouraud_shader = gouraud.make_shader()
         self.depth_shader = depth_shader.make_shader()
-        self.attach_shader(self.flat_shader)
         self.attach_shader(self.blinn_phong_shader)
-        self.attach_shader(self.gouraud_shader)
         self.attach_shader(self.depth_shader)
 
         # == default texture for unavailable textures ==
@@ -45,11 +38,6 @@ class RenderSystem:
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
         GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
-
-        # == dynamic line rendering setup ==
-        # very unorthodox, but we have deadlines to meet
-        self.line_vao = GL.glGenVertexArrays(1)
-        self.line_vbo = GL.glGenBuffers(1)
 
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
@@ -71,14 +59,15 @@ class RenderSystem:
             raise RuntimeError("DisposalSystem is missing a RenderState singleton")
         admin_entity, (render_state, ) = r_admin
 
-        r_camera_state = registry.get_singleton(CameraState, Hierarchy)
+        r_camera_state = registry.get_singleton(CameraState)
         if r_camera_state is None:
-            raise RuntimeError("RenderSystem is missing a (CameraState, Hierarchy) singleton")
-        _, (camera_state, camera_state_hierarchy) = r_camera_state
+            raise RuntimeError("RenderSystem is missing a CameraState singleton")
+        camera_state_entity, (camera_state, ) = r_camera_state
 
-        if camera_state_hierarchy.parent is None:
+        camera_parent = registry.get_parent(camera_state_entity)
+        if camera_parent is None:
             return
-        r_camera = registry.get_components(camera_state_hierarchy.parent, Transform, Camera)
+        r_camera = registry.get_components(camera_parent, Transform, Camera)
         if r_camera is None:
             raise RuntimeError("CameraState singleton parented to an entity without (Transform, Camera)")
         (camera_transform, camera) = r_camera
@@ -103,13 +92,12 @@ class RenderSystem:
                                    camera_state.view_matrix, camera_transform.position, time)
 
         # == batching ==
-        batches: dict[tuple[ShaderType, DrawMode, bool], dict[Material, list[Tuple[Transform, Visuals]]]] = {}
+        batches: dict[tuple[DrawMode, bool], dict[Material, list[Tuple[Transform, Visuals]]]] = {}
 
         for entity, (transform, visuals) in registry.view(Transform, Visuals):
             if not visuals.enabled:
                 continue
 
-            shader_type = visuals.material.shader_type
             mat = visuals.material
 
             if render_state.global_draw_mode == GlobalDrawMode.Wireframe:
@@ -119,7 +107,7 @@ class RenderSystem:
 
             cull_faces = visuals.cull_back_faces
 
-            batch_key = (shader_type, actual_draw_mode, cull_faces)
+            batch_key = (actual_draw_mode, cull_faces)
 
             if batch_key not in batches:
                 batches[batch_key] = {}
@@ -129,26 +117,20 @@ class RenderSystem:
             batches[batch_key][mat].append((transform, visuals))
 
         # == render ==
-        sorted_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1].name, k[2]))
+        sorted_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
 
         current_shader = None
         current_draw_mode = None
         current_cull_faces = None
 
         for batch_key in sorted_keys:
-            shader_type, draw_mode, cull_faces = batch_key
+            draw_mode, cull_faces = batch_key
             material_group = batches[batch_key]
 
             if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
                 shader = self.depth_shader
-            elif shader_type == ShaderType.Flat:
-                shader = self.flat_shader
-            elif shader_type == ShaderType.BlinnPhong:
-                shader = self.blinn_phong_shader
-            elif shader_type == ShaderType.Gouraud:
-                shader = self.gouraud_shader
             else:
-                shader = self.flat_shader
+                shader = self.blinn_phong_shader
 
             # 'shader != current_shader' would suffice, Pylance is just bad
             if current_shader is None or shader != current_shader:
@@ -188,39 +170,6 @@ class RenderSystem:
                     current_shader.set_mat4("u_Model", model_matrix)
 
                     visuals.mesh.draw()
-        
-        # == trajectory line rendering ==
-        GL.glBindVertexArray(self.line_vao)
-        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.line_vbo)
-    
-        self.flat_shader.use()
-        self.flat_shader.set_mat4("u_Model", np.identity(4, dtype=np.float32))
-        GL.glDisable(GL.GL_CULL_FACE)
-        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
-
-        GL.glDepthRange(0.0, 0.9998)
-        for entity, (optimizer,) in registry.view(OptimizerState):
-            if len(optimizer.trajectory) < 2:
-                continue
-
-            r_visuals = registry.get_components(entity, Visuals)
-            if r_visuals:
-                (vis, ) = r_visuals
-                self.flat_shader.set_vec3("u_Albedo", vis.material.albedo)
-            else:
-                self.flat_shader.set_vec3("u_Albedo", np.array([1.0, 1.0, 1.0], dtype=np.float32))
-
-            points = np.array(optimizer.trajectory, dtype=np.float32).flatten()
-            GL.glBufferData(GL.GL_ARRAY_BUFFER, points.nbytes, points, GL.GL_DYNAMIC_DRAW)
-
-            GL.glEnableVertexAttribArray(0)
-            GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, 3 * 4, None)
-            GL.glDisableVertexAttribArray(1)
-            GL.glDisableVertexAttribArray(2)
-
-            GL.glDrawArrays(GL.GL_LINE_STRIP, 0, len(optimizer.trajectory))
-        GL.glBindVertexArray(0)
-        GL.glDepthRange(0.0, 1.0)
 
     def setup_shader_properties(self, shader: Shader, material: Material):
         shader.set_vec3("u_Albedo", material.albedo)
