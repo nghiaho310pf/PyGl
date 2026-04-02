@@ -13,7 +13,7 @@ from entities.components.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from shading.material import Material
 from shading.shader import Shader, ShaderGlobals
-from shading.shaders import debug_depth_shader, tf2_ggx_smith, shadowmap_shader
+from shading.shaders import depth_prepass_shader, tf2_ggx_smith, shadowmap_shader, debug_depth_shader
 import math_utils
 
 
@@ -22,12 +22,14 @@ class RenderSystem:
         # == unorthodox: global state ==
         self.shader_globals = ShaderGlobals()
 
+        self.depth_prepass_shader = depth_prepass_shader.make_shader()
         self.tf2_ggx_shader = tf2_ggx_smith.make_shader()
         self.shadowmap_shader = shadowmap_shader.make_shader()
-        self.depth_shader = debug_depth_shader.make_shader()
+        self.debug_depth_shader = debug_depth_shader.make_shader()
+        self.attach_shader(self.depth_prepass_shader)
         self.attach_shader(self.tf2_ggx_shader)
         self.attach_shader(self.shadowmap_shader)
-        self.attach_shader(self.depth_shader)
+        self.attach_shader(self.debug_depth_shader)
 
         self.SHADOW_WIDTH = 2048
         self.SHADOW_HEIGHT = 2048
@@ -37,7 +39,7 @@ class RenderSystem:
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
         white_pixel = np.array([255, 255, 255, 255], dtype=np.uint8)
         GL.glTexImage2D(
-            GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0, 
+            GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, 1, 1, 0,
             GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, white_pixel
         )
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
@@ -200,70 +202,80 @@ class RenderSystem:
 
             batches[batch_key][mat].append((transform, visuals))
 
-        # == render ==
         sorted_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
 
-        current_shader = None
-        current_draw_mode = None
-        current_cull_faces = None
+        # == depth prepass ==
+        if render_state.global_draw_mode != GlobalDrawMode.DepthOnly:
+            GL.glColorMask(GL.GL_FALSE, GL.GL_FALSE, GL.GL_FALSE, GL.GL_FALSE)
+            GL.glDepthMask(GL.GL_TRUE)
+            GL.glDepthFunc(GL.GL_LESS)
 
-        for batch_key in sorted_keys:
-            draw_mode, cull_faces = batch_key
-            material_group = batches[batch_key]
+            self.depth_prepass_shader.use()
 
-            if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
-                shader = self.depth_shader
-            else:
-                shader = self.tf2_ggx_shader
+            for batch_key in sorted_keys:
+                draw_mode, cull_faces = batch_key
 
-            # 'shader != current_shader' would suffice, Pylance is just bad
-            if current_shader is None or shader != current_shader:
-                shader.use()
-                if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
-                    shader.set_float("u_Near", camera.near)
-                    shader.set_float("u_Far", camera.far)
-                else:
-                    shader.set_vec3_array("u_LightPos", point_light_positions)
-                    shader.set_vec3_array("u_LightColor", point_light_colors)
-                    shader.set_int("u_NumLights", num_lights)
-                    shader.set_float_array("u_FarPlane", light_far_planes)
-                    shader.set_float_array("u_LightRadius", light_radii)
-
-                    shadow_map_texture_units = []
-                    for i in range(MAX_LIGHTS):
-                        tex_unit = i + 1  # Use units 1, 2, 3, 4
-                        shadow_map_texture_units.append(tex_unit)
-                        
-                        GL.glActiveTexture(GL.GL_TEXTURE0 + tex_unit) # type: ignore
-                        if i < num_lights:
-                            GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, shadow_map_textures[i])
-                        else:
-                            # Bind 0 to ensure no leftover 2D textures are sitting on these units
-                            GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, 0) 
-                    
-                    shader.set_int_array("u_ShadowMap", shadow_map_texture_units)
-                    
-                    # Reset Active Texture for standard maps
-                    GL.glActiveTexture(GL.GL_TEXTURE0)
-
-                current_shader = shader
-
-            if draw_mode != current_draw_mode:
-                if draw_mode == DrawMode.Wireframe:
-                    GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE)
-                else:
-                    GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
-                current_draw_mode = draw_mode
-
-            if cull_faces != current_cull_faces:
+                GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
                 if cull_faces:
                     GL.glEnable(GL.GL_CULL_FACE)
                     GL.glCullFace(GL.GL_BACK)
                 else:
                     GL.glDisable(GL.GL_CULL_FACE)
-                current_cull_faces = cull_faces
 
-            for material, entities in material_group.items():
+                for material, entities in batches[batch_key].items():
+                    for transform, visuals in entities:
+                        model_matrix = math_utils.create_transformation_matrix(
+                            transform.position, transform.rotation, transform.scale
+                        )
+                        self.depth_prepass_shader.set_mat4("u_Model", model_matrix)
+                        visuals.mesh.draw()
+
+            # restore state for main pass
+            GL.glColorMask(GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE)
+            GL.glDepthMask(GL.GL_FALSE)
+            GL.glDepthFunc(GL.GL_LEQUAL)
+
+        # == main pass ==
+
+        if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
+            current_shader = self.debug_depth_shader
+            current_shader.use()
+            current_shader.set_float("u_Near", camera.near)
+            current_shader.set_float("u_Far", camera.far)
+        else:
+            current_shader = self.tf2_ggx_shader
+            current_shader.use()
+
+            current_shader.set_vec3_array("u_LightPos", point_light_positions)
+            current_shader.set_vec3_array("u_LightColor", point_light_colors)
+            current_shader.set_int("u_NumLights", num_lights)
+            current_shader.set_float_array("u_FarPlane", light_far_planes)
+            current_shader.set_float_array("u_LightRadius", light_radii)
+
+            shadow_map_texture_units = []
+            for i in range(MAX_LIGHTS):
+                tex_unit = i + 1
+                shadow_map_texture_units.append(tex_unit)
+                GL.glActiveTexture(GL.GL_TEXTURE0 + tex_unit) # type: ignore
+                if i < num_lights:
+                    GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, shadow_map_textures[i])
+                else:
+                    GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, 0)
+
+            current_shader.set_int_array("u_ShadowMap", shadow_map_texture_units)
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+
+        for batch_key in sorted_keys:
+            draw_mode, cull_faces = batch_key
+
+            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
+            if cull_faces:
+                GL.glEnable(GL.GL_CULL_FACE)
+                GL.glCullFace(GL.GL_BACK)
+            else:
+                GL.glDisable(GL.GL_CULL_FACE)
+
+            for material, entities in batches[batch_key].items():
                 if render_state.global_draw_mode != GlobalDrawMode.DepthOnly:
                     self.setup_shader_properties(current_shader, material)
 
@@ -276,6 +288,8 @@ class RenderSystem:
                     visuals.mesh.draw()
 
         GL.glActiveTexture(GL.GL_TEXTURE0)
+        GL.glDepthMask(GL.GL_TRUE)
+        GL.glDepthFunc(GL.GL_LESS)
 
     def setup_shader_properties(self, shader: Shader, material: Material):
         shader.set_vec3("u_Albedo", material.albedo)
