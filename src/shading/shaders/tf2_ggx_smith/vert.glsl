@@ -12,9 +12,9 @@ layout (std140) uniform SceneData {
 
 uniform mat4 u_Model;
 
-out vec3 v_WorldPos;
-out vec3 v_Normal;
-out vec2 v_UV;
+centroid out vec3 v_WorldPos;
+centroid out vec3 v_Normal;
+centroid out vec2 v_UV;
 
 void main() {
     v_WorldPos = vec3(u_Model * vec4(a_Pos, 1.0));

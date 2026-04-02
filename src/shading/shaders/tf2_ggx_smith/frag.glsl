@@ -1,9 +1,9 @@
 #version 450 core
 out vec4 FragColor;
 
-in vec3 v_WorldPos;
-in vec3 v_Normal;
-in vec2 v_UV;
+centroid in vec3 v_WorldPos;
+centroid in vec3 v_Normal;
+centroid in vec2 v_UV;
 
 layout (std140) uniform SceneData {
     mat4 u_Projection;
@@ -134,13 +134,13 @@ float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCub
     vec3 fragToLight = fragPos - lightPos;
     float currentDepth = length(fragToLight) / farPlane;
 
-    float noise = blueNoiseDither(gl_FragCoord.xy);
+    float noise = blueNoiseDither(gl_FragCoord.xy * fract(u_Time * 2.5));
     float randomRotation = noise * PI2;
 
     int searchSamples = 8;
     float avgBlockerDepth = 0.0;
     int blockers = 0;
-    float searchWidth = 0.05 + (currentDepth * 0.01); // Search wider further away
+    float searchWidth = lightRadius * 0.5;
 
     vec3 lightDir = normalize(fragToLight);
     vec3 up = abs(lightDir.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
@@ -158,12 +158,12 @@ float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCub
         }
     }
 
-    if (blockers == 0) return 0.0;
+    if (blockers < 2) return 0.0;
     avgBlockerDepth /= float(blockers);
 
-    float penumbraRatio = (currentDepth - avgBlockerDepth) / avgBlockerDepth;
+    float penumbraRatio = (currentDepth - avgBlockerDepth) / pow(avgBlockerDepth, 0.7);
     float diskRadius = penumbraRatio * lightRadius;
-    diskRadius = clamp(diskRadius, 0.002, 0.15);
+    diskRadius = clamp(diskRadius, 0.001, 0.05);
 
     float shadow = 0.0;
     int pcfSamples = 32;
@@ -210,8 +210,17 @@ void main() {
         float distance = length(lightPos - v_WorldPos);
 
         // Shadow calculation
-        float shadowBias = max(0.0075 * (1.0 - dot(N, L)), 0.00075);
-        float shadow = calculateShadow(v_WorldPos, lightPos, u_LightRadius[i], u_ShadowMap[i], u_FarPlane[i], shadowBias);
+        float normalOffsetScale = max(0.05 * (1.0 - dot(N, L)), 0.005);
+        vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale;
+        float constantDepthBias = 0.0001;
+        float shadow = calculateShadow(
+            biasedWorldPos,
+            lightPos,
+            u_LightRadius[i],
+            u_ShadowMap[i],
+            u_FarPlane[i],
+            constantDepthBias
+        );
         shadow = smoothstep(0.01, 0.98, shadow);
 
         // lighting prep
