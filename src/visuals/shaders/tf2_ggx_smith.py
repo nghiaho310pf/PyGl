@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from shading.shader import Shader
-from shading.src_utils import read_source_file
+from visuals.shader import Shader
+from visuals.src_utils import read_source_file
 
 
 def make_shader():

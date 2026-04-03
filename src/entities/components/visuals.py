@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from meshes.mesh import Mesh
-from shading.material import Material
+from visuals.material import Material
 
 
 class DrawMode(Enum):

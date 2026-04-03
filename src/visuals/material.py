@@ -5,7 +5,7 @@ import numpy as np
 import numpy.typing as npt
 
 from entities.components.textures_state import Texture
-from shading.shader import Shader
+from visuals.shader import Shader
 
 
 @dataclass(slots=True, eq=False)

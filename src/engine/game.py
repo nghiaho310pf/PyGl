@@ -27,7 +27,7 @@ from meshes.volumes.cube import generate_cube
 from meshes.volumes.icosphere import generate_icosphere
 from meshes.mesh import Mesh
 from math_utils import float1, vec3
-from shading.material import Material
+from visuals.material import Material
 
 
 class Game(Application):

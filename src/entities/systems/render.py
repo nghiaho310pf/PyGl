@@ -11,9 +11,9 @@ from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals, DrawMode
 from entities.registry import Registry
-from shading.material import Material
-from shading.shader import Shader, ShaderGlobals
-from shading.shaders import depth_prepass_shader, tf2_ggx_smith, shadowmap_shader, debug_depth_shader
+from visuals.material import Material
+from visuals.shader import Shader, ShaderGlobals
+from visuals.shaders import depth_prepass_shader, tf2_ggx_smith, shadowmap_shader, debug_depth_shader
 import math_utils
 
 
