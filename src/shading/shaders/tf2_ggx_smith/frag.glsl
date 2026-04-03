@@ -92,7 +92,8 @@ vec3 toneMapAgX(vec3 color) {
     val = clamp(log2(max(val, 1e-6)) * 0.0606060606 + 0.7559957575, 0.0, 1.0);
 
     vec3 x2 = val * val;
-    val = x2 * (1.34 + val * (-22.56 + val * (90.30 + val * (-129.56 + val * (79.05 + val * -17.86)))));
+    vec3 x4 = x2 * x2;
+    val = 15.5 * x4 * x2 - 40.14 * x4 * val + 31.96 * x4 - 6.868 * x2 * val + 0.4298 * x2 + 0.1191 * val - 0.00232;
 
     const mat3 agx_output_mat = mat3(
         1.56230, -0.46872, -0.09358,
