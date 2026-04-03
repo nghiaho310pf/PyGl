@@ -60,7 +60,10 @@ float correlatedSmith(float NdotV, float NdotL, float roughness) {
 }
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    float f = clamp(1.0 - cosTheta, 0.0, 1.0);
+    float f2 = f * f;
+    float f5 = f2 * f2 * f; 
+    return F0 + (1.0 - F0) * f5;
 }
 
 // Hammon diffuse, replaces the standard Lambert (Albedo / PI).
@@ -104,39 +107,15 @@ vec3 toneMapAgX(vec3 color) {
     return pow(max(agx_output_mat * val, 0.0), vec3(2.2));
 }
 
-vec3 sampleOffsetDirections[20] = vec3[]
-(
-   vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1),
-   vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
-   vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
-   vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
-   vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
-);
-
 float blueNoiseDither(vec2 pos) {
     float white = fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453);
     float noise = fract(white + (gl_FragCoord.x + gl_FragCoord.y * 0.5) * 0.375);
     return noise;
 }
 
-vec3 sampleVogelDisk(int sampleIndex, int samplesCount, float rotation) {
-    float goldenAngle = 2.4; // approx PI * (3.0 - sqrt(5.0))
-
-    float r = sqrt(float(sampleIndex) + 0.5) / sqrt(float(samplesCount));
-    float theta = float(sampleIndex) * goldenAngle + rotation;
-
-    float sine = sin(theta);
-    float cosine = cos(theta);
-
-    return vec3(r * cosine, r * sine, 0.0);
-}
-
-float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane, float bias) {
+float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane, float bias, float randomRotation) {
     vec3 fragToLight = fragPos - lightPos;
     float currentDepth = length(fragToLight) / farPlane;
-
-    float noise = blueNoiseDither(gl_FragCoord.xy * fract(u_Time * 2.5));
-    float randomRotation = noise * PI2;
 
     int searchSamples = 8;
     float avgBlockerDepth = 0.0;
@@ -148,8 +127,18 @@ float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCub
     vec3 right = normalize(cross(up, lightDir));
     up = cross(lightDir, right);
 
+    // precalculate rotation matrix and initial vector
+    const float GOLDEN_ANGLE = 2.4;
+    const mat2 vogelRot = mat2(cos(GOLDEN_ANGLE), sin(GOLDEN_ANGLE), -sin(GOLDEN_ANGLE), cos(GOLDEN_ANGLE));
+    
+    vec2 vogelDir = vec2(cos(randomRotation), sin(randomRotation));
+    float invSqrtSearchSamples = 1.0 / sqrt(float(searchSamples));
+
     for (int i = 0; i < searchSamples; ++i) {
-        vec3 offset2D = sampleVogelDisk(i, searchSamples, randomRotation);
+        float r = sqrt(float(i) + 0.5) * invSqrtSearchSamples;
+        vec2 offset2D = vogelDir * r;
+        vogelDir = vogelRot * vogelDir; // re-rotate
+
         vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * searchWidth;
 
         float sampleDepth = texture(shadowMap, sampleDir).r;
@@ -168,21 +157,23 @@ float calculateShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCub
 
     float shadow = 0.0;
     int pcfSamples = 32;
+    float invPcfSamples = 1.0 / float(pcfSamples);
+    float invSqrtPcfSamples = 1.0 / sqrt(float(pcfSamples));
 
-    float invSamples = 1.0 / float(pcfSamples);
+    vogelDir = vec2(cos(randomRotation), sin(randomRotation)); // reset rotation
 
     for (int i = 0; i < pcfSamples; ++i) {
-        vec3 offset2D = sampleVogelDisk(i, pcfSamples, randomRotation);
+        float r = sqrt(float(i) + 0.5) * invSqrtPcfSamples;
+        vec2 offset2D = vogelDir * r;
+        vogelDir = vogelRot * vogelDir; // re-rotate
 
-        float jitter = fract(noise + u_Time + float(i) * 0.618);
-        float radiusJitter = 1.0 + (jitter * 0.2 - 0.1);
-        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * (diskRadius * radiusJitter);
+        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * diskRadius;
 
         float closestDepth = texture(shadowMap, sampleDir).r;
         if (currentDepth - bias > closestDepth) shadow += 1.0;
     }
 
-    return shadow * invSamples;
+    return shadow * invPcfSamples;
 }
 
 void main() {
@@ -198,19 +189,25 @@ void main() {
     vec3 ambient = finalAlbedo * u_AO;
     vec3 totalDirectLight = vec3(0.0);
 
+    float globalNoise = blueNoiseDither(gl_FragCoord.xy * fract(u_Time * 2.5));
+    float randomRotation = globalNoise * PI2;
+
     for (int i = 0; i < MAX_LIGHTS; ++i) {
         if (i >= u_NumLights) {
             break;
         }
 
         vec3 lightPos = u_LightPos[i];
+        float distance = length(lightPos - v_WorldPos);
+        if (distance > u_FarPlane[i]) {
+            continue;
+        }
+
         vec3 lightColor = u_LightColor[i];
 
         vec3 L = normalize(lightPos - v_WorldPos);
         vec3 H = normalize(V + L);
-        float distance = length(lightPos - v_WorldPos);
 
-        // Shadow calculation
         float normalOffsetScale = max(0.05 * (1.0 - dot(N, L)), 0.005);
         vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale;
         float constantDepthBias = 0.0001;
@@ -220,7 +217,8 @@ void main() {
             u_LightRadius[i],
             u_ShadowMap[i],
             u_FarPlane[i],
-            constantDepthBias
+            constantDepthBias,
+            randomRotation 
         );
         shadow = smoothstep(0.01, 0.98, shadow);
 
@@ -267,7 +265,7 @@ void main() {
 
         // specular occlusion
         // trick to reduce specular intensity in cracks (where AO is low). prevents "shining in the dark"
-        float specularOcclusion = clamp(pow(NdotL_Wrapped + u_AO, 2.0), 0.0, 1.0);
+        // float specularOcclusion = clamp(pow(NdotL_Wrapped + u_AO, 2.0), 0.0, 1.0);
         // directLight *= specularOcclusion; // optional: apply to direct light too? Usually just ambient.
 
         totalDirectLight += directLight;
