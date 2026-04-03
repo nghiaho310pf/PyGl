@@ -5,6 +5,7 @@ from imgui_bundle import imgui, icons_fontawesome_6, portable_file_dialogs as pf
 
 from entities.components.camera import Camera
 from entities.components.camera_state import CameraState
+from entities.components.directional_light import DirectionalLight
 from entities.components.disposal import Disposal
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
@@ -54,6 +55,7 @@ class UiSystem:
             content_max_x = imgui.get_cursor_pos().x + imgui.get_content_region_avail().x
             ICON_PRIORITY = {
                 Camera: icons_fontawesome_6.ICON_FA_CAMERA,
+                DirectionalLight: icons_fontawesome_6.ICON_FA_SUN,
                 PointLight: icons_fontawesome_6.ICON_FA_LIGHTBULB,
                 Visuals: icons_fontawesome_6.ICON_FA_CUBE,
                 Transform: icons_fontawesome_6.ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT,
@@ -220,12 +222,34 @@ class UiSystem:
                 changed_rot, new_rot = imgui.drag_float3(
                     "Rotation", comp.rotation.tolist(), 1.0)
                 if changed_rot:
-                    comp.rotation = vec3(*new_rot)
+                    comp.rotation = (vec3(*new_rot) + 180.0) % 360.0 - 180.0
 
                 changed_scale, new_scale = imgui.drag_float3(
                     "Scale", comp.scale.tolist(), 0.1)
                 if changed_scale:
                     comp.scale = vec3(*new_scale)
+                imgui.tree_pop()
+        
+        elif isinstance(comp, DirectionalLight):
+            if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+                changed_enabled, new_enabled = imgui.checkbox(
+                    "Enabled", comp.enabled)
+                if changed_enabled:
+                    comp.enabled = new_enabled
+                changed_color, new_color = imgui.color_edit3(
+                    "Color", comp.color.tolist())
+                if changed_color:
+                    comp.color = vec3(*new_color)
+                changed_strength, new_strength = imgui.drag_float(
+                    "Strength", float(comp.strength), 1, 0.0, 1000.0)
+                if changed_strength:
+                    comp.strength = float1(new_strength)
+
+                changed_rot, new_rot = imgui.drag_float3(
+                    "Rotation", comp.rotation.tolist(), 1.0)
+                if changed_rot:
+                    comp.rotation = (vec3(*new_rot) + 180.0) % 360.0 - 180.0
+
                 imgui.tree_pop()
 
         elif isinstance(comp, PointLight):

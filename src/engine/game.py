@@ -10,6 +10,7 @@ from entities.components.entity_flags import EntityFlags
 from entities.components.textures_state import TexturesState
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
+from entities.components.directional_light import DirectionalLight
 from entities.components.render_state import RenderState
 from entities.components.transform import Transform
 from entities.components.ui.ui_state import UiState
@@ -162,6 +163,18 @@ class Game(Application):
             Transform(position=vec3(-1.0, 5.0, -1.0)),
             PointLight(strength=float1(60.0))
         )
+
+        # directional light entity
+        d1 = self.registry.create_entity()
+        self.registry.add_components(
+            d1,
+            EntityFlags(name="Main directional light"),
+            DirectionalLight(
+                rotation=vec3(-117.0, -39.0, 142.0),
+                strength=float1(20.0)
+            )
+        )
+
 
     def render(self):
         # == preparation ==

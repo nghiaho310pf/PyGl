@@ -8,12 +8,13 @@ from entities.components.textures_state import TextureStatus
 from entities.components.render_state import RenderState, GlobalDrawMode
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
+from entities.components.directional_light import DirectionalLight
 from entities.components.transform import Transform
 from entities.components.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
-from visuals.shaders import depth_prepass_shader, tf2_ggx_smith, shadowmap_shader, debug_depth_shader
+from visuals.shaders import depth_prepass_shader, tf2_ggx_smith, shadowmap_shader, debug_depth_shader, directional_shadow_shader
 import math_utils
 
 
@@ -26,13 +27,17 @@ class RenderSystem:
         self.tf2_ggx_shader = tf2_ggx_smith.make_shader()
         self.shadowmap_shader = shadowmap_shader.make_shader()
         self.debug_depth_shader = debug_depth_shader.make_shader()
+        self.directional_shadow_shader = directional_shadow_shader.make_shader()
         self.attach_shader(self.depth_prepass_shader)
         self.attach_shader(self.tf2_ggx_shader)
         self.attach_shader(self.shadowmap_shader)
         self.attach_shader(self.debug_depth_shader)
+        self.attach_shader(self.directional_shadow_shader)
 
-        self.SHADOW_WIDTH = 2048
-        self.SHADOW_HEIGHT = 2048
+        self.directional_shadow_map_width = 2048
+        self.directional_shadow_map_height = 2048
+        self.point_shadow_map_width = 512
+        self.point_shadow_map_height = 512
 
         # == default texture for unavailable textures ==
         self.default_texture_id = GL.glGenTextures(1)
@@ -49,17 +54,36 @@ class RenderSystem:
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
 
-    def _setup_shadow_map(self, point_light: PointLight):
-        # Create FBO
+    def _setup_directional_shadow_map(self, dir_light: DirectionalLight):
+        dir_light.shadow_map_fbo = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, dir_light.shadow_map_fbo)
+
+        dir_light.shadow_map_texture = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, dir_light.shadow_map_texture)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT,
+                        self.directional_shadow_map_width, self.directional_shadow_map_height, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_BORDER)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_BORDER)
+        border_color = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
+        GL.glTexParameterfv(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_BORDER_COLOR, border_color)
+
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, dir_light.shadow_map_texture, 0)
+        GL.glDrawBuffer(GL.GL_NONE)
+        GL.glReadBuffer(GL.GL_NONE)
+
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+
+    def _setup_point_shadow_map(self, point_light: PointLight):
         point_light.shadow_map_fbo = GL.glGenFramebuffers(1)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, point_light.shadow_map_fbo)
 
-        # Create depth cube map texture
         point_light.shadow_map_texture = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, point_light.shadow_map_texture)
         for i in range(6):
             GL.glTexImage2D(GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL.GL_DEPTH_COMPONENT, # type: ignore
-                            self.SHADOW_WIDTH, self.SHADOW_HEIGHT, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
+                            self.point_shadow_map_width, self.point_shadow_map_height, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
@@ -95,41 +119,65 @@ class RenderSystem:
         (camera_transform, camera) = r_camera
 
         # == lights setup ==
-        active_lights: list[Tuple[Transform, PointLight]] = []
+        active_point_lights: list[Tuple[Transform, PointLight]] = []
         for light_entity, (point_light_transform, point_light) in registry.view(Transform, PointLight):
             if point_light.enabled:
-                active_lights.append((point_light_transform, point_light))
+                active_point_lights.append((point_light_transform, point_light))
+
+        active_dir_lights: list[DirectionalLight] = []
+        for light_entity, (dir_light, ) in registry.view(DirectionalLight):
+            if dir_light.enabled:
+                active_dir_lights.append(dir_light)
 
         MAX_LIGHTS = 4  # should match the shader's MAX_LIGHTS
-        if len(active_lights) > MAX_LIGHTS:
-            active_lights = active_lights[:MAX_LIGHTS]
+        if len(active_point_lights) > MAX_LIGHTS:
+            active_point_lights = active_point_lights[:MAX_LIGHTS]
+        if len(active_dir_lights) > MAX_LIGHTS:
+            active_dir_lights = active_dir_lights[:MAX_LIGHTS]
 
         point_light_positions = []
         point_light_colors = []
-        light_radii = []
-        light_far_planes = []
-        shadow_map_textures = []
+        point_light_radii = []
+        point_light_far_planes = []
+        point_shadow_map_textures = []
 
-        for transform, point_light in active_lights:
+        for transform, point_light in active_point_lights:
             if point_light.shadow_map_fbo == 0:
-                self._setup_shadow_map(point_light)
+                self._setup_point_shadow_map(point_light)
 
             point_light_positions.append(transform.position)
             point_light_colors.append(point_light.color * point_light.strength)
-            light_radii.append(point_light.radius)
-            light_far_planes.append(100.0)
-            shadow_map_textures.append(point_light.shadow_map_texture)
+            point_light_radii.append(point_light.radius)
+            point_light_far_planes.append(100.0)
+            point_shadow_map_textures.append(point_light.shadow_map_texture)
 
-        num_lights = len(point_light_positions)
+        dir_light_directions = []
+        dir_light_colors = []
+        dir_shadow_map_textures = []
+        dir_light_space_matrices = []
+
+        for dir_light in active_dir_lights:
+            if dir_light.shadow_map_fbo == 0:
+                self._setup_directional_shadow_map(dir_light)
+
+            direction = math_utils.calculate_direction_from_rotation(dir_light.rotation)
+            dir_light_directions.append(direction)
+            dir_light_colors.append(dir_light.color * dir_light.strength)
+            dir_shadow_map_textures.append(dir_light.shadow_map_texture)
+
+        num_point_lights = len(point_light_positions)
+        num_dir_lights = len(dir_light_directions)
 
         # == shadow pass ==
-        GL.glViewport(0, 0, self.SHADOW_WIDTH, self.SHADOW_HEIGHT)
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
         GL.glEnable(GL.GL_DEPTH_TEST)
+        GL.glDepthMask(GL.GL_TRUE)
         GL.glEnable(GL.GL_CULL_FACE)
         GL.glCullFace(GL.GL_BACK)
 
-        light_projection = math_utils.create_perspective_projection(90.0, 1.0, 0.1, 100.0)
+        # -- point light shadows --
+        GL.glViewport(0, 0, self.point_shadow_map_width, self.point_shadow_map_height)
+        point_light_projection = math_utils.create_perspective_projection(90.0, 1.0, 0.1, 100.0)
         shadow_dirs = [
             (np.array([1.0, 0.0, 0.0]), np.array([0.0, -1.0, 0.0])),
             (np.array([-1.0, 0.0, 0.0]), np.array([0.0, -1.0, 0.0])),
@@ -139,7 +187,7 @@ class RenderSystem:
             (np.array([0.0, 0.0, -1.0]), np.array([0.0, -1.0, 0.0])),
         ]
 
-        for transform, point_light in active_lights:
+        for transform, point_light in active_point_lights:
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, point_light.shadow_map_fbo)
             point_light.light_view_matrices = []
 
@@ -156,7 +204,7 @@ class RenderSystem:
                 light_view = math_utils.create_look_at(transform.position, transform.position + target_dir, up_dir)
                 point_light.light_view_matrices.append(light_view)
 
-                self.shadowmap_shader.set_mat4("u_Projection", light_projection)
+                self.shadowmap_shader.set_mat4("u_Projection", point_light_projection)
                 self.shadowmap_shader.set_mat4("u_View", light_view)
 
                 for entity, (mesh_transform, visuals) in registry.view(Transform, Visuals):
@@ -167,6 +215,36 @@ class RenderSystem:
                     )
                     self.shadowmap_shader.set_mat4("u_Model", model_matrix)
                     visuals.mesh.draw()
+
+        # -- directional light shadows --
+        GL.glViewport(0, 0, self.directional_shadow_map_width, self.directional_shadow_map_height)
+        dir_light_projection = math_utils.create_orthographic_projection(-10.0, 10.0, -10.0, 10.0, 0.1, 100.0)
+        for dir_light in active_dir_lights:
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, dir_light.shadow_map_fbo)
+            GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
+
+            self.directional_shadow_shader.use()
+            
+            # we need a "position" for the directional light to create a view matrix.
+            # since it's position-less, we just pick a spot far enough in the opposite direction.
+            direction = math_utils.calculate_direction_from_rotation(dir_light.rotation)
+            light_pos = -math_utils.normalize(direction) * 20.0
+            light_view = math_utils.create_look_at(light_pos, np.array([0.0, 0.0, 0.0], dtype=np.float32), np.array([0.0, 1.0, 0.0], dtype=np.float32))
+            
+            # NOTE: multiplication order is reversed for column-major interpretation from row-major numpy
+            dir_light.light_space_matrix = light_view @ dir_light_projection
+            dir_light_space_matrices.append(dir_light.light_space_matrix)
+
+            self.directional_shadow_shader.set_mat4("u_LightSpaceMatrix", dir_light.light_space_matrix)
+
+            for entity, (mesh_transform, visuals) in registry.view(Transform, Visuals):
+                if not visuals.enabled:
+                    continue
+                model_matrix = math_utils.create_transformation_matrix(
+                    mesh_transform.position, mesh_transform.rotation, mesh_transform.scale
+                )
+                self.directional_shadow_shader.set_mat4("u_Model", model_matrix)
+                visuals.mesh.draw()
 
         # == global pre-main pass setup ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
@@ -248,21 +326,38 @@ class RenderSystem:
 
             current_shader.set_vec3_array("u_LightPos", point_light_positions)
             current_shader.set_vec3_array("u_LightColor", point_light_colors)
-            current_shader.set_int("u_NumLights", num_lights)
-            current_shader.set_float_array("u_FarPlane", light_far_planes)
-            current_shader.set_float_array("u_LightRadius", light_radii)
+            current_shader.set_int("u_NumLights", num_point_lights)
+            current_shader.set_float_array("u_FarPlane", point_light_far_planes)
+            current_shader.set_float_array("u_LightRadius", point_light_radii)
+
+            current_shader.set_vec3_array("u_DirLightDirection", dir_light_directions)
+            current_shader.set_vec3_array("u_DirLightColor", dir_light_colors)
+            current_shader.set_int("u_NumDirLights", num_dir_lights)
+            current_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
 
             shadow_map_texture_units = []
             for i in range(MAX_LIGHTS):
                 tex_unit = i + 1
                 shadow_map_texture_units.append(tex_unit)
                 GL.glActiveTexture(GL.GL_TEXTURE0 + tex_unit) # type: ignore
-                if i < num_lights:
-                    GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, shadow_map_textures[i])
+                if i < num_point_lights:
+                    GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, point_shadow_map_textures[i])
                 else:
                     GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, 0)
 
             current_shader.set_int_array("u_ShadowMap", shadow_map_texture_units)
+
+            dir_shadow_map_units = []
+            for i in range(MAX_LIGHTS):
+                tex_unit = MAX_LIGHTS + i + 1
+                dir_shadow_map_units.append(tex_unit)
+                GL.glActiveTexture(GL.GL_TEXTURE0 + tex_unit) # type: ignore
+                if i < num_dir_lights:
+                    GL.glBindTexture(GL.GL_TEXTURE_2D, dir_shadow_map_textures[i])
+                else:
+                    GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+
+            current_shader.set_int_array("u_DirShadowMap", dir_shadow_map_units)
             GL.glActiveTexture(GL.GL_TEXTURE0)
 
         for batch_key in sorted_keys:
