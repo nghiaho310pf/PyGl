@@ -2,7 +2,8 @@ from queue import Queue
 import queue
 
 from OpenGL import GL
-import cv2
+import numpy as np
+from PIL import Image
 import threading
 
 from entities.components.textures_state import Texture, TextureStatus, TexturesState
@@ -11,20 +12,14 @@ from entities.registry import Registry
 
 def background_load_task(filepath: str, upload_queue: Queue):
     try:
-        image = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
-        if image is None:
-            raise FileNotFoundError(f"Could not load texture from {filepath}")
+        with Image.open(filepath) as img:
+            img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            if img.mode not in ("RGB", "RGBA"):
+                img = img.convert("RGBA")
+            format_ext = img.mode
+            data = np.array(img)
 
-        if len(image.shape) == 3 and image.shape[2] == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            format_ext = "RGB"
-        elif len(image.shape) == 3 and image.shape[2] == 4:
-            image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
-            format_ext = "RGBA"
-        else:
-            raise FileNotFoundError(f"Could not load texture {filepath} with unexpected format")
-
-        upload_queue.put((filepath, image, format_ext))
+        upload_queue.put((filepath, data, format_ext))
     except Exception as e:
         upload_queue.put((filepath, e, "ERROR"))
 

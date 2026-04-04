@@ -361,10 +361,10 @@ class UiSystem:
                                 imgui.text_colored((1.0, 0.2, 0.2, 1.0), "Failed!")
                             elif current_tex.status == TextureStatus.Ready:
                                 tex_ref = imgui.ImTextureRef(int(current_tex.gl_id))
-                                imgui.image(tex_ref, imgui.ImVec2(24, 24))
+                                imgui.image(tex_ref, imgui.ImVec2(24, 24), imgui.ImVec2(0, 1), imgui.ImVec2(1, 0))
                                 if imgui.is_item_hovered():
                                     imgui.begin_tooltip()
-                                    imgui.image(tex_ref, imgui.ImVec2(256, 256))
+                                    imgui.image(tex_ref, imgui.ImVec2(256, 256), imgui.ImVec2(0, 1), imgui.ImVec2(1, 0))
                                     imgui.end_tooltip()
 
                             imgui.table_next_column()
