@@ -11,5 +11,5 @@ layout (std140) uniform SceneData {
 uniform mat4 u_Model;
 
 void main() {
-    gl_Position = u_Projection * u_View * u_Model * vec4(a_Pos, 1.0);
+    gl_Position = u_Projection * u_View * vec4(vec3(u_Model * vec4(a_Pos, 1.0)), 1.0);
 }
