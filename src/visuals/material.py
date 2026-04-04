@@ -1,11 +1,8 @@
-from typing import Optional
-from enum import Enum
 from dataclasses import dataclass, field
 import numpy as np
 import numpy.typing as npt
 
 from entities.components.textures_state import Texture
-from visuals.shader import Shader
 
 
 @dataclass(slots=True, eq=False)

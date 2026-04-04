@@ -1,8 +1,8 @@
 #version 450 core
 
-centroid in vec3 v_WorldPos;
-centroid in vec3 v_Normal;
-centroid in vec2 v_UV;
+in vec3 v_WorldPos;
+in vec3 v_Normal;
+in vec2 v_UV;
 
 layout (location = 0) out vec4 out_PointShadows;
 layout (location = 1) out vec4 out_DirShadows;

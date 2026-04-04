@@ -1,9 +1,9 @@
 #version 450 core
 out vec4 FragColor;
 
-centroid in vec3 v_WorldPos;
-centroid in vec3 v_Normal;
-centroid in vec2 v_UV;
+in vec3 v_WorldPos;
+in vec3 v_Normal;
+in vec2 v_UV;
 
 layout (std140) uniform SceneData {
     mat4 u_Projection;

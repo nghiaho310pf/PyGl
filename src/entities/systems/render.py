@@ -515,12 +515,12 @@ class RenderSystem:
             current_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
             current_shader.set_vec2("u_ScreenSize", np.array([width, height], dtype=np.float32))
 
-            GL.glActiveTexture(GL.GL_TEXTURE1)
+            GL.glActiveTexture(GL.GL_TEXTURE8)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[0])
-            current_shader.set_int("u_PointShadowMask", 1)
-            GL.glActiveTexture(GL.GL_TEXTURE2)
+            current_shader.set_int("u_PointShadowMask", 8)
+            GL.glActiveTexture(GL.GL_TEXTURE9)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[1])
-            current_shader.set_int("u_DirShadowMask", 2)
+            current_shader.set_int("u_DirShadowMask", 9)
 
         for batch_key in sorted_batch_keys:
             draw_mode, cull_faces = batch_key
@@ -601,12 +601,19 @@ class RenderSystem:
         shader.set_float("u_Reflectance", float(material.reflectance))
         shader.set_float("u_Translucency", float(material.translucency))
         shader.set_float("u_AO", float(material.ao))
-        GL.glActiveTexture(GL.GL_TEXTURE0)
-        if material.albedo_map and material.albedo_map.status == TextureStatus.Ready and material.albedo_map.gl_id:
-            GL.glBindTexture(GL.GL_TEXTURE_2D, material.albedo_map.gl_id)
-            shader.set_int("u_AlbedoMap", 0)
-            shader.set_int("u_UseAlbedoMap", 1)
-        else:
-            GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
-            shader.set_int("u_AlbedoMap", 0)
-            shader.set_int("u_UseAlbedoMap", 0)
+
+        def bind_map(tex_attr, sampler_name, flag_name, unit):
+            GL.glActiveTexture(GL.GL_TEXTURE0 + unit)
+            tex = getattr(material, tex_attr, None)
+            if tex and tex.status == TextureStatus.Ready and tex.gl_id:
+                GL.glBindTexture(GL.GL_TEXTURE_2D, tex.gl_id)
+                shader.set_int(sampler_name, unit)
+                shader.set_int(flag_name, 1)
+            else:
+                GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
+                shader.set_int(sampler_name, unit)
+                shader.set_int(flag_name, 0)
+
+        bind_map("albedo_map",   "u_AlbedoMap",   "u_UseAlbedoMap",   0)
+        # bind_map("normal_map",   "u_NormalMap",   "u_UseNormalMap",   1)
+        # bind_map("specular_map", "u_SpecularMap", "u_UseSpecularMap", 2)
