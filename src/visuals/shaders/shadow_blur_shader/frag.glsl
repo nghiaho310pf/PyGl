@@ -7,14 +7,13 @@ uniform sampler2D u_Texture;
 uniform sampler2D u_DepthTexture;
 uniform sampler2D u_NormalTexture;
 uniform bool u_Horizontal;
-uniform float u_BlurScale;
 uniform float u_DepthSensitivity;
 
 const float weightCenter = 0.5;
 const float weightEdge = 0.25;
 
 void main() {
-    vec2 tex_offset = (1.0 / textureSize(u_Texture, 0)) * u_BlurScale;
+    vec2 tex_offset = (1.0 / textureSize(u_Texture, 0));
     vec2 offset = u_Horizontal ? vec2(tex_offset.x, 0.0) : vec2(0.0, tex_offset.y);
 
     vec2 uvPos = v_UV + offset;

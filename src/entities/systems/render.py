@@ -456,11 +456,10 @@ class RenderSystem:
         # == shadow map blur pass ==
         GL.glDisable(GL.GL_DEPTH_TEST)
         self.shadow_blur_shader.use()
-        self.shadow_blur_shader.set_float("u_BlurScale", 1.0)
         self.shadow_blur_shader.set_float("u_DepthSensitivity", 1000.0)
 
         GL.glActiveTexture(GL.GL_TEXTURE1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_depth)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_depth_tex)
         self.shadow_blur_shader.set_int("u_DepthTexture", 1)
 
         GL.glActiveTexture(GL.GL_TEXTURE2)
