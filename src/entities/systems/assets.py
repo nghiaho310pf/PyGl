@@ -35,6 +35,8 @@ def background_asset_worker(assets_state: AssetsState, task_queue: queue.Queue, 
 
 def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, result_queue: queue.Queue, task_queue: queue.Queue):
     try:
+        is_gltf = filepath.lower().endswith(('.glb', '.gltf'))
+
         scene = trimesh.load(filepath, force='scene')
         nodes = []
 
@@ -48,7 +50,7 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
             scale = tf.scale_from_matrix(transform_matrix)[0]
 
             virtual_mesh_id = AssetSystem.generate_id(assets_state)
-            task_queue.put((TaskType.Mesh, virtual_mesh_id, None, geom))
+            task_queue.put((TaskType.Mesh, virtual_mesh_id, None, (geom, is_gltf)))
 
             mat_template = MaterialTemplate()
             if hasattr(geom.visual, 'material'):
@@ -82,9 +84,15 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
         result_queue.put((TaskType.Model, asset_id, (None, e)))
 
 
-def _process_mesh(asset_id: int, filepath: str | None, geom, result_queue: queue.Queue):
+def _process_mesh(asset_id: int, filepath: str | None, payload, result_queue: queue.Queue):
     try:
-        if geom is None and filepath is not None:  # indicates we should load from disk
+        if isinstance(payload, tuple):
+            geom, flip_uvs = payload
+        else:
+            geom = payload
+            flip_uvs = filepath is not None and filepath.lower().endswith(('.glb', '.gltf'))
+
+        if geom is None and filepath is not None:  
             geom = trimesh.load(filepath)
 
         rotation = trimesh.transformations.rotation_matrix(np.radians(-90), [1, 0, 0])
@@ -96,7 +104,9 @@ def _process_mesh(asset_id: int, filepath: str | None, geom, result_queue: queue
         else:
             normals = np.zeros_like(vertices)
         if hasattr(geom.visual, 'uv') and geom.visual.uv is not None:  # type: ignore
-            uvs = geom.visual.uv  # type: ignore
+            uvs = geom.visual.uv.copy()  # type: ignore
+            if flip_uvs:
+                uvs[:, 1] = 1.0 - uvs[:, 1]
         else:
             uvs = np.zeros((len(vertices), 2))
 

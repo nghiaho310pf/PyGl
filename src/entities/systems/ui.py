@@ -23,11 +23,11 @@ from math_utils import float1, vec3
 class UiSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r_admin = registry.get_singleton(UiState, RenderState, IconRenderState, Disposal)
+        r_admin = registry.get_singleton(UiState, AssetsState, RenderState, IconRenderState, Disposal)
         r_camera_state = registry.get_singleton(CameraState)
         if r_admin is None or r_camera_state is None:
             return
-        admin_entity, (ui_state, render_state, icon_render_state, disposal) = r_admin
+        admin_entity, (ui_state, assets_state, render_state, icon_render_state, disposal) = r_admin
         camera_state_entity, (camera_state, ) = r_camera_state
 
         selected_entity = registry.get_parent(ui_state.selection_child_entity)
@@ -49,6 +49,17 @@ class UiSystem:
         # warn when there's no camera
         if registry.get_parent(camera_state_entity) is None:
             imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} No camera.")
+
+        loading_model_count = sum(1 for m in assets_state.models.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
+        loading_mesh_count = sum(1 for m in assets_state.meshes.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
+        loading_texture_count = sum(1 for m in assets_state.textures.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
+
+        if loading_model_count > 0:
+            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} {loading_model_count} model(s) are loading.")
+        if loading_mesh_count > 0:
+            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} {loading_mesh_count} meshes(s) are loading.")
+        if loading_texture_count > 0:
+            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} {loading_texture_count} textures(s) are loading.")
 
         # == entity list section ==
         if imgui.collapsing_header("Entities", imgui.TreeNodeFlags_.default_open):
