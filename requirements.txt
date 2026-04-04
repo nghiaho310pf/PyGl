@@ -4,3 +4,4 @@ numpy==2.4.3
 opencv-python==4.13.0.92
 PyOpenGL==3.1.10
 PyOpenGL-accelerate==3.1.10
+trimesh==4.11.5
