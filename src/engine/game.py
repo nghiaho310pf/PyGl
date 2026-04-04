@@ -147,32 +147,22 @@ class Game(Application):
             Camera()
         )
 
-        # point light entities
-        c1 = self.registry.create_entity()
+        # light entities
+        l1 = self.registry.create_entity()
         self.registry.add_components(
-            c1,
+            l1,
             EntityFlags(name="Main light"),
-            Transform(position=vec3(1.2, 4.0, 1.2)),
-            PointLight(strength=float1(220.0))
-        )
-
-        c2 = self.registry.create_entity()
-        self.registry.add_components(
-            c2,
-            EntityFlags(name="Sub light"),
-            Transform(position=vec3(-1.0, 5.0, -1.0)),
-            PointLight(strength=float1(60.0))
-        )
-
-        # directional light entity
-        d1 = self.registry.create_entity()
-        self.registry.add_components(
-            d1,
-            EntityFlags(name="Main directional light"),
             DirectionalLight(
                 rotation=vec3(-117.0, -39.0, 142.0),
                 strength=float1(20.0)
             )
+        )
+        l2 = self.registry.create_entity()
+        self.registry.add_components(
+            l2,
+            EntityFlags(name="Sub light"),
+            Transform(position=vec3(-5.0, 5.0, -1.0)),
+            PointLight(strength=float1(60.0), casts_shadow=False)
         )
 
 

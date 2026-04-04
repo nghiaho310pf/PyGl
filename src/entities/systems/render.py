@@ -140,6 +140,7 @@ class RenderSystem:
         point_light_radii = []
         point_light_far_planes = []
         point_shadow_map_textures = []
+        point_light_casts_shadow = []
 
         for transform, point_light in active_point_lights:
             if point_light.shadow_map_fbo == 0:
@@ -150,11 +151,13 @@ class RenderSystem:
             point_light_radii.append(point_light.radius)
             point_light_far_planes.append(100.0)
             point_shadow_map_textures.append(point_light.shadow_map_texture)
+            point_light_casts_shadow.append(1 if point_light.casts_shadow else 0)
 
         dir_light_directions = []
         dir_light_colors = []
         dir_shadow_map_textures = []
         dir_light_space_matrices = []
+        dir_light_casts_shadow = []
 
         for dir_light in active_dir_lights:
             if dir_light.shadow_map_fbo == 0:
@@ -164,6 +167,7 @@ class RenderSystem:
             dir_light_directions.append(direction)
             dir_light_colors.append(dir_light.color * dir_light.strength)
             dir_shadow_map_textures.append(dir_light.shadow_map_texture)
+            dir_light_casts_shadow.append(1 if dir_light.casts_shadow else 0)
 
         num_point_lights = len(point_light_positions)
         num_dir_lights = len(dir_light_directions)
@@ -188,6 +192,8 @@ class RenderSystem:
         ]
 
         for transform, point_light in active_point_lights:
+            if not point_light.casts_shadow:
+                continue
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, point_light.shadow_map_fbo)
             point_light.light_view_matrices = []
 
@@ -220,6 +226,8 @@ class RenderSystem:
         GL.glViewport(0, 0, self.directional_shadow_map_width, self.directional_shadow_map_height)
         dir_light_projection = math_utils.create_orthographic_projection(-10.0, 10.0, -10.0, 10.0, 0.1, 100.0)
         for dir_light in active_dir_lights:
+            if not dir_light.casts_shadow:
+                continue
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, dir_light.shadow_map_fbo)
             GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
 
@@ -327,12 +335,14 @@ class RenderSystem:
             current_shader.set_vec3_array("u_LightPos", point_light_positions)
             current_shader.set_vec3_array("u_LightColor", point_light_colors)
             current_shader.set_int("u_NumLights", num_point_lights)
+            current_shader.set_int_array("u_PointLightCastsShadow", point_light_casts_shadow)
             current_shader.set_float_array("u_FarPlane", point_light_far_planes)
             current_shader.set_float_array("u_LightRadius", point_light_radii)
 
             current_shader.set_vec3_array("u_DirLightDirection", dir_light_directions)
             current_shader.set_vec3_array("u_DirLightColor", dir_light_colors)
             current_shader.set_int("u_NumDirLights", num_dir_lights)
+            current_shader.set_int_array("u_DirLightCastsShadow", dir_light_casts_shadow)
             current_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
 
             shadow_map_texture_units = []

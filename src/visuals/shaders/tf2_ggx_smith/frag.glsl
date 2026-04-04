@@ -26,12 +26,14 @@ uniform vec3 u_LightPos[MAX_LIGHTS];
 uniform float u_LightRadius[MAX_LIGHTS];
 uniform vec3 u_LightColor[MAX_LIGHTS];
 uniform int u_NumLights;
+uniform int u_PointLightCastsShadow[MAX_LIGHTS];
 uniform samplerCube u_ShadowMap[MAX_LIGHTS];
 uniform float u_FarPlane[MAX_LIGHTS];
 
 uniform vec3 u_DirLightDirection[MAX_LIGHTS];
 uniform vec3 u_DirLightColor[MAX_LIGHTS];
 uniform int u_NumDirLights;
+uniform int u_DirLightCastsShadow[MAX_LIGHTS];
 uniform sampler2D u_DirShadowMap[MAX_LIGHTS];
 uniform mat4 u_DirLightSpaceMatrix[MAX_LIGHTS];
 
@@ -276,16 +278,19 @@ void main() {
         float normalOffsetScale = max(0.02 * (1.0 - dot(N, L)), 0.002);
         vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale;
         float constantDepthBias = 0.00025;
-        float shadow = calculatePointShadow(
-            biasedWorldPos,
-            lightPos,
-            u_LightRadius[i],
-            u_ShadowMap[i],
-            u_FarPlane[i],
-            constantDepthBias,
-            randomRotation 
-        );
-        shadow = smoothstep(0.01, 0.98, shadow);
+        float shadow = 0.0;
+        if (u_PointLightCastsShadow[i] == 1) {
+            shadow = calculatePointShadow(
+                biasedWorldPos,
+                lightPos,
+                u_LightRadius[i],
+                u_ShadowMap[i],
+                u_FarPlane[i],
+                constantDepthBias,
+                randomRotation 
+            );
+            shadow = smoothstep(0.01, 0.98, shadow);
+        }
 
         // lighting prep
         float attenuation = 1.0 / (distance * distance);
@@ -346,12 +351,15 @@ void main() {
         float normalOffsetScale = max(0.02 * (1.0 - dot(N, L)), 0.002);
         vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale;
         vec4 fragPosLightSpace = u_DirLightSpaceMatrix[i] * vec4(biasedWorldPos, 1.0);
-        float shadow = calculateDirectionalShadow(
-            fragPosLightSpace,
-            u_DirShadowMap[i],
-            0.0002,
-            randomRotation
-        );
+        float shadow = 0.0;
+        if (u_DirLightCastsShadow[i] == 1) {
+            shadow = calculateDirectionalShadow(
+                fragPosLightSpace,
+                u_DirShadowMap[i],
+                0.0002,
+                randomRotation
+            );
+        }
 
         // lighting prep
         vec3 radiance = lightColor; // no attenuation for directional lights

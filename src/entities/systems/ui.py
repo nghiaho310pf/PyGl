@@ -236,6 +236,11 @@ class UiSystem:
                     "Enabled", comp.enabled)
                 if changed_enabled:
                     comp.enabled = new_enabled
+                imgui.same_line()
+                changed_casts_shadow, new_casts_shadow = imgui.checkbox(
+                    "Casts shadow", comp.casts_shadow)
+                if changed_casts_shadow:
+                    comp.casts_shadow = new_casts_shadow
                 changed_color, new_color = imgui.color_edit3(
                     "Color", comp.color.tolist())
                 if changed_color:
@@ -258,6 +263,11 @@ class UiSystem:
                     "Enabled", comp.enabled)
                 if changed_enabled:
                     comp.enabled = new_enabled
+                imgui.same_line()
+                changed_casts_shadow, new_casts_shadow = imgui.checkbox(
+                    "Casts shadow", comp.casts_shadow)
+                if changed_casts_shadow:
+                    comp.casts_shadow = new_casts_shadow
                 changed_color, new_color = imgui.color_edit3(
                     "Color", comp.color.tolist())
                 if changed_color:
