@@ -17,6 +17,7 @@ from visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
 from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader
 import math_utils
+from visuals.shaders.smaa import shaders as smaa_shaders, smaa_area_tex, smaa_search_tex
 
 
 class RenderSystem:
@@ -24,7 +25,6 @@ class RenderSystem:
         # == unorthodox: global state ==
         self.shader_globals = ShaderGlobals()
 
-        # depth prepass shader is currently unused
         self.point_shadowmap_shader = point_shadowmap_shader.make_shader()
         self.directional_shadowmap_shader = directional_shadowmap_shader.make_shader()
         self.shadow_mask_shader = shadow_mask_shader.make_shader()
@@ -32,6 +32,11 @@ class RenderSystem:
         self.depth_prepass_shader = depth_prepass_shader.make_shader()
         self.tf2_ggx_shader = tf2_ggx_smith.make_shader()
         self.debug_depth_shader = debug_depth_shader.make_shader()
+        (
+            self.smaa_edge_shader,
+            self.smaa_weight_shader,
+            self.smaa_blend_shader
+        ) = smaa_shaders.make_shaders()
 
         self.attach_shader(self.point_shadowmap_shader)
         self.attach_shader(self.directional_shadowmap_shader)
@@ -40,6 +45,12 @@ class RenderSystem:
         self.attach_shader(self.depth_prepass_shader)
         self.attach_shader(self.tf2_ggx_shader)
         self.attach_shader(self.debug_depth_shader)
+        self.attach_shader(self.smaa_edge_shader)
+        self.attach_shader(self.smaa_weight_shader)
+        self.attach_shader(self.smaa_blend_shader)
+
+        self.smaa_area_tex = smaa_area_tex.load()
+        self.smaa_search_tex = smaa_search_tex.load()
 
         self.directional_shadow_map_width = 2048
         self.directional_shadow_map_height = 2048
@@ -82,6 +93,23 @@ class RenderSystem:
             GL.glDeleteFramebuffers(1, [self.blur_fbo])
             GL.glDeleteTextures(len(self.blur_textures), self.blur_textures)
 
+        self.main_fbo = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.main_fbo)
+
+        self.main_color_tex = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_color_tex)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA16F, width, height, 0, GL.GL_RGBA, GL.GL_FLOAT, None)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, self.main_color_tex, 0)
+
+        self.main_depth_tex = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_depth_tex)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT24, width, height, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.main_depth_tex, 0)
+
         # == shadow mask FBO ==
         self.shadow_mask_fbo = GL.glGenFramebuffers(1)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
@@ -98,17 +126,8 @@ class RenderSystem:
             GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0 + i, GL.GL_TEXTURE_2D, self.shadow_mask_textures[i], 0)  # type: ignore
 
-        self.shadow_mask_depth = GL.glGenTextures(1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_depth)
-        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT24, width, height, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
-        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.shadow_mask_depth, 0)
-
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.main_depth_tex, 0)
         GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
-
-        if GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER) != GL.GL_FRAMEBUFFER_COMPLETE:
-            print("Shadow mask FBO incomplete")
 
         # == shadow blur FBO ==
         self.blur_fbo = GL.glGenFramebuffers(1)
@@ -123,6 +142,24 @@ class RenderSystem:
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0 + i, GL.GL_TEXTURE_2D, self.blur_textures[i], 0)  # type: ignore
 
         GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
+
+        # == smaa edge FBO ==
+        self.smaa_edge_fbo = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.smaa_edge_fbo)
+        self.smaa_edge_tex = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_edge_tex)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RG8, width, height, 0, GL.GL_RG, GL.GL_UNSIGNED_BYTE, None)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, self.smaa_edge_tex, 0)
+
+        # == smaa weight FBO ==
+        self.smaa_weight_fbo = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.smaa_weight_fbo)
+        self.smaa_weight_tex = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_weight_tex)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, self.smaa_weight_tex, 0)
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
@@ -345,18 +382,39 @@ class RenderSystem:
             if batch_key not in batches: batches[batch_key] = {}
             if mat not in batches[batch_key]: batches[batch_key][mat] = []
             batches[batch_key][mat].append((transform, visuals))
-        sorted_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
+        sorted_batch_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
+
+        # == depth prepass ==
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.main_fbo)
+        GL.glViewport(0, 0, width, height)
+        GL.glColorMask(GL.GL_FALSE, GL.GL_FALSE, GL.GL_FALSE, GL.GL_FALSE)
+        GL.glEnable(GL.GL_DEPTH_TEST)
+        GL.glDepthMask(GL.GL_TRUE)
+        GL.glDepthFunc(GL.GL_LESS)
+        GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
+
+        self.depth_prepass_shader.use()
+        for batch_key in sorted_batch_keys:
+            draw_mode, cull_faces = batch_key
+            if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
+            else: GL.glDisable(GL.GL_CULL_FACE)
+            for material, entities in batches[batch_key].items():
+                for transform, visuals in entities:
+                    model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
+                    self.depth_prepass_shader.set_mat4("u_Model", model_matrix)
+                    visuals.mesh.draw()
+
+        GL.glColorMask(GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE)
 
         # == shadow mask pass ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
         GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
         GL.glViewport(0, 0, width, height)
         GL.glClearColor(0.0, 0.0, 0.0, 0.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)  # type: ignore
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
-        GL.glEnable(GL.GL_DEPTH_TEST)
-        GL.glDepthMask(GL.GL_TRUE)
-        GL.glDepthFunc(GL.GL_LESS)
+        GL.glDepthFunc(GL.GL_LEQUAL)
+        GL.glDepthMask(GL.GL_FALSE)
 
         self.shadow_mask_shader.use()
         self.shadow_mask_shader.set_vec3_array("u_LightPos", point_light_positions)
@@ -381,7 +439,7 @@ class RenderSystem:
             else: GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
         self.shadow_mask_shader.set_int_array("u_DirShadowMap", list(range(MAX_LIGHTS + 1, 2 * MAX_LIGHTS + 1)))
 
-        for batch_key in sorted_keys:
+        for batch_key in sorted_batch_keys:
             draw_mode, cull_faces = batch_key
             GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
             if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
@@ -429,14 +487,14 @@ class RenderSystem:
             self._draw_fullscreen_quad()
 
         # == main pass ==
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.main_fbo)
         GL.glViewport(0, 0, width, height)
         GL.glClearColor(0.004, 0.004, 0.004, 1.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)  # type: ignore
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT)  # type: ignore
 
         GL.glEnable(GL.GL_DEPTH_TEST)
-        GL.glDepthMask(GL.GL_TRUE)
-        GL.glDepthFunc(GL.GL_LESS)
+        GL.glDepthFunc(GL.GL_LEQUAL)
+        GL.glDepthMask(GL.GL_FALSE)
 
         current_shader = self.debug_depth_shader if render_state.global_draw_mode == GlobalDrawMode.DepthOnly else self.tf2_ggx_shader
         current_shader.use()
@@ -465,7 +523,7 @@ class RenderSystem:
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[1])
             current_shader.set_int("u_DirShadowMask", 2)
 
-        for batch_key in sorted_keys:
+        for batch_key in sorted_batch_keys:
             draw_mode, cull_faces = batch_key
             GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
             if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
@@ -478,6 +536,61 @@ class RenderSystem:
                     current_shader.set_mat4("u_Model", model_matrix)
                     visuals.mesh.draw()
 
+        # == smaa ==
+        smaa_rt_metrics = np.array([1.0 / width, 1.0 / height, width, height], dtype=np.float32)
+
+        # == smaa pass 1 (edge detection) ==
+        GL.glDisable(GL.GL_DEPTH_TEST)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.smaa_edge_fbo)
+        GL.glClearColor(0.0, 0.0, 0.0, 0.0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+
+        self.smaa_edge_shader.use()
+        GL.glActiveTexture(GL.GL_TEXTURE0)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_color_tex)
+        self.smaa_edge_shader.set_int("u_ColorTex", 0)
+        self.smaa_edge_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
+        self._draw_fullscreen_quad()
+
+        # == smaa pass 2 (blend weights) ==
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.smaa_weight_fbo)
+        GL.glClearColor(0.0, 0.0, 0.0, 0.0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+
+        self.smaa_weight_shader.use()
+        GL.glActiveTexture(GL.GL_TEXTURE0)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_edge_tex)
+        self.smaa_weight_shader.set_int("u_EdgeTex", 0)
+
+        GL.glActiveTexture(GL.GL_TEXTURE1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_area_tex)
+        self.smaa_weight_shader.set_int("u_AreaTex", 1)
+
+        GL.glActiveTexture(GL.GL_TEXTURE2)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_search_tex)
+        self.smaa_weight_shader.set_int("u_SearchTex", 2)
+
+        self.smaa_weight_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
+        self._draw_fullscreen_quad()
+
+        # == smaa pass 3 (neighborhood blending), out to screen ==
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+
+        self.smaa_blend_shader.use()
+        GL.glActiveTexture(GL.GL_TEXTURE0)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_color_tex)
+        self.smaa_blend_shader.set_int("u_ColorTex", 0)
+
+        GL.glActiveTexture(GL.GL_TEXTURE1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_weight_tex)
+        self.smaa_blend_shader.set_int("u_BlendTex", 1)
+
+        self.smaa_blend_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
+        self._draw_fullscreen_quad()
+
+        # == clean up GL state ==
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glDepthMask(GL.GL_TRUE)
         GL.glDepthFunc(GL.GL_LESS)
