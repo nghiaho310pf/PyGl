@@ -5,15 +5,15 @@ from OpenGL import GL
 import ctypes
 
 from entities.components.camera_state import CameraState
-from entities.components.textures_state import TextureStatus
+from entities.components.visuals.assets import Mesh, AssetStatus
 from entities.components.render_state import RenderState, GlobalDrawMode
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.directional_light import DirectionalLight
 from entities.components.transform import Transform
-from entities.components.visuals import Visuals, DrawMode
+from entities.components.visuals.visuals import Visuals, DrawMode
 from entities.registry import Registry
-from visuals.material import Material
+from entities.components.visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
 from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader
 import math_utils
@@ -38,16 +38,16 @@ class RenderSystem:
             self.smaa_blend_shader
         ) = smaa_shaders.make_shaders()
 
-        self.attach_shader(self.point_shadowmap_shader)
-        self.attach_shader(self.directional_shadowmap_shader)
-        self.attach_shader(self.shadow_mask_shader)
-        self.attach_shader(self.shadow_blur_shader)
-        self.attach_shader(self.depth_prepass_shader)
-        self.attach_shader(self.tf2_ggx_shader)
-        self.attach_shader(self.debug_depth_shader)
-        self.attach_shader(self.smaa_edge_shader)
-        self.attach_shader(self.smaa_weight_shader)
-        self.attach_shader(self.smaa_blend_shader)
+        self._attach_shader(self.point_shadowmap_shader)
+        self._attach_shader(self.directional_shadowmap_shader)
+        self._attach_shader(self.shadow_mask_shader)
+        self._attach_shader(self.shadow_blur_shader)
+        self._attach_shader(self.depth_prepass_shader)
+        self._attach_shader(self.tf2_ggx_shader)
+        self._attach_shader(self.debug_depth_shader)
+        self._attach_shader(self.smaa_edge_shader)
+        self._attach_shader(self.smaa_weight_shader)
+        self._attach_shader(self.smaa_blend_shader)
 
         self.smaa_area_tex = smaa_area_tex.load()
         self.smaa_search_tex = smaa_search_tex.load()
@@ -186,8 +186,19 @@ class RenderSystem:
         GL.glBindVertexArray(self._quad_vao)
         GL.glDrawArrays(GL.GL_TRIANGLE_STRIP, 0, 4)
         GL.glBindVertexArray(0)
+    
+    def _draw_mesh(self, mesh: Mesh):
+        if mesh.status != AssetStatus.Ready:
+            return
 
-    def attach_shader(self, shader: Shader):
+        GL.glBindVertexArray(mesh.vao)
+        if mesh.has_indices:
+            GL.glDrawElements(GL.GL_TRIANGLES, mesh.indices_count, GL.GL_UNSIGNED_INT, None)
+        else:
+            GL.glDrawArrays(GL.GL_TRIANGLES, 0, mesh.vertex_count)
+        GL.glBindVertexArray(0)
+
+    def _attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
 
     def _setup_directional_shadow_map(self, dir_light: DirectionalLight):
@@ -342,7 +353,7 @@ class RenderSystem:
                     if not visuals.enabled: continue
                     model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
                     self.point_shadowmap_shader.set_mat4("u_Model", model_matrix)
-                    visuals.mesh.draw()
+                    self._draw_mesh(visuals.mesh)
 
         # for directional lights
         GL.glViewport(0, 0, self.directional_shadow_map_width, self.directional_shadow_map_height)
@@ -367,7 +378,7 @@ class RenderSystem:
                 if not visuals.enabled: continue
                 model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
                 self.directional_shadowmap_shader.set_mat4("u_Model", model_matrix)
-                visuals.mesh.draw()
+                self._draw_mesh(visuals.mesh)
 
         # == global state update ==
         self.shader_globals.update(camera_state.projection_matrix, camera_state.view_matrix, camera_transform.position, time)
@@ -402,7 +413,7 @@ class RenderSystem:
                 for transform, visuals in entities:
                     model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
                     self.depth_prepass_shader.set_mat4("u_Model", model_matrix)
-                    visuals.mesh.draw()
+                    self._draw_mesh(visuals.mesh)
 
         GL.glColorMask(GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE)
 
@@ -448,7 +459,7 @@ class RenderSystem:
                 for transform, visuals in entities:
                     model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
                     self.shadow_mask_shader.set_mat4("u_Model", model_matrix)
-                    visuals.mesh.draw()
+                    self._draw_mesh(visuals.mesh)
 
         # restore wireframe state for next pass
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
@@ -533,7 +544,10 @@ class RenderSystem:
                 for transform, visuals in entities:
                     model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
                     current_shader.set_mat4("u_Model", model_matrix)
-                    visuals.mesh.draw()
+                    self._draw_mesh(visuals.mesh)
+
+        # reset to fill for subsequent passes
+        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
         # == smaa ==
         smaa_rt_metrics = np.array([1.0 / width, 1.0 / height, width, height], dtype=np.float32)
@@ -605,7 +619,7 @@ class RenderSystem:
         def bind_map(tex_attr, sampler_name, flag_name, unit):
             GL.glActiveTexture(GL.GL_TEXTURE0 + unit)
             tex = getattr(material, tex_attr, None)
-            if tex and tex.status == TextureStatus.Ready and tex.gl_id:
+            if tex and tex.status == AssetStatus.Ready and tex.gl_id:
                 GL.glBindTexture(GL.GL_TEXTURE_2D, tex.gl_id)
                 shader.set_int(sampler_name, unit)
                 shader.set_int(flag_name, 1)

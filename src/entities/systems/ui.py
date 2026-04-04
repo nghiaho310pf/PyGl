@@ -12,10 +12,10 @@ from entities.components.point_light import PointLight
 from entities.components.render_state import GlobalDrawMode, RenderState
 from entities.components.transform import Transform
 from entities.components.ui.ui_state import UiState
-from entities.components.visuals import DrawMode, Visuals
+from entities.components.visuals.visuals import DrawMode, Visuals
 from entities.components.entity_flags import EntityFlags
-from entities.components.textures_state import TextureStatus, TexturesState
-from entities.systems.textures import TextureSystem
+from entities.components.visuals.assets import AssetStatus, AssetsState
+from entities.systems.assets import AssetSystem
 from entities.registry import Registry
 from math_utils import float1, vec3
 
@@ -353,13 +353,13 @@ class UiSystem:
                             if current_tex is None:
                                 imgui.align_text_to_frame_padding()
                                 imgui.text_disabled("(None)")
-                            elif current_tex.status == TextureStatus.Loading:
+                            elif current_tex.status == AssetStatus.Loading:
                                 imgui.align_text_to_frame_padding()
                                 imgui.text_colored((1.0, 0.8, 0.0, 1.0), "Loading...")
-                            elif current_tex.status == TextureStatus.Failed:
+                            elif current_tex.status == AssetStatus.Failed:
                                 imgui.align_text_to_frame_padding()
                                 imgui.text_colored((1.0, 0.2, 0.2, 1.0), "Failed!")
-                            elif current_tex.status == TextureStatus.Ready:
+                            elif current_tex.status == AssetStatus.Ready:
                                 tex_ref = imgui.ImTextureRef(int(current_tex.gl_id))
                                 imgui.image(tex_ref, imgui.ImVec2(24, 24), imgui.ImVec2(0, 1), imgui.ImVec2(1, 0))
                                 if imgui.is_item_hovered():
@@ -379,10 +379,10 @@ class UiSystem:
                                 if result and len(result) > 0:
                                     filepath = result[0]
 
-                                    r_textures = registry.get_singleton(TexturesState)
-                                    if r_textures:
-                                        _, (textures_state, ) = r_textures
-                                        new_tex = TextureSystem.request_texture(textures_state, filepath)
+                                    r_assets = registry.get_singleton(AssetsState)
+                                    if r_assets:
+                                        _, (textures_state, ) = r_assets
+                                        new_tex = AssetSystem.request_texture(textures_state, filepath)
                                         setattr(comp.material, attr_name, new_tex)
 
                             if current_tex is not None:

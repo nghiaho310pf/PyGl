@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from meshes.mesh import Mesh
-from visuals.material import Material
+from entities.components.visuals.assets import Mesh
+from entities.components.visuals.material import Material
 
 
 class DrawMode(Enum):

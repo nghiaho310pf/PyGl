@@ -7,28 +7,30 @@ from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.disposal import Disposal
 from entities.components.entity_flags import EntityFlags
-from entities.components.textures_state import TexturesState
+from entities.components.spawner_state import SpawnerState
+from entities.components.visuals.assets import AssetsState
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
 from entities.components.directional_light import DirectionalLight
 from entities.components.render_state import RenderState
 from entities.components.transform import Transform
 from entities.components.ui.ui_state import UiState
-from entities.components.visuals import Visuals
+from entities.components.visuals.visuals import Visuals
 from entities.components.camera_state import CameraState
 from entities.registry import Registry
 from entities.systems.disposal import DisposalSystem
 from entities.systems.render import RenderSystem
-from entities.systems.textures import TextureSystem
+from entities.systems.assets import AssetSystem
+from entities.systems.spawner import SpawnerSystem
 from entities.systems.ui import UiSystem
 from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
 from meshes.surfaces.plane import generate_plane
 from meshes.volumes.cube import generate_cube
 from meshes.volumes.icosphere import generate_icosphere
-from meshes.mesh import Mesh
+from entities.components.visuals.assets import Mesh, AssetsState
 from math_utils import float1, vec3
-from visuals.material import Material
+from entities.components.visuals.material import Material
 
 
 class Game(Application):
@@ -42,7 +44,9 @@ class Game(Application):
         # unorthodox system with OpenGL state that we need to make an instance of
         self.render_system = RenderSystem()
 
-        # == singleton entities required for above systems ==
+        # == singleton components & entities required for above systems ==
+        assets_state = AssetsState()
+        spawner_state = SpawnerState()
 
         # cheap trick: this is a singleton as a child of the selected entity,
         # so that DisposalSystem can do the work of getting rid of dangling IDs for us.
@@ -68,7 +72,8 @@ class Game(Application):
             Disposal(),
 
             UiState(selection_child_entity=selection_child_entity),
-            TexturesState(),
+            assets_state,
+            spawner_state,
             RenderState(),
             IconRenderState(),
         )
@@ -110,7 +115,7 @@ class Game(Application):
             e1,
             EntityFlags(name="Icosphere"),
             Transform(position=vec3(0.0, 0.5, 0)),
-            Visuals(Mesh(sphere_vertices, sphere_indices), mat_orange)
+            Visuals(AssetSystem.create_immediate_mesh(assets_state, sphere_vertices, sphere_indices), mat_orange)
         )
 
         # blue cube entity
@@ -119,7 +124,7 @@ class Game(Application):
             e2,
             EntityFlags(name="Cube"),
             Transform(position=vec3(-1.6, 0.5, 0), rotation=vec3(0.0, -57.0, 0.0)),
-            Visuals(Mesh(cube_vertices, cube_indices), mat_blue)
+            Visuals(AssetSystem.create_immediate_mesh(assets_state, cube_vertices, cube_indices), mat_blue)
         )
 
         # floor entity
@@ -128,7 +133,7 @@ class Game(Application):
             e3,
             EntityFlags(name="Plane"),
             Transform(position=vec3(0.0, 0.0, 0.0)),
-            Visuals(Mesh(plane_vertices, plane_indices), mat_grey)
+            Visuals(AssetSystem.create_immediate_mesh(assets_state, plane_vertices, plane_indices), mat_grey)
         )
 
         # camera entity
@@ -180,7 +185,8 @@ class Game(Application):
         # here instead of in systems, but this is simpler.
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
-        TextureSystem.update(self.registry)
+        SpawnerSystem.update(self.registry)
+        AssetSystem.update(self.registry)
         CameraSystem.update(self.registry, window_size, now, dt)
         UiSystem.update(self.registry, now, dt)
         self.render_system.update(self.registry, window_size, now, dt)

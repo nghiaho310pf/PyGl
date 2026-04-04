@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import numpy.typing as npt
 
-from entities.components.textures_state import Texture
+from entities.components.visuals.assets import Texture
 
 
 @dataclass(slots=True, eq=False)
