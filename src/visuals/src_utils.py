@@ -10,7 +10,7 @@ def read_source_file(file_path: Path) -> str:
     if not raw_data:
         return ""
 
-    for enc in ["utf-8-sig", "utf-16", "utf-32", "utf-8", "shift_jis", "cp1252", "latin-1"]:
+    for enc in ["utf-8-sig", "utf-8", "utf-16", "utf-32", "shift_jis", "cp1252", "latin-1"]:
         try:
             return raw_data.decode(enc, errors="strict")
         except (UnicodeDecodeError, LookupError):
