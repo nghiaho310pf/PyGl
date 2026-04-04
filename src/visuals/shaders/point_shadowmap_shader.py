@@ -7,6 +7,6 @@ from visuals.src_utils import read_source_file
 def make_shader():
     p = Path(__file__).parent.absolute()
     return Shader(
-        read_source_file(p / "shadowmap_shader/vert.glsl"),
-        read_source_file(p / "shadowmap_shader/frag.glsl")
+        read_source_file(p / "point_shadowmap_shader/vert.glsl"),
+        read_source_file(p / "point_shadowmap_shader/frag.glsl")
     )

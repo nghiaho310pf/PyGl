@@ -59,6 +59,11 @@ class Shader:
         self.uniform_cache[name] = loc
         return loc
 
+    def set_vec2(self, name, value):
+        loc = self._get_uniform_location(name)
+        if loc != -1:
+            GL.glUniform2fv(loc, 1, value)
+
     def set_vec3(self, name, value):
         loc = self._get_uniform_location(name)
         if loc != -1:

@@ -2,6 +2,7 @@ from typing import Tuple
 
 import numpy as np
 from OpenGL import GL
+import ctypes
 
 from entities.components.camera_state import CameraState
 from entities.components.textures_state import TextureStatus
@@ -14,7 +15,7 @@ from entities.components.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
-from visuals.shaders import depth_prepass_shader, tf2_ggx_smith, shadowmap_shader, debug_depth_shader, directional_shadow_shader
+from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader
 import math_utils
 
 
@@ -23,16 +24,22 @@ class RenderSystem:
         # == unorthodox: global state ==
         self.shader_globals = ShaderGlobals()
 
+        # depth prepass shader is currently unused
+        self.point_shadowmap_shader = point_shadowmap_shader.make_shader()
+        self.directional_shadowmap_shader = directional_shadowmap_shader.make_shader()
+        self.shadow_mask_shader = shadow_mask_shader.make_shader()
+        self.shadow_blur_shader = shadow_blur_shader.make_shader()
         self.depth_prepass_shader = depth_prepass_shader.make_shader()
         self.tf2_ggx_shader = tf2_ggx_smith.make_shader()
-        self.shadowmap_shader = shadowmap_shader.make_shader()
         self.debug_depth_shader = debug_depth_shader.make_shader()
-        self.directional_shadow_shader = directional_shadow_shader.make_shader()
+
+        self.attach_shader(self.point_shadowmap_shader)
+        self.attach_shader(self.directional_shadowmap_shader)
+        self.attach_shader(self.shadow_mask_shader)
+        self.attach_shader(self.shadow_blur_shader)
         self.attach_shader(self.depth_prepass_shader)
         self.attach_shader(self.tf2_ggx_shader)
-        self.attach_shader(self.shadowmap_shader)
         self.attach_shader(self.debug_depth_shader)
-        self.attach_shader(self.directional_shadow_shader)
 
         self.directional_shadow_map_width = 2048
         self.directional_shadow_map_height = 2048
@@ -51,6 +58,98 @@ class RenderSystem:
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
         GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
 
+        # == shadow mask FBOs ==
+        self.shadow_mask_fbo = 0
+        self.shadow_mask_textures = []  # [point_mask, dir_mask]
+        self.shadow_mask_depth = 0
+
+        self.blur_fbo = 0
+        self.blur_textures = []
+
+        self.fbo_size = (0, 0)
+
+    def _setup_fbos(self, width, height):
+        if self.fbo_size == (width, height):
+            return
+
+        self.fbo_size = (width, height)
+
+        if self.shadow_mask_fbo:
+            GL.glDeleteFramebuffers(1, [self.shadow_mask_fbo])
+            GL.glDeleteTextures(len(self.shadow_mask_textures), self.shadow_mask_textures)
+            GL.glDeleteTextures(1, [self.shadow_mask_depth])
+
+            GL.glDeleteFramebuffers(1, [self.blur_fbo])
+            GL.glDeleteTextures(len(self.blur_textures), self.blur_textures)
+
+        # == shadow mask FBO ==
+        self.shadow_mask_fbo = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
+
+        self.shadow_mask_textures = GL.glGenTextures(3)
+        for i in range(3):
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[i])
+
+            internal_format = GL.GL_RGBA16F if i == 2 else GL.GL_RGBA8
+            type_enum = GL.GL_FLOAT if i == 2 else GL.GL_UNSIGNED_BYTE
+
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, internal_format, width, height, 0, GL.GL_RGBA, type_enum, None)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+            GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0 + i, GL.GL_TEXTURE_2D, self.shadow_mask_textures[i], 0)  # type: ignore
+
+        self.shadow_mask_depth = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_depth)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT24, width, height, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.shadow_mask_depth, 0)
+
+        GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
+
+        if GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER) != GL.GL_FRAMEBUFFER_COMPLETE:
+            print("Shadow mask FBO incomplete")
+
+        # == shadow blur FBO ==
+        self.blur_fbo = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.blur_fbo)
+
+        self.blur_textures = GL.glGenTextures(2)
+        for i in range(2):
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.blur_textures[i])
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+            GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0 + i, GL.GL_TEXTURE_2D, self.blur_textures[i], 0)  # type: ignore
+
+        GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
+
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+
+    def _draw_fullscreen_quad(self):
+        if not hasattr(self, "_quad_vao"):
+            quad_data = np.array([
+                -1.0,  1.0, 0.0, 1.0,
+                -1.0, -1.0, 0.0, 0.0,
+                 1.0,  1.0, 1.0, 1.0,
+                 1.0, -1.0, 1.0, 0.0,
+            ], dtype=np.float32)
+
+            self._quad_vao = GL.glGenVertexArrays(1)
+            self._quad_vbo = GL.glGenBuffers(1)
+            GL.glBindVertexArray(self._quad_vao)
+            GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._quad_vbo)
+            GL.glBufferData(GL.GL_ARRAY_BUFFER, quad_data.nbytes, quad_data, GL.GL_STATIC_DRAW)
+            GL.glEnableVertexAttribArray(0)
+            GL.glVertexAttribPointer(0, 2, GL.GL_FLOAT, GL.GL_FALSE, 16, None)
+            GL.glEnableVertexAttribArray(1)
+            GL.glVertexAttribPointer(1, 2, GL.GL_FLOAT, GL.GL_FALSE, 16, ctypes.c_void_p(8))
+            GL.glBindVertexArray(0)
+
+        GL.glBindVertexArray(self._quad_vao)
+        GL.glDrawArrays(GL.GL_TRIANGLE_STRIP, 0, 4)
+        GL.glBindVertexArray(0)
+
     def attach_shader(self, shader: Shader):
         self.shader_globals.attach_to(shader)
 
@@ -62,8 +161,8 @@ class RenderSystem:
         GL.glBindTexture(GL.GL_TEXTURE_2D, dir_light.shadow_map_texture)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT,
                         self.directional_shadow_map_width, self.directional_shadow_map_height, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_BORDER)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_BORDER)
         border_color = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
@@ -84,8 +183,8 @@ class RenderSystem:
         for i in range(6):
             GL.glTexImage2D(GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL.GL_DEPTH_COMPONENT, # type: ignore
                             self.point_shadow_map_width, self.point_shadow_map_height, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
-        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
-        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)
         GL.glTexParameteri(GL.GL_TEXTURE_CUBE_MAP, GL.GL_TEXTURE_WRAP_R, GL.GL_CLAMP_TO_EDGE)
@@ -98,6 +197,7 @@ class RenderSystem:
 
     def update(self, registry: Registry, window_size: tuple[int, int], time: float, delta_time: float):
         width, height = window_size
+        self._setup_fbos(width, height)
 
         # == camera state setup ==
         r_admin = registry.get_singleton(RenderState)
@@ -145,7 +245,6 @@ class RenderSystem:
         for transform, point_light in active_point_lights:
             if point_light.shadow_map_fbo == 0:
                 self._setup_point_shadow_map(point_light)
-
             point_light_positions.append(transform.position)
             point_light_colors.append(point_light.color * point_light.strength)
             point_light_radii.append(point_light.radius)
@@ -162,7 +261,6 @@ class RenderSystem:
         for dir_light in active_dir_lights:
             if dir_light.shadow_map_fbo == 0:
                 self._setup_directional_shadow_map(dir_light)
-
             direction = math_utils.calculate_direction_from_rotation(dir_light.rotation)
             dir_light_directions.append(direction)
             dir_light_colors.append(dir_light.color * dir_light.strength)
@@ -172,14 +270,14 @@ class RenderSystem:
         num_point_lights = len(point_light_positions)
         num_dir_lights = len(dir_light_directions)
 
-        # == shadow pass ==
+        # == shadow map pass ==
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glDepthMask(GL.GL_TRUE)
         GL.glEnable(GL.GL_CULL_FACE)
         GL.glCullFace(GL.GL_BACK)
 
-        # -- point light shadows --
+        # for point lights
         GL.glViewport(0, 0, self.point_shadow_map_width, self.point_shadow_map_height)
         point_light_projection = math_utils.create_perspective_projection(90.0, 1.0, 0.1, 100.0)
         shadow_dirs = [
@@ -192,204 +290,192 @@ class RenderSystem:
         ]
 
         for transform, point_light in active_point_lights:
-            if not point_light.casts_shadow:
-                continue
+            if not point_light.casts_shadow: continue
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, point_light.shadow_map_fbo)
-            point_light.light_view_matrices = []
-
-            self.shadowmap_shader.use()
-            self.shadowmap_shader.set_float("u_FarPlane", 100.0)
-            self.shadowmap_shader.set_vec3("u_LightPos", transform.position)
-
+            self.point_shadowmap_shader.use()
+            self.point_shadowmap_shader.set_float("u_FarPlane", 100.0)
+            self.point_shadowmap_shader.set_vec3("u_LightPos", transform.position)
             for i, (target_dir, up_dir) in enumerate(shadow_dirs):
-                GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT,
-                                          GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, # type: ignore
-                                          point_light.shadow_map_texture, 0)
+                GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, point_light.shadow_map_texture, 0) # type: ignore
                 GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
-
                 light_view = math_utils.create_look_at(transform.position, transform.position + target_dir, up_dir)
-                point_light.light_view_matrices.append(light_view)
-
-                self.shadowmap_shader.set_mat4("u_Projection", point_light_projection)
-                self.shadowmap_shader.set_mat4("u_View", light_view)
-
+                self.point_shadowmap_shader.set_mat4("u_Projection", point_light_projection)
+                self.point_shadowmap_shader.set_mat4("u_View", light_view)
                 for entity, (mesh_transform, visuals) in registry.view(Transform, Visuals):
-                    if not visuals.enabled:
-                        continue
-                    model_matrix = math_utils.create_transformation_matrix(
-                        mesh_transform.position, mesh_transform.rotation, mesh_transform.scale
-                    )
-                    self.shadowmap_shader.set_mat4("u_Model", model_matrix)
+                    if not visuals.enabled: continue
+                    model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
+                    self.point_shadowmap_shader.set_mat4("u_Model", model_matrix)
                     visuals.mesh.draw()
 
-        # -- directional light shadows --
+        # for directional lights
         GL.glViewport(0, 0, self.directional_shadow_map_width, self.directional_shadow_map_height)
         dir_light_projection = math_utils.create_orthographic_projection(-10.0, 10.0, -10.0, 10.0, 0.1, 100.0)
         for dir_light in active_dir_lights:
-            if not dir_light.casts_shadow:
-                continue
+            if not dir_light.casts_shadow: continue
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, dir_light.shadow_map_fbo)
             GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
+            self.directional_shadowmap_shader.use()
 
-            self.directional_shadow_shader.use()
-            
             # we need a "position" for the directional light to create a view matrix.
             # since it's position-less, we just pick a spot far enough in the opposite direction.
             direction = math_utils.calculate_direction_from_rotation(dir_light.rotation)
             light_pos = -math_utils.normalize(direction) * 20.0
             light_view = math_utils.create_look_at(light_pos, np.array([0.0, 0.0, 0.0], dtype=np.float32), np.array([0.0, 1.0, 0.0], dtype=np.float32))
-            
+
             # NOTE: multiplication order is reversed for column-major interpretation from row-major numpy
             dir_light.light_space_matrix = light_view @ dir_light_projection
             dir_light_space_matrices.append(dir_light.light_space_matrix)
-
-            self.directional_shadow_shader.set_mat4("u_LightSpaceMatrix", dir_light.light_space_matrix)
-
+            self.directional_shadowmap_shader.set_mat4("u_LightSpaceMatrix", dir_light.light_space_matrix)
             for entity, (mesh_transform, visuals) in registry.view(Transform, Visuals):
-                if not visuals.enabled:
-                    continue
-                model_matrix = math_utils.create_transformation_matrix(
-                    mesh_transform.position, mesh_transform.rotation, mesh_transform.scale
-                )
-                self.directional_shadow_shader.set_mat4("u_Model", model_matrix)
+                if not visuals.enabled: continue
+                model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
+                self.directional_shadowmap_shader.set_mat4("u_Model", model_matrix)
                 visuals.mesh.draw()
 
-        # == global pre-main pass setup ==
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-        GL.glViewport(0, 0, width, height)
-        GL.glClearColor(0.004, 0.004, 0.004, 1.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT) # type: ignore
-        GL.glEnable(GL.GL_DEPTH_TEST)
-
-        self.shader_globals.update(camera_state.projection_matrix,
-                                   camera_state.view_matrix, camera_transform.position, time)
+        # == global state update ==
+        self.shader_globals.update(camera_state.projection_matrix, camera_state.view_matrix, camera_transform.position, time)
 
         # == batching ==
         batches: dict[tuple[DrawMode, bool], dict[Material, list[Tuple[Transform, Visuals]]]] = {}
-
         for entity, (transform, visuals) in registry.view(Transform, Visuals):
-            if not visuals.enabled:
-                continue
-
+            if not visuals.enabled: continue
             mat = visuals.material
-
-            if render_state.global_draw_mode == GlobalDrawMode.Wireframe:
-                actual_draw_mode = DrawMode.Wireframe
-            else:
-                actual_draw_mode = visuals.draw_mode
-
-            cull_faces = visuals.cull_back_faces
-            batch_key = (actual_draw_mode, cull_faces)
-
-            if batch_key not in batches:
-                batches[batch_key] = {}
-            if mat not in batches[batch_key]:
-                batches[batch_key][mat] = []
-
+            actual_draw_mode = DrawMode.Wireframe if render_state.global_draw_mode == GlobalDrawMode.Wireframe else visuals.draw_mode
+            batch_key = (actual_draw_mode, visuals.cull_back_faces)
+            if batch_key not in batches: batches[batch_key] = {}
+            if mat not in batches[batch_key]: batches[batch_key][mat] = []
             batches[batch_key][mat].append((transform, visuals))
-
         sorted_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
 
-        # == depth prepass ==
-        if render_state.global_draw_mode != GlobalDrawMode.DepthOnly:
-            GL.glColorMask(GL.GL_FALSE, GL.GL_FALSE, GL.GL_FALSE, GL.GL_FALSE)
-            GL.glDepthMask(GL.GL_TRUE)
-            GL.glDepthFunc(GL.GL_LESS)
+        # == shadow mask pass ==
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
+        GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
+        GL.glViewport(0, 0, width, height)
+        GL.glClearColor(0.0, 0.0, 0.0, 0.0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)  # type: ignore
 
-            self.depth_prepass_shader.use()
+        GL.glEnable(GL.GL_DEPTH_TEST)
+        GL.glDepthMask(GL.GL_TRUE)
+        GL.glDepthFunc(GL.GL_LESS)
 
-            for batch_key in sorted_keys:
-                draw_mode, cull_faces = batch_key
+        self.shadow_mask_shader.use()
+        self.shadow_mask_shader.set_vec3_array("u_LightPos", point_light_positions)
+        self.shadow_mask_shader.set_int("u_NumLights", num_point_lights)
+        self.shadow_mask_shader.set_int_array("u_PointLightCastsShadow", point_light_casts_shadow)
+        self.shadow_mask_shader.set_float_array("u_FarPlane", point_light_far_planes)
+        self.shadow_mask_shader.set_float_array("u_LightRadius", point_light_radii)
+        self.shadow_mask_shader.set_vec3_array("u_DirLightDirection", dir_light_directions)
+        self.shadow_mask_shader.set_int("u_NumDirLights", num_dir_lights)
+        self.shadow_mask_shader.set_int_array("u_DirLightCastsShadow", dir_light_casts_shadow)
+        self.shadow_mask_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
 
-                GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
-                if cull_faces:
-                    GL.glEnable(GL.GL_CULL_FACE)
-                    GL.glCullFace(GL.GL_BACK)
-                else:
-                    GL.glDisable(GL.GL_CULL_FACE)
+        for i in range(MAX_LIGHTS):
+            GL.glActiveTexture(GL.GL_TEXTURE1 + i) # type: ignore
+            if i < num_point_lights: GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, point_shadow_map_textures[i])
+            else: GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, 0)
+        self.shadow_mask_shader.set_int_array("u_ShadowMap", list(range(1, MAX_LIGHTS + 1)))
 
-                for material, entities in batches[batch_key].items():
-                    for transform, visuals in entities:
-                        model_matrix = math_utils.create_transformation_matrix(
-                            transform.position, transform.rotation, transform.scale
-                        )
-                        self.depth_prepass_shader.set_mat4("u_Model", model_matrix)
-                        visuals.mesh.draw()
+        for i in range(MAX_LIGHTS):
+            GL.glActiveTexture(GL.GL_TEXTURE1 + MAX_LIGHTS + i) # type: ignore
+            if i < num_dir_lights: GL.glBindTexture(GL.GL_TEXTURE_2D, dir_shadow_map_textures[i])
+            else: GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+        self.shadow_mask_shader.set_int_array("u_DirShadowMap", list(range(MAX_LIGHTS + 1, 2 * MAX_LIGHTS + 1)))
 
-            # restore state for main pass
-            GL.glColorMask(GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE)
-            GL.glDepthMask(GL.GL_FALSE)
-            GL.glDepthFunc(GL.GL_LEQUAL)
+        for batch_key in sorted_keys:
+            draw_mode, cull_faces = batch_key
+            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
+            if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
+            else: GL.glDisable(GL.GL_CULL_FACE)
+            for material, entities in batches[batch_key].items():
+                for transform, visuals in entities:
+                    model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
+                    self.shadow_mask_shader.set_mat4("u_Model", model_matrix)
+                    visuals.mesh.draw()
+
+        # restore wireframe state for next pass
+        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
+
+        # == shadow map blur pass ==
+        GL.glDisable(GL.GL_DEPTH_TEST)
+        self.shadow_blur_shader.use()
+        self.shadow_blur_shader.set_float("u_BlurScale", 1.0)
+        self.shadow_blur_shader.set_float("u_DepthSensitivity", 1000.0)
+
+        GL.glActiveTexture(GL.GL_TEXTURE1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_depth)
+        self.shadow_blur_shader.set_int("u_DepthTexture", 1)
+
+        GL.glActiveTexture(GL.GL_TEXTURE2)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[2])
+        self.shadow_blur_shader.set_int("u_NormalTexture", 2)
+
+        for i in range(2):
+            # horizontal blur
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.blur_fbo)
+            GL.glDrawBuffer(GL.GL_COLOR_ATTACHMENT0 + i)  # type: ignore
+            self.shadow_blur_shader.set_int("u_Horizontal", 1)
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[i])
+            self.shadow_blur_shader.set_int("u_Texture", 0)
+            self._draw_fullscreen_quad()
+
+            # vertical blur (back to main shadow mask FBO)
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
+            GL.glDrawBuffer(GL.GL_COLOR_ATTACHMENT0 + i)  # type: ignore
+            self.shadow_blur_shader.set_int("u_Horizontal", 0)
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.blur_textures[i])
+            self.shadow_blur_shader.set_int("u_Texture", 0)
+            self._draw_fullscreen_quad()
 
         # == main pass ==
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        GL.glViewport(0, 0, width, height)
+        GL.glClearColor(0.004, 0.004, 0.004, 1.0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)  # type: ignore
+
+        GL.glEnable(GL.GL_DEPTH_TEST)
+        GL.glDepthMask(GL.GL_TRUE)
+        GL.glDepthFunc(GL.GL_LESS)
+
+        current_shader = self.debug_depth_shader if render_state.global_draw_mode == GlobalDrawMode.DepthOnly else self.tf2_ggx_shader
+        current_shader.use()
 
         if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
-            current_shader = self.debug_depth_shader
-            current_shader.use()
             current_shader.set_float("u_Near", camera.near)
             current_shader.set_float("u_Far", camera.far)
         else:
-            current_shader = self.tf2_ggx_shader
-            current_shader.use()
-
             current_shader.set_vec3_array("u_LightPos", point_light_positions)
             current_shader.set_vec3_array("u_LightColor", point_light_colors)
             current_shader.set_int("u_NumLights", num_point_lights)
             current_shader.set_int_array("u_PointLightCastsShadow", point_light_casts_shadow)
             current_shader.set_float_array("u_FarPlane", point_light_far_planes)
             current_shader.set_float_array("u_LightRadius", point_light_radii)
-
             current_shader.set_vec3_array("u_DirLightDirection", dir_light_directions)
             current_shader.set_vec3_array("u_DirLightColor", dir_light_colors)
             current_shader.set_int("u_NumDirLights", num_dir_lights)
             current_shader.set_int_array("u_DirLightCastsShadow", dir_light_casts_shadow)
             current_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
+            current_shader.set_vec2("u_ScreenSize", np.array([width, height], dtype=np.float32))
 
-            shadow_map_texture_units = []
-            for i in range(MAX_LIGHTS):
-                tex_unit = i + 1
-                shadow_map_texture_units.append(tex_unit)
-                GL.glActiveTexture(GL.GL_TEXTURE0 + tex_unit) # type: ignore
-                if i < num_point_lights:
-                    GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, point_shadow_map_textures[i])
-                else:
-                    GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, 0)
-
-            current_shader.set_int_array("u_ShadowMap", shadow_map_texture_units)
-
-            dir_shadow_map_units = []
-            for i in range(MAX_LIGHTS):
-                tex_unit = MAX_LIGHTS + i + 1
-                dir_shadow_map_units.append(tex_unit)
-                GL.glActiveTexture(GL.GL_TEXTURE0 + tex_unit) # type: ignore
-                if i < num_dir_lights:
-                    GL.glBindTexture(GL.GL_TEXTURE_2D, dir_shadow_map_textures[i])
-                else:
-                    GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
-
-            current_shader.set_int_array("u_DirShadowMap", dir_shadow_map_units)
-            GL.glActiveTexture(GL.GL_TEXTURE0)
+            GL.glActiveTexture(GL.GL_TEXTURE1)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[0])
+            current_shader.set_int("u_PointShadowMask", 1)
+            GL.glActiveTexture(GL.GL_TEXTURE2)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[1])
+            current_shader.set_int("u_DirShadowMask", 2)
 
         for batch_key in sorted_keys:
             draw_mode, cull_faces = batch_key
-
             GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
-            if cull_faces:
-                GL.glEnable(GL.GL_CULL_FACE)
-                GL.glCullFace(GL.GL_BACK)
-            else:
-                GL.glDisable(GL.GL_CULL_FACE)
-
+            if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
+            else: GL.glDisable(GL.GL_CULL_FACE)
             for material, entities in batches[batch_key].items():
                 if render_state.global_draw_mode != GlobalDrawMode.DepthOnly:
                     self.setup_shader_properties(current_shader, material)
-
                 for transform, visuals in entities:
-                    model_matrix = math_utils.create_transformation_matrix(
-                        transform.position, transform.rotation, transform.scale
-                    )
+                    model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
                     current_shader.set_mat4("u_Model", model_matrix)
-
                     visuals.mesh.draw()
 
         GL.glActiveTexture(GL.GL_TEXTURE0)
@@ -403,14 +489,8 @@ class RenderSystem:
         shader.set_float("u_Reflectance", float(material.reflectance))
         shader.set_float("u_Translucency", float(material.translucency))
         shader.set_float("u_AO", float(material.ao))
-
         GL.glActiveTexture(GL.GL_TEXTURE0)
-
-        if (
-            material.albedo_map is not None and
-            material.albedo_map.status == TextureStatus.Ready and
-            material.albedo_map.gl_id is not None
-        ):
+        if material.albedo_map and material.albedo_map.status == TextureStatus.Ready and material.albedo_map.gl_id:
             GL.glBindTexture(GL.GL_TEXTURE_2D, material.albedo_map.gl_id)
             shader.set_int("u_AlbedoMap", 0)
             shader.set_int("u_UseAlbedoMap", 1)

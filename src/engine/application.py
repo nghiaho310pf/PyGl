@@ -32,7 +32,6 @@ class Application:
         glfw.window_hint(glfw.GREEN_BITS, 8)
         glfw.window_hint(glfw.BLUE_BITS, 8)
         glfw.window_hint(glfw.DEPTH_BITS, 24)
-        glfw.window_hint(glfw.SAMPLES, 4)
 
         self.win = glfw.create_window(initial_window_width, initial_window_height, "PyGl", None, None)
 
@@ -56,9 +55,9 @@ class Application:
             font_config
         )
 
-        version: bytes = GL.glGetString(GL.GL_VERSION)
-        glsl_version: bytes = GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION)
-        renderer: bytes = GL.glGetString(GL.GL_RENDERER)
+        version: bytes = GL.glGetString(GL.GL_VERSION)  # type: ignore
+        glsl_version: bytes = GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION)  # type: ignore
+        renderer: bytes = GL.glGetString(GL.GL_RENDERER)  # type: ignore
         print(f"OpenGL: {version.decode()}\nGLSL: {glsl_version.decode()}\nRenderer: {renderer.decode()}")
 
         # disable vsync. we'll try to render at a fixed frame rate in Application#run
