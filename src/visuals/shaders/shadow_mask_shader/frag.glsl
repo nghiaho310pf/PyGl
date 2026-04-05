@@ -4,7 +4,6 @@ in vec2 v_UV;
 
 layout (location = 0) out vec4 out_PointShadows;
 layout (location = 1) out vec4 out_DirShadows;
-layout (location = 2) out vec4 out_Normal;
 
 uniform sampler2D u_DepthTexture;
 uniform sampler2D u_NormalTexture;
@@ -207,5 +206,4 @@ void main() {
 
     out_PointShadows = pointShadows;
     out_DirShadows = dirShadows;
-    out_Normal = vec4(N, 1.0);
 }

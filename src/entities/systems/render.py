@@ -428,7 +428,7 @@ class RenderSystem:
 
         # == shadow mask pass ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
-        GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
+        GL.glDrawBuffers(2, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1])
         GL.glViewport(0, 0, width, height)
         GL.glClearColor(0.0, 0.0, 0.0, 0.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
@@ -484,7 +484,7 @@ class RenderSystem:
         self.shadow_blur_shader.set_int("u_DepthTexture", 1)
 
         GL.glActiveTexture(GL.GL_TEXTURE2)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[2])
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_normal_tex)
         self.shadow_blur_shader.set_int("u_NormalTexture", 2)
 
         for i in range(2):
