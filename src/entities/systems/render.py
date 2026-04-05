@@ -112,7 +112,7 @@ class RenderSystem:
 
         self.main_normal_tex = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_normal_tex)
-        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA16F, width, height, 0, GL.GL_RGBA, GL.GL_FLOAT, None) 
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT1, GL.GL_TEXTURE_2D, self.main_normal_tex, 0)
@@ -478,6 +478,7 @@ class RenderSystem:
         GL.glDisable(GL.GL_DEPTH_TEST)
         self.shadow_blur_shader.use()
         self.shadow_blur_shader.set_float("u_DepthSensitivity", 1000.0)
+        self.shadow_blur_shader.set_float("u_NormalThreshold", 0.7)
 
         GL.glActiveTexture(GL.GL_TEXTURE1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_depth_tex)
