@@ -110,6 +110,13 @@ class RenderSystem:
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.main_depth_tex, 0)
 
+        self.main_normal_tex = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_normal_tex)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA16F, width, height, 0, GL.GL_RGBA, GL.GL_FLOAT, None) 
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT1, GL.GL_TEXTURE_2D, self.main_normal_tex, 0)
+
         # == shadow mask FBO ==
         self.shadow_mask_fbo = GL.glGenFramebuffers(1)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
@@ -127,7 +134,7 @@ class RenderSystem:
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0 + i, GL.GL_TEXTURE_2D, self.shadow_mask_textures[i], 0)  # type: ignore
 
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.main_depth_tex, 0)
-        GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
+        GL.glDrawBuffers(3, (GL.GLenum * 3)(GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2))
 
         # == shadow blur FBO ==
         self.blur_fbo = GL.glGenFramebuffers(1)
@@ -395,14 +402,16 @@ class RenderSystem:
             batches[batch_key][mat].append((transform, visuals))
         sorted_batch_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
 
-        # == depth prepass ==
+        # == depth & normal prepass ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.main_fbo)
         GL.glViewport(0, 0, width, height)
-        GL.glColorMask(GL.GL_FALSE, GL.GL_FALSE, GL.GL_FALSE, GL.GL_FALSE)
+        GL.glDrawBuffers(1, [GL.GL_COLOR_ATTACHMENT1])
+        GL.glColorMask(GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE)
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glDepthMask(GL.GL_TRUE)
         GL.glDepthFunc(GL.GL_LESS)
-        GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
+        GL.glClearColor(0.0, 0.0, 0.0, 0.0)
+        GL.glClear(GL.GL_DEPTH_BUFFER_BIT | GL.GL_COLOR_BUFFER_BIT)  # type: ignore
 
         self.depth_prepass_shader.use()
         for batch_key in sorted_batch_keys:
@@ -424,10 +433,20 @@ class RenderSystem:
         GL.glClearColor(0.0, 0.0, 0.0, 0.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
-        GL.glDepthFunc(GL.GL_LEQUAL)
-        GL.glDepthMask(GL.GL_FALSE)
+        GL.glDisable(GL.GL_DEPTH_TEST)
 
         self.shadow_mask_shader.use()
+        inv_view_proj = np.linalg.inv(camera_state.view_projection_matrix)
+        self.shadow_mask_shader.set_mat4("u_InverseViewProjection", inv_view_proj)
+
+        GL.glActiveTexture(GL.GL_TEXTURE0)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_depth_tex)
+        self.shadow_mask_shader.set_int("u_DepthTexture", 0)
+
+        GL.glActiveTexture(GL.GL_TEXTURE1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_normal_tex)
+        self.shadow_mask_shader.set_int("u_NormalTexture", 1)
+
         self.shadow_mask_shader.set_vec3_array("u_LightPos", point_light_positions)
         self.shadow_mask_shader.set_int("u_NumLights", num_point_lights)
         self.shadow_mask_shader.set_int_array("u_PointLightCastsShadow", point_light_casts_shadow)
@@ -439,27 +458,18 @@ class RenderSystem:
         self.shadow_mask_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
 
         for i in range(MAX_LIGHTS):
-            GL.glActiveTexture(GL.GL_TEXTURE1 + i) # type: ignore
+            GL.glActiveTexture(GL.GL_TEXTURE2 + i) # type: ignore
             if i < num_point_lights: GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, point_shadow_map_textures[i])
             else: GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, 0)
-        self.shadow_mask_shader.set_int_array("u_ShadowMap", list(range(1, MAX_LIGHTS + 1)))
+        self.shadow_mask_shader.set_int_array("u_ShadowMap", list(range(2, MAX_LIGHTS + 2)))
 
         for i in range(MAX_LIGHTS):
-            GL.glActiveTexture(GL.GL_TEXTURE1 + MAX_LIGHTS + i) # type: ignore
+            GL.glActiveTexture(GL.GL_TEXTURE2 + MAX_LIGHTS + i) # type: ignore
             if i < num_dir_lights: GL.glBindTexture(GL.GL_TEXTURE_2D, dir_shadow_map_textures[i])
             else: GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
-        self.shadow_mask_shader.set_int_array("u_DirShadowMap", list(range(MAX_LIGHTS + 1, 2 * MAX_LIGHTS + 1)))
+        self.shadow_mask_shader.set_int_array("u_DirShadowMap", list(range(MAX_LIGHTS + 2, 2 * MAX_LIGHTS + 2)))
 
-        for batch_key in sorted_batch_keys:
-            draw_mode, cull_faces = batch_key
-            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
-            if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
-            else: GL.glDisable(GL.GL_CULL_FACE)
-            for material, entities in batches[batch_key].items():
-                for transform, visuals in entities:
-                    model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
-                    self.shadow_mask_shader.set_mat4("u_Model", model_matrix)
-                    self._draw_mesh(visuals.mesh)
+        self._draw_fullscreen_quad()
 
         # restore wireframe state for next pass
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
@@ -498,6 +508,7 @@ class RenderSystem:
 
         # == main pass ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.main_fbo)
+        GL.glDrawBuffers(1, [GL.GL_COLOR_ATTACHMENT0])
         GL.glViewport(0, 0, width, height)
         GL.glClearColor(0.004, 0.004, 0.004, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)  # type: ignore

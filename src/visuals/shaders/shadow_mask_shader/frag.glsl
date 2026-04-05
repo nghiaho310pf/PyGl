@@ -1,12 +1,14 @@
 #version 450 core
 
-in vec3 v_WorldPos;
-in vec3 v_Normal;
 in vec2 v_UV;
 
 layout (location = 0) out vec4 out_PointShadows;
 layout (location = 1) out vec4 out_DirShadows;
 layout (location = 2) out vec4 out_Normal;
+
+uniform sampler2D u_DepthTexture;
+uniform sampler2D u_NormalTexture;
+uniform mat4 u_InverseViewProjection;
 
 layout (std140) uniform SceneData {
     mat4 u_Projection;
@@ -159,7 +161,15 @@ float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, fl
 }
 
 void main() {
-    vec3 N = normalize(v_Normal);
+    float depth = texture(u_DepthTexture, v_UV).r;
+    if (depth == 1.0) discard;
+
+    vec3 N = texture(u_NormalTexture, v_UV).xyz;
+    
+    vec4 ndc = vec4(v_UV * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 worldPosProj = u_InverseViewProjection * ndc;
+    vec3 v_WorldPos = worldPosProj.xyz / worldPosProj.w;
+
     float globalNoise = blueNoiseDither(gl_FragCoord.xy * fract(u_Time * 2.5));
     float randomRotation = globalNoise * PI2;
 
