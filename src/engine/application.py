@@ -12,7 +12,13 @@ class Application:
     win: ctypes.c_void_p
     imgui_renderer: GlfwRenderer
 
+    current_window_width: int
+    current_window_height: int
+
     def __init__(self, initial_window_width, initial_window_height):
+        self.current_window_width = initial_window_width
+        self.current_window_height = initial_window_height
+
         has_broken_opengl = platform.system() == "Darwin"
 
         glfw.init()
@@ -67,11 +73,18 @@ class Application:
         if width == 0 or height == 0:  # may happen when window is minimized
             return
 
+        self.current_window_width = width
+        self.current_window_height = height
+
         GL.glViewport(0, 0, width, height)
         self.on_resize()
 
     def get_window_size(self):
-        return glfw.get_window_size(self.win)
+        width, height = glfw.get_window_size(self.win)
+        if width == 0 or height == 0:  # may happen when window is minimized
+            width = self.current_window_width
+            height = self.current_window_height
+        return (width, height)
 
     def get_time(self):
         return glfw.get_time()
