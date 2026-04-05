@@ -98,7 +98,7 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, float lightRadius, sampl
         if (currentDepth - bias > closestDepth) shadow += 1.0;
     }
 
-    return shadow * invPcfSamples;
+    return pow(shadow * invPcfSamples, 2.4);
 }
 
 float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, float bias, float randomRotation) {
@@ -155,8 +155,8 @@ float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, fl
             shadow += 1.0;
         }
     }
-    
-    return shadow * invPcfSamples;
+
+    return pow(shadow * invPcfSamples, 2.4);
 }
 
 void main() {

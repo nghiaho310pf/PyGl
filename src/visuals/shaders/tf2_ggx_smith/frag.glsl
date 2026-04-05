@@ -35,7 +35,7 @@ uniform int u_NumDirLights;
 uniform int u_DirLightCastsShadow[MAX_LIGHTS];
 
 uniform sampler2D u_AlbedoMap;
-uniform int u_UseAlbedoMap;
+uniform bool u_UseAlbedoMap;
 
 uniform sampler2D u_PointShadowMask;
 uniform sampler2D u_DirShadowMask;
@@ -112,7 +112,7 @@ void main() {
     vec3 V = normalize(u_ViewPos - v_WorldPos);
 
     vec3 finalAlbedo = u_Albedo;
-    if (u_UseAlbedoMap == 1) {
+    if (u_UseAlbedoMap) {
         vec4 albedoTex = texture(u_AlbedoMap, v_UV);
         finalAlbedo *= albedoTex.xyz;
     }
