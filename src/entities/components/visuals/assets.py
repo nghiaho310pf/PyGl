@@ -36,19 +36,20 @@ class MeshFileTask:
 class MeshGeometryTask:
     asset_id: int
     geometry: trimesh.Trimesh
-    flip_uvs: bool
 
 
 @dataclass(slots=True)
 class TextureFileTask:
     asset_id: int
     filepath: str
+    is_srgb: bool = False
 
 
 @dataclass(slots=True)
 class TextureImageTask:
     asset_id: int
     image: Image.Image
+    is_srgb: bool = False
 
 
 AssetTask = Union[ModelTask, MeshFileTask, MeshGeometryTask, TextureFileTask, TextureImageTask]
@@ -77,6 +78,7 @@ class TextureResult:
     asset_id: int
     data: np.ndarray | None = None
     format_info: str | None = None
+    is_srgb: bool = False
     error: Exception | None = None
 
 
@@ -107,6 +109,7 @@ class Texture:
     gl_id: int | None = None
     width: int = 0
     height: int = 0
+    is_srgb: bool = False
 
 
 @dataclass(slots=True, eq=False)

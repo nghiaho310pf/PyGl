@@ -255,10 +255,11 @@ class UiSystem:
                     "Casts shadow", comp.casts_shadow)
                 if changed_casts_shadow:
                     comp.casts_shadow = new_casts_shadow
+                # light color is stored as linear, but color_edit3 expects sRGB
                 changed_color, new_color = imgui.color_edit3(
-                    "Color", comp.color.tolist())
+                    "Color", np.power(comp.color, 1.0/2.2).tolist())
                 if changed_color:
-                    comp.color = vec3(*new_color)
+                    comp.color = vec3(*np.power(new_color, 2.2))
                 changed_strength, new_strength = imgui.drag_float(
                     "Strength", float(comp.strength), 1, 0.0, 1000.0)
                 if changed_strength:
@@ -282,10 +283,11 @@ class UiSystem:
                     "Casts shadow", comp.casts_shadow)
                 if changed_casts_shadow:
                     comp.casts_shadow = new_casts_shadow
+                # light color is stored as linear, but color_edit3 expects sRGB
                 changed_color, new_color = imgui.color_edit3(
-                    "Color", comp.color.tolist())
+                    "Color", np.power(comp.color, 1.0/2.2).tolist())
                 if changed_color:
-                    comp.color = vec3(*new_color)
+                    comp.color = vec3(*np.power(new_color, 2.2))
                 changed_strength, new_strength = imgui.drag_float(
                     "Strength", float(comp.strength), 1, 0.0, 1000.0)
                 if changed_strength:
@@ -328,9 +330,11 @@ class UiSystem:
                 if imgui.radio_button("Wireframe", comp.draw_mode == DrawMode.Wireframe):
                     comp.draw_mode = DrawMode.Wireframe
 
-                changed_albedo, new_albedo = imgui.color_edit3("Albedo", comp.material.albedo.tolist())
+                # albedo is stored as linear, but color_edit3 expects sRGB
+                albedo_srgb = np.clip(comp.material.albedo ** (1.0 / 2.2), 0.0, 1.0)
+                changed_albedo, new_albedo = imgui.color_edit3("Albedo", albedo_srgb.tolist())
                 if changed_albedo:
-                    comp.material.albedo = vec3(*new_albedo)                    
+                    comp.material.albedo = vec3(*np.power(new_albedo, 2.2))
                 changed_roughness, new_roughness = imgui.slider_float("Roughness", float(comp.material.roughness), 0.0, 1.0)
                 if changed_roughness:
                     comp.material.roughness = float1(new_roughness)
@@ -396,7 +400,8 @@ class UiSystem:
                                     r_assets = registry.get_singleton(AssetsState)
                                     if r_assets:
                                         _, (textures_state, ) = r_assets
-                                        new_tex = AssetSystem.request_texture(textures_state, filepath)
+                                        is_srgb = (attr_name == "albedo_map")
+                                        new_tex = AssetSystem.request_texture(textures_state, filepath, is_srgb=is_srgb)
                                         setattr(comp.material, attr_name, new_tex)
 
                             if current_tex is not None:

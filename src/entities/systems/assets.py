@@ -26,20 +26,18 @@ def background_asset_worker(assets_state: AssetsState, task_queue: queue.Queue, 
                 _process_model(assets_state, asset_id, filepath, result_queue, task_queue)
             case MeshFileTask(asset_id, filepath):
                 _process_mesh_from_file(asset_id, filepath, result_queue)
-            case MeshGeometryTask(asset_id, geom, flip_uvs):
-                _process_mesh_from_geom(asset_id, geom, flip_uvs, result_queue)
-            case TextureFileTask(asset_id, filepath):
-                _process_texture_from_file(asset_id, filepath, result_queue)
-            case TextureImageTask(asset_id, image):
-                _process_texture_from_image(asset_id, image, result_queue)
+            case MeshGeometryTask(asset_id, geom):
+                _process_mesh_from_geom(asset_id, geom, result_queue)
+            case TextureFileTask(asset_id, filepath, is_srgb):
+                _process_texture_from_file(asset_id, filepath, is_srgb, result_queue)
+            case TextureImageTask(asset_id, image, is_srgb):
+                _process_texture_from_image(asset_id, image, is_srgb, result_queue)
 
         task_queue.task_done()
 
 
 def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, result_queue: queue.Queue, task_queue: queue.Queue):
     try:
-        is_gltf = filepath.lower().endswith(('.glb', '.gltf'))
-
         scene = trimesh.load_scene(filepath)
         nodes = []
 
@@ -53,14 +51,14 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
             scale = tf.scale_from_matrix(transform_matrix)[0]
 
             virtual_mesh_id = AssetSystem.generate_id(assets_state)
-            task_queue.put(MeshGeometryTask(virtual_mesh_id, geom, is_gltf))
+            task_queue.put(MeshGeometryTask(virtual_mesh_id, geom))
 
             mat_template = MaterialTemplate()
             if hasattr(geom.visual, 'material'):
                 mat = geom.visual.material
 
                 if hasattr(mat, 'main_color'):
-                    mat_template.albedo = mat.main_color[:3] / 255.0
+                    mat_template.albedo = (mat.main_color[:3] / 255.0) ** 2.2
 
                 pil_image = None
                 if hasattr(mat, 'image') and mat.image is not None:
@@ -70,7 +68,7 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
 
                 if pil_image is not None:
                     virtual_tex_id = AssetSystem.generate_id(assets_state)
-                    task_queue.put(TextureImageTask(virtual_tex_id, pil_image))
+                    task_queue.put(TextureImageTask(virtual_tex_id, pil_image, is_srgb=True))
                     mat_template.albedo_map_id = virtual_tex_id
 
             nodes.append(ModelNode(
@@ -90,15 +88,12 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
 def _process_mesh_from_file(asset_id: int, filepath: str, result_queue: queue.Queue):
     try:
         geom = trimesh.load_mesh(filepath)
-        flip_uvs = filepath.lower().endswith(('.glb', '.gltf'))
-        _process_mesh_from_geom(asset_id, geom, flip_uvs, result_queue)
+        _process_mesh_from_geom(asset_id, geom, result_queue)
     except Exception as e:
         result_queue.put(MeshResult(asset_id=asset_id, error=e))
 
 
-def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, flip_uvs: bool, result_queue: queue.Queue):
-    print(f"type of geom: {type(geom)}")
-
+def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, result_queue: queue.Queue):
     try:
         rotation = trimesh.transformations.rotation_matrix(np.radians(-90), [1, 0, 0])
         geom.apply_transform(rotation)
@@ -108,8 +103,6 @@ def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, flip_uvs: bool
 
         if hasattr(geom.visual, 'uv') and geom.visual.uv is not None:  # type: ignore
             uvs = geom.visual.uv.copy()  # type: ignore
-            if flip_uvs:
-                uvs[:, 1] = 1.0 - uvs[:, 1]
         else:
             uvs = np.zeros((len(vertices), 2))
 
@@ -127,11 +120,11 @@ def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, flip_uvs: bool
         result_queue.put(MeshResult(asset_id=asset_id, error=e))
 
 
-def _process_texture_from_file(asset_id: int, filepath: str, result_queue: queue.Queue):
-    _process_texture_from_image(asset_id, Image.open(filepath), result_queue)
+def _process_texture_from_file(asset_id: int, filepath: str, is_srgb: bool, result_queue: queue.Queue):
+    _process_texture_from_image(asset_id, Image.open(filepath), is_srgb, result_queue)
 
 
-def _process_texture_from_image(asset_id: int, img: Image.Image, result_queue: queue.Queue):
+def _process_texture_from_image(asset_id: int, img: Image.Image, is_srgb: bool, result_queue: queue.Queue):
     try:
         img_transposed = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
         if img_transposed.mode not in ("RGB", "RGBA"):
@@ -140,7 +133,7 @@ def _process_texture_from_image(asset_id: int, img: Image.Image, result_queue: q
         format_ext = img_transposed.mode
         data = np.array(img_transposed)
 
-        result_queue.put(TextureResult(asset_id=asset_id, data=data, format_info=format_ext))
+        result_queue.put(TextureResult(asset_id=asset_id, data=data, format_info=format_ext, is_srgb=is_srgb))
     except Exception as e:
         result_queue.put(TextureResult(asset_id=asset_id, error=e))
 
@@ -194,7 +187,7 @@ class AssetSystem:
                                 
                                 tex_id = node.material_template.albedo_map_id
                                 if tex_id is not None and tex_id not in assets_state.textures:
-                                    assets_state.textures[tex_id] = Texture(id=tex_id, filepath="", status=AssetStatus.Loading)
+                                    assets_state.textures[tex_id] = Texture(id=tex_id, filepath="", status=AssetStatus.Loading, is_srgb=True)
                         else:
                             raise RuntimeError("AssetSystem: encountered illegal ModelResult")
 
@@ -210,7 +203,7 @@ class AssetSystem:
                     elif vertices is not None:
                         AssetSystem._setup_gl_mesh(mesh_obj, vertices, indices)
 
-                case TextureResult(asset_id, data, format_info, error):
+                case TextureResult(asset_id, data, format_info, is_srgb, error):
                     tex_obj = assets_state.textures.get(asset_id)
                     if tex_obj is None:
                         tex_obj = Texture(id=asset_id, filepath="", status=AssetStatus.Loading)
@@ -220,6 +213,7 @@ class AssetSystem:
                         tex_obj.status = AssetStatus.Failed
                         print(f"[AssetSystem] Error loading texture: {error}")
                     elif data is not None and format_info is not None:
+                        tex_obj.is_srgb = is_srgb
                         AssetSystem._setup_gl_texture(tex_obj, data, format_info)
                     else:
                         raise RuntimeError("AssetSystem: encountered illegal TextureResult")
@@ -278,13 +272,13 @@ class AssetSystem:
         return mesh
 
     @staticmethod
-    def request_texture(assets_state: AssetsState, filepath_or_id: str | int) -> Texture:
+    def request_texture(assets_state: AssetsState, filepath_or_id: str | int, is_srgb: bool = False) -> Texture:
         AssetSystem._ensure_worker(assets_state)
         
         if isinstance(filepath_or_id, int):
             if filepath_or_id in assets_state.textures:
                 return assets_state.textures[filepath_or_id]
-            tex = Texture(id=filepath_or_id, filepath="", status=AssetStatus.Loading)
+            tex = Texture(id=filepath_or_id, filepath="", status=AssetStatus.Loading, is_srgb=is_srgb)
             assets_state.textures[filepath_or_id] = tex
             return tex
 
@@ -293,10 +287,10 @@ class AssetSystem:
             return assets_state.textures[assets_state.filepath_to_texture[filepath]]
 
         asset_id = AssetSystem.generate_id(assets_state)
-        tex = Texture(id=asset_id, filepath=filepath, status=AssetStatus.Loading)
+        tex = Texture(id=asset_id, filepath=filepath, status=AssetStatus.Loading, is_srgb=is_srgb)
         assets_state.textures[asset_id] = tex
         assets_state.filepath_to_texture[filepath] = asset_id
-        assets_state.task_queue.put(TextureFileTask(asset_id, filepath))
+        assets_state.task_queue.put(TextureFileTask(asset_id, filepath, is_srgb=is_srgb))
         return tex
 
     @staticmethod
@@ -342,10 +336,14 @@ class AssetSystem:
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
 
         gl_format = GL.GL_RGB if format_info == "RGB" else GL.GL_RGBA
+        internal_format = gl_format
+        if tex_obj.is_srgb:
+            internal_format = GL.GL_SRGB8 if gl_format == GL.GL_RGB else GL.GL_SRGB8_ALPHA8
+
         height, width = data.shape[:2]
 
         GL.glTexImage2D(
-            GL.GL_TEXTURE_2D, 0, gl_format, width, height, 0,
+            GL.GL_TEXTURE_2D, 0, internal_format, width, height, 0,
             gl_format, GL.GL_UNSIGNED_BYTE, data
         )
         GL.glGenerateMipmap(GL.GL_TEXTURE_2D)
