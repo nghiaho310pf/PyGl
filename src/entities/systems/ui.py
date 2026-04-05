@@ -113,7 +113,11 @@ class UiSystem:
                 imgui.text_disabled(id_str)
 
         # == inspector section ==
-        if selected_entity is not None:
+        if selected_entity is None:
+            header_title = f"Inspector###InspectorHeader"
+            if imgui.collapsing_header(header_title, imgui.TreeNodeFlags_.default_open):
+                imgui.text_disabled("Select an entity from the list to edit its properties.")
+        else:
             selected_components = registry.get_all_components(selected_entity)
 
             entity_flags = selected_components.get(EntityFlags)
@@ -205,14 +209,16 @@ class UiSystem:
                 imgui.end_table()
 
             if imgui.tree_node_ex("Shadow mask blur", imgui.TreeNodeFlags_.default_open):
+                imgui.push_item_width(imgui.get_window_width() * 0.5)
                 changed_depth_sensitivity, new_depth_sensitivity = imgui.drag_float(
-                    "Depth sensitivity", float(render_state.shadow_blur_depth_sensitivity), 1, 0.0, 1000.0)
+                    "Depth sensitivity", float(render_state.shadow_blur_depth_sensitivity), 0.01, 0.0, 200.0)
                 if changed_depth_sensitivity:
                     render_state.shadow_blur_depth_sensitivity = float1(new_depth_sensitivity)
                 changed_norm_thres, new_norm_thres = imgui.drag_float(
                     "Normal threshold", float(render_state.shadow_blur_normal_threshold), 0.001, 0.0, 1.0)
                 if changed_norm_thres:
                     render_state.shadow_blur_normal_threshold = float1(new_norm_thres)
+                imgui.pop_item_width()
                 
                 imgui.tree_pop()
 
@@ -234,7 +240,7 @@ class UiSystem:
                     comp.position = vec3(*new_pos)
 
                 changed_rot, new_rot = imgui.drag_float3(
-                    "Rotation", comp.rotation.tolist(), 1.0)
+                    "Rotation", comp.rotation.tolist(), 0.1)
                 if changed_rot:
                     comp.rotation = (vec3(*new_rot) + 180.0) % 360.0 - 180.0
 
@@ -266,7 +272,7 @@ class UiSystem:
                     comp.strength = float1(new_strength)
 
                 changed_rot, new_rot = imgui.drag_float3(
-                    "Rotation", comp.rotation.tolist(), 1.0)
+                    "Rotation", comp.rotation.tolist(), 0.1)
                 if changed_rot:
                     comp.rotation = (vec3(*new_rot) + 180.0) % 360.0 - 180.0
 
