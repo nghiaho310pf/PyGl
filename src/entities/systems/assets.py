@@ -1,3 +1,4 @@
+import os
 import threading
 import queue
 import ctypes
@@ -40,6 +41,12 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
     try:
         scene = trimesh.load_scene(filepath)
         nodes = []
+
+        extension = os.path.splitext(filepath)[1].lower()
+        is_gltf = extension in (".glb", ".gltf")
+        if is_gltf:
+            rotation = trimesh.transformations.rotation_matrix(np.radians(-180), [1, 0, 0])
+            scene.apply_transform(rotation)
 
         for node_name in scene.graph.nodes_geometry:
             transform_matrix, geometry_name = scene.graph[node_name]
@@ -88,6 +95,13 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
 def _process_mesh_from_file(asset_id: int, filepath: str, result_queue: queue.Queue):
     try:
         geom = trimesh.load_mesh(filepath)
+
+        extension = os.path.splitext(filepath)[1].lower()
+        is_gltf = extension in (".glb", ".gltf")
+        if is_gltf:
+            rotation = trimesh.transformations.rotation_matrix(np.radians(-180), [1, 0, 0])
+            geom.apply_transform(rotation)
+
         _process_mesh_from_geom(asset_id, geom, result_queue)
     except Exception as e:
         result_queue.put(MeshResult(asset_id=asset_id, error=e))
@@ -95,9 +109,6 @@ def _process_mesh_from_file(asset_id: int, filepath: str, result_queue: queue.Qu
 
 def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, result_queue: queue.Queue):
     try:
-        rotation = trimesh.transformations.rotation_matrix(np.radians(-90), [1, 0, 0])
-        geom.apply_transform(rotation)
-
         vertices = geom.vertices
         normals = geom.vertex_normals if (hasattr(geom, 'vertex_normals') and len(geom.vertex_normals) > 0) else np.zeros_like(vertices)
 
