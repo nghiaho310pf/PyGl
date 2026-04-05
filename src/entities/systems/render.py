@@ -477,6 +477,8 @@ class RenderSystem:
         # == shadow map blur pass ==
         GL.glDisable(GL.GL_DEPTH_TEST)
         self.shadow_blur_shader.use()
+        self.shadow_blur_shader.set_float("u_Near", camera.near)
+        self.shadow_blur_shader.set_float("u_Far", camera.far)
         self.shadow_blur_shader.set_float("u_DepthSensitivity", render_state.shadow_blur_depth_sensitivity)
         self.shadow_blur_shader.set_float("u_NormalThreshold", render_state.shadow_blur_normal_threshold)
 

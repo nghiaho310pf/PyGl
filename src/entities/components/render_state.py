@@ -14,7 +14,7 @@ class GlobalDrawMode(Enum):
 class RenderState:
     global_draw_mode: GlobalDrawMode = GlobalDrawMode.Normal
 
-    shadow_blur_depth_sensitivity: np.float32 = np.float32(1000.0)
+    shadow_blur_depth_sensitivity: np.float32 = np.float32(5.0)
     shadow_blur_normal_threshold: np.float32 = np.float32(0.7)
 
     enable_smaa: bool = True
