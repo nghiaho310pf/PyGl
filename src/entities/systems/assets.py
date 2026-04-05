@@ -1,4 +1,3 @@
-from enum import Enum, auto
 import threading
 import queue
 import ctypes
@@ -8,27 +7,31 @@ import trimesh.transformations as tf
 from PIL import Image
 from OpenGL import GL
 
-from entities.components.visuals.assets import AssetsState, AssetStatus, Mesh, Texture, ModelAsset, ModelNode, MaterialTemplate
+from entities.components.visuals.assets import (
+    AssetsState, AssetStatus, Mesh, Texture, 
+    ModelAsset, ModelNode, MaterialTemplate,
+    ModelTask, MeshFileTask, MeshGeometryTask, 
+    TextureFileTask, TextureImageTask,
+    ModelResult, MeshResult, TextureResult
+)
 from entities.registry import Registry
 from math_utils import vec3
 
-
-class TaskType(Enum):
-    Mesh = auto()
-    Texture = auto()
-    Model = auto()
-
-
 def background_asset_worker(assets_state: AssetsState, task_queue: queue.Queue, result_queue: queue.Queue):
     while True:
-        task_type, asset_id, filepath, payload = task_queue.get()
+        task = task_queue.get()
 
-        if task_type == TaskType.Mesh:
-            _process_mesh(asset_id, filepath, payload, result_queue)
-        elif task_type == TaskType.Texture:
-            _process_texture(asset_id, filepath, payload, result_queue)
-        elif task_type == TaskType.Model:
-            _process_model(assets_state, asset_id, filepath, result_queue, task_queue)
+        match task:
+            case ModelTask(asset_id, filepath):
+                _process_model(assets_state, asset_id, filepath, result_queue, task_queue)
+            case MeshFileTask(asset_id, filepath):
+                _process_mesh_from_file(asset_id, filepath, result_queue)
+            case MeshGeometryTask(asset_id, geom, flip_uvs):
+                _process_mesh_from_geom(asset_id, geom, flip_uvs, result_queue)
+            case TextureFileTask(asset_id, filepath):
+                _process_texture_from_file(asset_id, filepath, result_queue)
+            case TextureImageTask(asset_id, image):
+                _process_texture_from_image(asset_id, image, result_queue)
 
         task_queue.task_done()
 
@@ -37,12 +40,12 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
     try:
         is_gltf = filepath.lower().endswith(('.glb', '.gltf'))
 
-        scene = trimesh.load(filepath, force='scene')
+        scene = trimesh.load_scene(filepath)
         nodes = []
 
-        for node_name in scene.graph.nodes_geometry:  # type: ignore
-            transform_matrix, geometry_name = scene.graph[node_name]  # type: ignore
-            geom = scene.geometry[geometry_name]  # type: ignore
+        for node_name in scene.graph.nodes_geometry:
+            transform_matrix, geometry_name = scene.graph[node_name]
+            geom = scene.geometry[geometry_name]
 
             pos = tf.translation_from_matrix(transform_matrix)
             euler_rad = tf.euler_from_matrix(transform_matrix)
@@ -50,7 +53,7 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
             scale = tf.scale_from_matrix(transform_matrix)[0]
 
             virtual_mesh_id = AssetSystem.generate_id(assets_state)
-            task_queue.put((TaskType.Mesh, virtual_mesh_id, None, (geom, is_gltf)))
+            task_queue.put(MeshGeometryTask(virtual_mesh_id, geom, is_gltf))
 
             mat_template = MaterialTemplate()
             if hasattr(geom.visual, 'material'):
@@ -67,7 +70,7 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
 
                 if pil_image is not None:
                     virtual_tex_id = AssetSystem.generate_id(assets_state)
-                    task_queue.put((TaskType.Texture, virtual_tex_id, None, pil_image))
+                    task_queue.put(TextureImageTask(virtual_tex_id, pil_image))
                     mat_template.albedo_map_id = virtual_tex_id
 
             nodes.append(ModelNode(
@@ -79,30 +82,30 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
                 material_template=mat_template
             ))
 
-        result_queue.put((TaskType.Model, asset_id, (nodes, None)))
+        result_queue.put(ModelResult(asset_id=asset_id, nodes=nodes))
     except Exception as e:
-        result_queue.put((TaskType.Model, asset_id, (None, e)))
+        result_queue.put(ModelResult(asset_id=asset_id, error=e))
 
 
-def _process_mesh(asset_id: int, filepath: str | None, payload, result_queue: queue.Queue):
+def _process_mesh_from_file(asset_id: int, filepath: str, result_queue: queue.Queue):
     try:
-        if isinstance(payload, tuple):
-            geom, flip_uvs = payload
-        else:
-            geom = payload
-            flip_uvs = filepath is not None and filepath.lower().endswith(('.glb', '.gltf'))
+        geom = trimesh.load_mesh(filepath)
+        flip_uvs = filepath.lower().endswith(('.glb', '.gltf'))
+        _process_mesh_from_geom(asset_id, geom, flip_uvs, result_queue)
+    except Exception as e:
+        result_queue.put(MeshResult(asset_id=asset_id, error=e))
 
-        if geom is None and filepath is not None:  
-            geom = trimesh.load(filepath)
 
+def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, flip_uvs: bool, result_queue: queue.Queue):
+    print(f"type of geom: {type(geom)}")
+
+    try:
         rotation = trimesh.transformations.rotation_matrix(np.radians(-90), [1, 0, 0])
         geom.apply_transform(rotation)
 
-        vertices = geom.vertices  # type: ignore
-        if hasattr(geom, 'vertex_normals') and len(geom.vertex_normals) > 0:  # type: ignore
-            normals = geom.vertex_normals  # type: ignore
-        else:
-            normals = np.zeros_like(vertices)
+        vertices = geom.vertices
+        normals = geom.vertex_normals if (hasattr(geom, 'vertex_normals') and len(geom.vertex_normals) > 0) else np.zeros_like(vertices)
+
         if hasattr(geom.visual, 'uv') and geom.visual.uv is not None:  # type: ignore
             uvs = geom.visual.uv.copy()  # type: ignore
             if flip_uvs:
@@ -115,18 +118,21 @@ def _process_mesh(asset_id: int, filepath: str | None, payload, result_queue: qu
         interleaved[:, 3:6] = normals
         interleaved[:, 6:8] = uvs
 
-        interleaved = interleaved.ravel()
-        indices = geom.faces.ravel().astype(np.uint32)  # type: ignore
-
-        result_queue.put((TaskType.Mesh, asset_id, (interleaved, indices, None)))
+        result_queue.put(MeshResult(
+            asset_id=asset_id, 
+            vertices=interleaved.ravel(), 
+            indices=geom.faces.ravel().astype(np.uint32)
+        ))
     except Exception as e:
-        result_queue.put((TaskType.Mesh, asset_id, (None, None, e)))
+        result_queue.put(MeshResult(asset_id=asset_id, error=e))
 
 
-def _process_texture(asset_id: int, filepath: str | None, payload, result_queue: queue.Queue):
+def _process_texture_from_file(asset_id: int, filepath: str, result_queue: queue.Queue):
+    _process_texture_from_image(asset_id, Image.open(filepath), result_queue)
+
+
+def _process_texture_from_image(asset_id: int, img: Image.Image, result_queue: queue.Queue):
     try:
-        img = payload if isinstance(payload, Image.Image) else Image.open(filepath)  # type: ignore
-
         img_transposed = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
         if img_transposed.mode not in ("RGB", "RGBA"):
             img_transposed = img_transposed.convert("RGBA")
@@ -134,12 +140,9 @@ def _process_texture(asset_id: int, filepath: str | None, payload, result_queue:
         format_ext = img_transposed.mode
         data = np.array(img_transposed)
 
-        if not isinstance(payload, Image.Image):
-            img.close()
-
-        result_queue.put((TaskType.Texture, asset_id, (data, format_ext, None)))
+        result_queue.put(TextureResult(asset_id=asset_id, data=data, format_info=format_ext))
     except Exception as e:
-        result_queue.put((TaskType.Texture, asset_id, (None, None, e)))
+        result_queue.put(TextureResult(asset_id=asset_id, error=e))
 
 
 class AssetSystem:
@@ -169,66 +172,71 @@ class AssetSystem:
 
         while uploads < max_uploads_per_frame:
             try:
-                task_type, asset_id, result = assets_state.result_queue.get_nowait()
+                res = assets_state.result_queue.get_nowait()
             except queue.Empty:
                 break
 
             uploads += 1
 
-            if task_type == TaskType.Model:
-                nodes, error = result
-                model_obj = assets_state.models.get(asset_id)
-                if model_obj:
+            match res:
+                case ModelResult(asset_id, nodes, error):
+                    model_obj = assets_state.models.get(asset_id)
+                    if model_obj:
+                        if error:
+                            model_obj.status = AssetStatus.Failed
+                            print(f"[AssetSystem] Error loading model: {error}")
+                        elif nodes is not None:
+                            model_obj.nodes = nodes
+                            model_obj.status = AssetStatus.Ready
+                            for node in nodes:
+                                if node.mesh_id not in assets_state.meshes:
+                                    assets_state.meshes[node.mesh_id] = Mesh(id=node.mesh_id, status=AssetStatus.Loading)
+                                
+                                tex_id = node.material_template.albedo_map_id
+                                if tex_id is not None and tex_id not in assets_state.textures:
+                                    assets_state.textures[tex_id] = Texture(id=tex_id, filepath="", status=AssetStatus.Loading)
+                        else:
+                            raise RuntimeError("AssetSystem: encountered illegal ModelResult")
+
+                case MeshResult(asset_id, vertices, indices, error):
+                    mesh_obj = assets_state.meshes.get(asset_id)
+                    if mesh_obj is None:
+                        mesh_obj = Mesh(id=asset_id, status=AssetStatus.Loading)
+                        assets_state.meshes[asset_id] = mesh_obj
+
                     if error:
-                        model_obj.status = AssetStatus.Failed
-                        print(f"[AssetSystem] Error loading model: {error}")
+                        mesh_obj.status = AssetStatus.Failed
+                        print(f"[AssetSystem] Error loading mesh: {error}")
+                    elif vertices is not None:
+                        AssetSystem._setup_gl_mesh(mesh_obj, vertices, indices)
+
+                case TextureResult(asset_id, data, format_info, error):
+                    tex_obj = assets_state.textures.get(asset_id)
+                    if tex_obj is None:
+                        tex_obj = Texture(id=asset_id, filepath="", status=AssetStatus.Loading)
+                        assets_state.textures[asset_id] = tex_obj
+
+                    if error:
+                        tex_obj.status = AssetStatus.Failed
+                        print(f"[AssetSystem] Error loading texture: {error}")
+                    elif data is not None and format_info is not None:
+                        AssetSystem._setup_gl_texture(tex_obj, data, format_info)
                     else:
-                        model_obj.nodes = nodes
-                        model_obj.status = AssetStatus.Ready
-
-                        for node in nodes:
-                            if node.mesh_id not in assets_state.meshes:
-                                assets_state.meshes[node.mesh_id] = Mesh(id=node.mesh_id, status=AssetStatus.Loading)
-                            
-                            tex_id = node.material_template.albedo_map_id
-                            if tex_id is not None and tex_id not in assets_state.textures:
-                                assets_state.textures[tex_id] = Texture(id=tex_id, filepath="", status=AssetStatus.Loading)
-
-            elif task_type == TaskType.Mesh:
-                vertices, indices, error = result
-                mesh_obj = assets_state.meshes.get(asset_id)
-
-                if mesh_obj is None:
-                    # sub-asset finished loading before its parent did
-                    mesh_obj = Mesh(id=asset_id, status=AssetStatus.Loading)
-                    assets_state.meshes[asset_id] = mesh_obj
-
-                if error:
-                    mesh_obj.status = AssetStatus.Failed
-                    print(f"[AssetSystem] Error loading mesh: {error}")
-                else:
-                    AssetSystem._setup_gl_mesh(mesh_obj, vertices, indices)
-
-            elif task_type == TaskType.Texture:
-                data, format_info, error = result
-                tex_obj = assets_state.textures.get(asset_id)
-
-                if tex_obj is None:
-                    tex_obj = Texture(id=asset_id, filepath="", status=AssetStatus.Loading)
-                    assets_state.textures[asset_id] = tex_obj
-
-                if error:
-                    tex_obj.status = AssetStatus.Failed
-                    print(f"[AssetSystem] Error loading texture: {error}")
-                else:
-                    AssetSystem._setup_gl_texture(tex_obj, data, format_info)
+                        raise RuntimeError("AssetSystem: encountered illegal TextureResult")
 
     @staticmethod
     def create_immediate_mesh(assets_state: AssetsState, vertices: np.ndarray, indices: np.ndarray) -> Mesh:
         asset_id = AssetSystem.generate_id(assets_state)
         mesh = Mesh(id=asset_id, status=AssetStatus.Loading)
         assets_state.meshes[asset_id] = mesh
-        assets_state.result_queue.put((TaskType.Mesh, asset_id, (vertices, indices, None)))
+        assets_state.result_queue.put(
+            MeshResult(
+                asset_id=asset_id, 
+                vertices=vertices, 
+                indices=indices, 
+                error=None
+            )
+        )
         return mesh
 
     @staticmethod
@@ -243,8 +251,7 @@ class AssetSystem:
 
         assets_state.models[asset_id] = model
         assets_state.filepath_to_model[filepath] = asset_id
-
-        assets_state.task_queue.put((TaskType.Model, asset_id, filepath, None))
+        assets_state.task_queue.put(ModelTask(asset_id, filepath))
         return model
 
     @staticmethod
@@ -267,8 +274,7 @@ class AssetSystem:
         mesh = Mesh(id=asset_id, filepath=filepath, status=AssetStatus.Loading)
         assets_state.meshes[asset_id] = mesh
         assets_state.filepath_to_mesh[filepath] = asset_id
-        
-        assets_state.task_queue.put((TaskType.Mesh, asset_id, filepath, None))
+        assets_state.task_queue.put(MeshFileTask(asset_id, filepath))
         return mesh
 
     @staticmethod
@@ -290,8 +296,7 @@ class AssetSystem:
         tex = Texture(id=asset_id, filepath=filepath, status=AssetStatus.Loading)
         assets_state.textures[asset_id] = tex
         assets_state.filepath_to_texture[filepath] = asset_id
-
-        assets_state.task_queue.put((TaskType.Texture, asset_id, filepath, None))
+        assets_state.task_queue.put(TextureFileTask(asset_id, filepath))
         return tex
 
     @staticmethod
@@ -301,8 +306,7 @@ class AssetSystem:
 
         GL.glBindVertexArray(mesh.vao)
         GL.glBindBuffer(GL.GL_ARRAY_BUFFER, mesh.vbo)
-        GL.glBufferData(GL.GL_ARRAY_BUFFER, vertices.nbytes,
-                        vertices, GL.GL_STATIC_DRAW)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL.GL_STATIC_DRAW)
 
         if indices is not None and len(indices) > 0:
             mesh.ebo = GL.glGenBuffers(1)

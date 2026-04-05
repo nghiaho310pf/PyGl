@@ -2,10 +2,12 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 import queue
 import itertools
-from typing import Iterator
+from typing import Iterator, Union
 
 import numpy as np
 import numpy.typing as npt
+import trimesh
+from PIL import Image
 
 
 class AssetStatus(Enum):
@@ -13,6 +15,75 @@ class AssetStatus(Enum):
     Loading = auto()
     Ready = auto()
     Failed = auto()
+
+
+# == task types sent from main thread to worker thread ==
+
+
+@dataclass(slots=True)
+class ModelTask:
+    asset_id: int
+    filepath: str
+
+
+@dataclass(slots=True)
+class MeshFileTask:
+    asset_id: int
+    filepath: str
+
+
+@dataclass(slots=True)
+class MeshGeometryTask:
+    asset_id: int
+    geometry: trimesh.Trimesh
+    flip_uvs: bool
+
+
+@dataclass(slots=True)
+class TextureFileTask:
+    asset_id: int
+    filepath: str
+
+
+@dataclass(slots=True)
+class TextureImageTask:
+    asset_id: int
+    image: Image.Image
+
+
+AssetTask = Union[ModelTask, MeshFileTask, MeshGeometryTask, TextureFileTask, TextureImageTask]
+
+
+# == result types sent from worker thread to main thread ==
+
+
+@dataclass(slots=True)
+class ModelResult:
+    asset_id: int
+    nodes: list["ModelNode"] | None = None
+    error: Exception | None = None
+
+
+@dataclass(slots=True)
+class MeshResult:
+    asset_id: int
+    vertices: np.ndarray | None = None
+    indices: np.ndarray | None = None
+    error: Exception | None = None
+
+
+@dataclass(slots=True)
+class TextureResult:
+    asset_id: int
+    data: np.ndarray | None = None
+    format_info: str | None = None
+    error: Exception | None = None
+
+
+AssetResult = Union[ModelResult, MeshResult, TextureResult]
+
+
+# == asset types ==
 
 
 @dataclass(slots=True, eq=False)
@@ -81,5 +152,5 @@ class AssetsState:
     filepath_to_texture: dict[str, int] = field(default_factory=dict)
     filepath_to_model: dict[str, int] = field(default_factory=dict)
 
-    task_queue: queue.Queue = field(default_factory=queue.Queue)
-    result_queue: queue.Queue = field(default_factory=queue.Queue)
+    task_queue: queue.Queue[AssetTask] = field(default_factory=queue.Queue)
+    result_queue: queue.Queue[AssetResult] = field(default_factory=queue.Queue)
