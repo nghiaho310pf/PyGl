@@ -344,9 +344,15 @@ class UiSystem:
                 changed_roughness, new_roughness = imgui.slider_float("Roughness", float(comp.material.roughness), 0.0, 1.0)
                 if changed_roughness:
                     comp.material.roughness = float1(new_roughness)
+                changed_metallic, new_metallic = imgui.slider_float("Metallic", float(comp.material.metallic), 0.0, 1.0)
+                if changed_metallic:
+                    comp.material.metallic = float1(new_metallic)
                 changed_reflectance, new_reflectance = imgui.slider_float("Reflectance", float(comp.material.reflectance), 0.0, 1.0)
                 if changed_reflectance:
                     comp.material.reflectance = float1(new_reflectance)
+                changed_translucency, new_translucency = imgui.slider_float("Translucency", float(comp.material.translucency), 0.0, 1.0)
+                if changed_translucency:
+                    comp.material.translucency = float1(new_translucency)
                 changed_ao, new_ao = imgui.slider_float("AO", float(comp.material.ao), 0.0, 1.0)
                 if changed_ao:
                     comp.material.ao = float1(new_ao)
