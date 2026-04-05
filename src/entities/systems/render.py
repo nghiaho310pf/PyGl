@@ -477,8 +477,8 @@ class RenderSystem:
         # == shadow map blur pass ==
         GL.glDisable(GL.GL_DEPTH_TEST)
         self.shadow_blur_shader.use()
-        self.shadow_blur_shader.set_float("u_DepthSensitivity", 1000.0)
-        self.shadow_blur_shader.set_float("u_NormalThreshold", 0.7)
+        self.shadow_blur_shader.set_float("u_DepthSensitivity", render_state.shadow_blur_depth_sensitivity)
+        self.shadow_blur_shader.set_float("u_NormalThreshold", render_state.shadow_blur_normal_threshold)
 
         GL.glActiveTexture(GL.GL_TEXTURE1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_depth_tex)
@@ -562,58 +562,67 @@ class RenderSystem:
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
         # == smaa ==
-        smaa_rt_metrics = np.array([1.0 / width, 1.0 / height, width, height], dtype=np.float32)
+        if render_state.enable_smaa:
+            smaa_rt_metrics = np.array([1.0 / width, 1.0 / height, width, height], dtype=np.float32)
 
-        # == smaa pass 1 (edge detection) ==
-        GL.glDisable(GL.GL_DEPTH_TEST)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.smaa_edge_fbo)
-        GL.glClearColor(0.0, 0.0, 0.0, 0.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+            # == smaa pass 1 (edge detection) ==
+            GL.glDisable(GL.GL_DEPTH_TEST)
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.smaa_edge_fbo)
+            GL.glClearColor(0.0, 0.0, 0.0, 0.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
-        self.smaa_edge_shader.use()
-        GL.glActiveTexture(GL.GL_TEXTURE0)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_color_tex)
-        self.smaa_edge_shader.set_int("u_ColorTex", 0)
-        self.smaa_edge_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
-        self._draw_fullscreen_quad()
+            self.smaa_edge_shader.use()
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_color_tex)
+            self.smaa_edge_shader.set_int("u_ColorTex", 0)
+            self.smaa_edge_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
+            self._draw_fullscreen_quad()
 
-        # == smaa pass 2 (blend weights) ==
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.smaa_weight_fbo)
-        GL.glClearColor(0.0, 0.0, 0.0, 0.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+            # == smaa pass 2 (blend weights) ==
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.smaa_weight_fbo)
+            GL.glClearColor(0.0, 0.0, 0.0, 0.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
-        self.smaa_weight_shader.use()
-        GL.glActiveTexture(GL.GL_TEXTURE0)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_edge_tex)
-        self.smaa_weight_shader.set_int("u_EdgeTex", 0)
+            self.smaa_weight_shader.use()
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_edge_tex)
+            self.smaa_weight_shader.set_int("u_EdgeTex", 0)
 
-        GL.glActiveTexture(GL.GL_TEXTURE1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_area_tex)
-        self.smaa_weight_shader.set_int("u_AreaTex", 1)
+            GL.glActiveTexture(GL.GL_TEXTURE1)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_area_tex)
+            self.smaa_weight_shader.set_int("u_AreaTex", 1)
 
-        GL.glActiveTexture(GL.GL_TEXTURE2)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_search_tex)
-        self.smaa_weight_shader.set_int("u_SearchTex", 2)
+            GL.glActiveTexture(GL.GL_TEXTURE2)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_search_tex)
+            self.smaa_weight_shader.set_int("u_SearchTex", 2)
 
-        self.smaa_weight_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
-        self._draw_fullscreen_quad()
+            self.smaa_weight_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
+            self._draw_fullscreen_quad()
 
-        # == smaa pass 3 (neighborhood blending), out to screen ==
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-        GL.glClearColor(0.0, 0.0, 0.0, 1.0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+            # == smaa pass 3 (neighborhood blending), out to screen ==
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+            GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
-        self.smaa_blend_shader.use()
-        GL.glActiveTexture(GL.GL_TEXTURE0)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_color_tex)
-        self.smaa_blend_shader.set_int("u_ColorTex", 0)
+            self.smaa_blend_shader.use()
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_color_tex)
+            self.smaa_blend_shader.set_int("u_ColorTex", 0)
 
-        GL.glActiveTexture(GL.GL_TEXTURE1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_weight_tex)
-        self.smaa_blend_shader.set_int("u_BlendTex", 1)
+            GL.glActiveTexture(GL.GL_TEXTURE1)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.smaa_weight_tex)
+            self.smaa_blend_shader.set_int("u_BlendTex", 1)
 
-        self.smaa_blend_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
-        self._draw_fullscreen_quad()
+            self.smaa_blend_shader.set_vec4("SMAA_RT_METRICS", smaa_rt_metrics)
+            self._draw_fullscreen_quad()
+        else:
+            GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.main_fbo)
+            GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0)
+            GL.glBlitFramebuffer(
+                0, 0, width, height, 
+                0, 0, width, height, 
+                GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST
+            )
 
         # == clean up GL state ==
         GL.glActiveTexture(GL.GL_TEXTURE0)

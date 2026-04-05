@@ -168,30 +168,21 @@ class UiSystem:
                             camera_state_entity, camera_state,
                         )
 
-        # == debug section ==
-        if imgui.collapsing_header("Debug", imgui.TreeNodeFlags_.default_open):
-            if imgui.begin_table("debug_visualize_icons", 2):
-                imgui.table_setup_column("Label", imgui.TableColumnFlags_.width_fixed)
-                imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)
+        # == graphics settings section ==
+        if imgui.collapsing_header("Graphics", imgui.TreeNodeFlags_.default_open):
+            changed_smaa, new_smaa = imgui.checkbox("SMAA", render_state.enable_smaa)
+            if changed_smaa:
+                render_state.enable_smaa = new_smaa
+            imgui.same_line()
+            changed_li, new_li = imgui.checkbox("Light icons", icon_render_state.draw_light_icons)
+            if changed_li:
+                icon_render_state.draw_light_icons = new_li
+            imgui.same_line()
+            changed_ci, new_ci = imgui.checkbox("Camera icons", icon_render_state.draw_camera_icons)
+            if changed_ci:
+                icon_render_state.draw_camera_icons = new_ci
 
-                imgui.table_next_row()
-                
-                imgui.table_next_column()
-                imgui.align_text_to_frame_padding()
-                imgui.text("Visualize")
-
-                imgui.table_next_column()
-                changed_li, new_li = imgui.checkbox("lights", icon_render_state.draw_light_icons)
-                if changed_li:
-                    icon_render_state.draw_light_icons = new_li
-                imgui.same_line()
-                changed_ci, new_ci = imgui.checkbox("cameras", icon_render_state.draw_camera_icons)
-                if changed_ci:
-                    icon_render_state.draw_camera_icons = new_ci
-
-                imgui.end_table()
-
-            if imgui.begin_table("debug_render_mode", 2):
+            if imgui.begin_table("graphics_render_mode", 2):
                 imgui.table_setup_column("Label", imgui.TableColumnFlags_.width_fixed)
                 imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)
 
@@ -212,6 +203,18 @@ class UiSystem:
                     render_state.global_draw_mode = GlobalDrawMode.DepthOnly
 
                 imgui.end_table()
+
+            if imgui.tree_node_ex("Shadow mask blur", imgui.TreeNodeFlags_.default_open):
+                changed_depth_sensitivity, new_depth_sensitivity = imgui.drag_float(
+                    "Depth sensitivity", float(render_state.shadow_blur_depth_sensitivity), 1, 0.0, 1000.0)
+                if changed_depth_sensitivity:
+                    render_state.shadow_blur_depth_sensitivity = float1(new_depth_sensitivity)
+                changed_norm_thres, new_norm_thres = imgui.drag_float(
+                    "Normal threshold", float(render_state.shadow_blur_normal_threshold), 0.001, 0.0, 1.0)
+                if changed_norm_thres:
+                    render_state.shadow_blur_normal_threshold = float1(new_norm_thres)
+                
+                imgui.tree_pop()
 
         imgui.end()
 
