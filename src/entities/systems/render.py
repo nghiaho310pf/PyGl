@@ -16,8 +16,8 @@ from entities.registry import Registry
 from entities.components.visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
 from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader
-import math_utils
 from visuals.shaders.smaa import shaders as smaa_shaders, smaa_area_tex, smaa_search_tex
+import math_utils
 
 
 class RenderSystem:
@@ -446,6 +446,18 @@ class RenderSystem:
         GL.glActiveTexture(GL.GL_TEXTURE1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_normal_tex)
         self.shadow_mask_shader.set_int("u_NormalTexture", 1)
+
+        self.shadow_mask_shader.set_int("u_PointSearchSamples", render_state.point_shadow_search_samples)
+        self.shadow_mask_shader.set_float("u_InvSqrtPointSearchSamples", render_state.point_shadow_search_samples ** -0.5)
+        self.shadow_mask_shader.set_int("u_PointPcfSamples", render_state.point_shadow_samples) 
+        self.shadow_mask_shader.set_float("u_InvPointPcfSamples", 1.0 / render_state.point_shadow_samples)
+        self.shadow_mask_shader.set_float("u_InvSqrtPointPcfSamples", render_state.point_shadow_samples ** -0.5)
+
+        self.shadow_mask_shader.set_int("u_DirSearchSamples", render_state.directional_shadow_search_samples)
+        self.shadow_mask_shader.set_float("u_InvSqrtDirSearchSamples", render_state.directional_shadow_search_samples ** -0.5)
+        self.shadow_mask_shader.set_int("u_DirPcfSamples", render_state.directional_shadow_samples)
+        self.shadow_mask_shader.set_float("u_InvDirPcfSamples", 1.0 / render_state.directional_shadow_samples)
+        self.shadow_mask_shader.set_float("u_InvSqrtDirPcfSamples", render_state.directional_shadow_samples ** -0.5)
 
         self.shadow_mask_shader.set_vec3_array("u_LightPos", point_light_positions)
         self.shadow_mask_shader.set_int("u_NumLights", num_point_lights)

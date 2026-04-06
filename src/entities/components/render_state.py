@@ -14,6 +14,11 @@ class GlobalDrawMode(Enum):
 class RenderState:
     global_draw_mode: GlobalDrawMode = GlobalDrawMode.Normal
 
+    point_shadow_search_samples: int = 4
+    point_shadow_samples: int = 8
+    directional_shadow_search_samples: int = 8
+    directional_shadow_samples: int = 16
+
     shadow_blur_depth_sensitivity: np.float32 = np.float32(5.0)
     shadow_blur_normal_threshold: np.float32 = np.float32(0.7)
 

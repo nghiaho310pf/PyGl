@@ -208,14 +208,35 @@ class UiSystem:
 
                 imgui.end_table()
 
-            if imgui.tree_node_ex("Shadow mask blur", imgui.TreeNodeFlags_.default_open):
+            if imgui.tree_node_ex("Shadows", imgui.TreeNodeFlags_.default_open):
                 imgui.push_item_width(imgui.get_window_width() * 0.5)
+
+                changed_p_search, new_p_search = imgui.drag_int(
+                    "Point searches", render_state.point_shadow_search_samples, 1, 1, 64)
+                if changed_p_search:
+                    render_state.point_shadow_search_samples = new_p_search
+
+                changed_p_pcf, new_p_pcf = imgui.drag_int(
+                    "Point PCFs", render_state.point_shadow_samples, 1, 1, 64)
+                if changed_p_pcf:
+                    render_state.point_shadow_samples = new_p_pcf
+
+                changed_d_search, new_d_search = imgui.drag_int(
+                    "Directional searches", render_state.directional_shadow_search_samples, 1, 1, 64)
+                if changed_d_search:
+                    render_state.directional_shadow_search_samples = new_d_search
+
+                changed_d_pcf, new_d_pcf = imgui.drag_int(
+                    "Directional PCFs", render_state.directional_shadow_samples, 1, 1, 64)
+                if changed_d_pcf:
+                    render_state.directional_shadow_samples = new_d_pcf
+
                 changed_depth_sensitivity, new_depth_sensitivity = imgui.drag_float(
-                    "Depth sensitivity", float(render_state.shadow_blur_depth_sensitivity), 0.01, 0.0, 200.0)
+                    "Blur depth sensitivity", float(render_state.shadow_blur_depth_sensitivity), 0.01, 0.0, 200.0)
                 if changed_depth_sensitivity:
                     render_state.shadow_blur_depth_sensitivity = float1(new_depth_sensitivity)
                 changed_norm_thres, new_norm_thres = imgui.drag_float(
-                    "Normal threshold", float(render_state.shadow_blur_normal_threshold), 0.001, 0.0, 1.0)
+                    "Blur normal threshold", float(render_state.shadow_blur_normal_threshold), 0.001, 0.0, 1.0)
                 if changed_norm_thres:
                     render_state.shadow_blur_normal_threshold = float1(new_norm_thres)
                 imgui.pop_item_width()

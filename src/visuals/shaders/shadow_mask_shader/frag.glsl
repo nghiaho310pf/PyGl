@@ -17,6 +17,40 @@ layout (std140) uniform SceneData {
 };
 
 const int MAX_LIGHTS = 4;
+const int MAX_VOGEL_SAMPLES = 64;
+
+uniform int   u_PointSearchSamples;
+uniform float u_InvSqrtPointSearchSamples;
+uniform int   u_PointPcfSamples;
+uniform float u_InvPointPcfSamples;
+uniform float u_InvSqrtPointPcfSamples;
+
+uniform int   u_DirSearchSamples;
+uniform float u_InvSqrtDirSearchSamples;
+uniform int   u_DirPcfSamples;
+uniform float u_InvDirPcfSamples;
+uniform float u_InvSqrtDirPcfSamples;
+
+// VOGEL_DISK[i] = vec2(sqrt(i + 0.5), i * 2.4)
+const vec2 VOGEL_DISK[MAX_VOGEL_SAMPLES] = vec2[](
+    vec2(0.707106,   0.0), vec2(1.224744,   2.4), vec2(1.581138,   4.8), vec2(1.870828,   7.2),
+    vec2(2.121320,   9.6), vec2(2.345207,  12.0), vec2(2.549509,  14.4), vec2(2.738612,  16.8),
+    vec2(2.915475,  19.2), vec2(3.082207,  21.6), vec2(3.240370,  24.0), vec2(3.391164,  26.4),
+    vec2(3.535533,  28.8), vec2(3.674234,  31.2), vec2(3.807886,  33.6), vec2(3.937003,  36.0),
+    vec2(4.062019,  38.4), vec2(4.183300,  40.8), vec2(4.301162,  43.2), vec2(4.415880,  45.6),
+    vec2(4.527692,  48.0), vec2(4.636809,  50.4), vec2(4.743416,  52.8), vec2(4.847679,  55.2),
+    vec2(4.949747,  57.6), vec2(5.049752,  60.0), vec2(5.147815,  62.4), vec2(5.244044,  64.8),
+    vec2(5.338539,  67.2), vec2(5.431390,  69.6), vec2(5.522680,  72.0), vec2(5.612486,  74.4),
+    vec2(5.700877,  76.8), vec2(5.787918,  79.2), vec2(5.873670,  81.6), vec2(5.958187,  84.0),
+    vec2(6.041522,  86.4), vec2(6.123724,  88.8), vec2(6.204836,  91.2), vec2(6.284902,  93.6),
+    vec2(6.363961,  96.0), vec2(6.442049,  98.4), vec2(6.519202, 100.8), vec2(6.595452, 103.2),
+    vec2(6.670832, 105.6), vec2(6.745368, 108.0), vec2(6.819090, 110.4), vec2(6.892024, 112.8),
+    vec2(6.964194, 115.2), vec2(7.035623, 117.6), vec2(7.106335, 120.0), vec2(7.176350, 122.4),
+    vec2(7.245688, 124.8), vec2(7.314369, 127.2), vec2(7.382411, 129.6), vec2(7.449832, 132.0),
+    vec2(7.516648, 134.4), vec2(7.582875, 136.8), vec2(7.648529, 139.2), vec2(7.713624, 141.6),
+    vec2(7.778174, 144.0), vec2(7.842193, 146.4), vec2(7.905694, 148.8), vec2(7.968688, 151.2)
+);
+
 uniform vec3 u_LightPos[MAX_LIGHTS];
 uniform float u_LightRadius[MAX_LIGHTS];
 uniform int u_NumLights;
@@ -30,7 +64,6 @@ uniform int u_DirLightCastsShadow[MAX_LIGHTS];
 uniform sampler2D u_DirShadowMap[MAX_LIGHTS];
 uniform mat4 u_DirLightSpaceMatrix[MAX_LIGHTS];
 
-const float PI = 3.14159265359;
 const float PI2 = 6.28318530718;
 
 float blueNoiseDither(vec2 pos) {
@@ -43,7 +76,6 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, float lightRadius, sampl
     vec3 fragToLight = fragPos - lightPos;
     float currentDepth = length(fragToLight) / farPlane;
 
-    int searchSamples = 4;
     float avgBlockerDepth = 0.0;
     int blockers = 0;
     float searchWidth = lightRadius * 0.5;
@@ -53,19 +85,12 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, float lightRadius, sampl
     vec3 right = normalize(cross(up, lightDir));
     up = cross(lightDir, right);
 
-    const float GOLDEN_ANGLE = 2.4;
-    const mat2 vogelRot = mat2(cos(GOLDEN_ANGLE), sin(GOLDEN_ANGLE), -sin(GOLDEN_ANGLE), cos(GOLDEN_ANGLE));
-    
-    vec2 vogelDir = vec2(cos(randomRotation), sin(randomRotation));
-    float invSqrtSearchSamples = 1.0 / sqrt(float(searchSamples));
-
-    for (int i = 0; i < searchSamples; ++i) {
-        float r = sqrt(float(i) + 0.5) * invSqrtSearchSamples;
-        vec2 offset2D = vogelDir * r;
-        vogelDir = vogelRot * vogelDir;
+    for (int i = 0; i < u_PointSearchSamples; ++i) {
+        float r = VOGEL_DISK[i].x * u_InvSqrtPointSearchSamples;
+        float theta = VOGEL_DISK[i].y + randomRotation;
+        vec2 offset2D = vec2(cos(theta), sin(theta)) * r;
 
         vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * searchWidth;
-
         float sampleDepth = texture(shadowMap, sampleDir).r;
         if (sampleDepth < currentDepth - bias) {
             avgBlockerDepth += sampleDepth;
@@ -73,24 +98,17 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, float lightRadius, sampl
         }
     }
 
-    if (blockers < 1) return 0.0;
+    if (blockers < 2) return 0.0;
     avgBlockerDepth /= float(blockers);
 
     float penumbraRatio = (currentDepth - avgBlockerDepth) / pow(avgBlockerDepth, 0.7);
-    float diskRadius = penumbraRatio * lightRadius;
-    diskRadius = clamp(diskRadius, 0.005, 0.05);
+    float diskRadius = clamp(penumbraRatio * lightRadius, 0.005, 0.05);
 
     float shadow = 0.0;
-    int pcfSamples = 8;
-    float invPcfSamples = 1.0 / float(pcfSamples);
-    float invSqrtPcfSamples = 1.0 / sqrt(float(pcfSamples));
-
-    vogelDir = vec2(cos(randomRotation), sin(randomRotation));
-
-    for (int i = 0; i < pcfSamples; ++i) {
-        float r = sqrt(float(i) + 0.5) * invSqrtPcfSamples;
-        vec2 offset2D = vogelDir * r;
-        vogelDir = vogelRot * vogelDir;
+    for (int i = 0; i < u_PointPcfSamples; ++i) {
+        float r = VOGEL_DISK[i].x * u_InvSqrtPointPcfSamples;
+        float theta = VOGEL_DISK[i].y + randomRotation;
+        vec2 offset2D = vec2(cos(theta), sin(theta)) * r;
 
         vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * diskRadius;
 
@@ -98,32 +116,25 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, float lightRadius, sampl
         if (currentDepth - bias > closestDepth) shadow += 1.0;
     }
 
-    return pow(shadow * invPcfSamples, 2.4);
+    return pow(shadow * u_InvPointPcfSamples, 2.4);
 }
 
 float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, float bias, float randomRotation) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
-    
+
     if (projCoords.z > 1.0) return 0.0;
 
     float currentDepth = projCoords.z;
-
-    int searchSamples = 8;
     float avgBlockerDepth = 0.0;
     int blockers = 0;
 
     float searchWidth = 0.005; 
 
-    const float GOLDEN_ANGLE = 2.4;
-    const mat2 vogelRot = mat2(cos(GOLDEN_ANGLE), sin(GOLDEN_ANGLE), -sin(GOLDEN_ANGLE), cos(GOLDEN_ANGLE));
-    vec2 vogelDir = vec2(cos(randomRotation), sin(randomRotation));
-    float invSqrtSearchSamples = 1.0 / sqrt(float(searchSamples));
-
-    for (int i = 0; i < searchSamples; ++i) {
-        float r = sqrt(float(i) + 0.5) * invSqrtSearchSamples;
-        vec2 offset = vogelDir * r * searchWidth;
-        vogelDir = vogelRot * vogelDir;
+    for (int i = 0; i < u_DirSearchSamples; ++i) {
+        float r = VOGEL_DISK[i].x * u_InvSqrtDirSearchSamples;
+        float theta = VOGEL_DISK[i].y + randomRotation;
+        vec2 offset = vec2(cos(theta), sin(theta)) * r * searchWidth;
 
         float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
         if (sampleDepth < currentDepth - bias) {
@@ -139,16 +150,10 @@ float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, fl
     penumbra = clamp(penumbra, 0.0005, 0.01);
 
     float shadow = 0.0;
-    int pcfSamples = 16;
-    float invPcfSamples = 1.0 / float(pcfSamples);
-    float invSqrtPcfSamples = 1.0 / sqrt(float(pcfSamples));
-    
-    vogelDir = vec2(cos(randomRotation), sin(randomRotation));
-
-    for (int i = 0; i < pcfSamples; ++i) {
-        float r = sqrt(float(i) + 0.5) * invSqrtPcfSamples;
-        vec2 offset = vogelDir * r * penumbra;
-        vogelDir = vogelRot * vogelDir;
+    for (int i = 0; i < u_DirPcfSamples; ++i) {
+        float r = VOGEL_DISK[i].x * u_InvSqrtDirPcfSamples;
+        float theta = VOGEL_DISK[i].y + randomRotation;
+        vec2 offset = vec2(cos(theta), sin(theta)) * r * penumbra;
 
         float closestDepth = texture(shadowMap, projCoords.xy + offset).r;
         if (currentDepth - bias > closestDepth) {
@@ -156,7 +161,7 @@ float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, fl
         }
     }
 
-    return pow(shadow * invPcfSamples, 2.4);
+    return pow(shadow * u_InvDirPcfSamples, 2.4);
 }
 
 void main() {
