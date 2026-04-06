@@ -11,6 +11,7 @@ from entities.components.directional_light import DirectionalLight
 from entities.components.disposal import Disposal
 from entities.components.gd.optimizer_state import OptimizerAlgorithm, OptimizerState
 from entities.components.gd.surface import GradientDescentSurface, LossFunctionType
+from entities.components.spawner_state import SpawnerState
 from entities.components.surface_function import CompilationStatus, SurfaceFunction
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
@@ -22,6 +23,7 @@ from entities.components.entity_flags import EntityFlags
 from entities.components.visuals.assets import AssetStatus, AssetsState
 from entities.systems.assets import AssetSystem
 from entities.registry import Registry
+from entities.systems.spawner import SpawnerSystem
 from meshes.surfaces.arrow import generate_arrow
 from meshes.surfaces.circle import generate_circle
 from meshes.surfaces.ellipse import generate_ellipse
@@ -45,11 +47,13 @@ from math_utils import float1, vec3
 class UiSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r_admin = registry.get_singleton(UiState, AssetsState, RenderState, IconRenderState, Disposal)
+        r_ui = registry.get_singleton(UiState)
+        r_admin = registry.get_singleton(AssetsState, SpawnerState, RenderState, IconRenderState, Disposal)
         r_camera_state = registry.get_singleton(CameraState)
-        if r_admin is None or r_camera_state is None:
+        if r_ui is None or r_admin is None or r_camera_state is None:
             return
-        admin_entity, (ui_state, assets_state, render_state, icon_render_state, disposal) = r_admin
+        ui_entity, (ui_state, ) = r_ui
+        admin_entity, (assets_state, spawner_state, render_state, icon_render_state, disposal) = r_admin
         camera_state_entity, (camera_state, ) = r_camera_state
 
         r_preview = registry.get_components(ui_state.preview_entity, Transform, Visuals)
@@ -97,6 +101,22 @@ class UiSystem:
         if not add_menu_expanded:
             preview_visuals.enabled = False
         else:
+            if imgui.button("Load model..."):
+                dialog = pfd.open_file(
+                    title=f"Select model file",
+                    default_path="",
+                    filters=["3D Model Files", "*.glb *.gltf *.obj *.ply", "All Files", "*"]
+                )
+                result = dialog.result()
+
+                if result and len(result) > 0:
+                    filepath = result[0]
+                    SpawnerSystem.load_and_spawn_one(
+                        spawner_state, assets_state, filepath,
+                        Transform(scale=vec3(0.04, 0.04, 0.04)),
+                    )
+                    ui_state.should_close_add_menu = True
+
             preview_transform.position = vec3(*camera_state.focal_point)
             preview_transform.rotation = vec3(0.0, 0.0, 0.0)
             preview_transform.scale = vec3(1.0, 1.0, 1.0)
@@ -797,13 +817,9 @@ class UiSystem:
 
                                 if result and len(result) > 0:
                                     filepath = result[0]
-
-                                    r_assets = registry.get_singleton(AssetsState)
-                                    if r_assets:
-                                        _, (textures_state, ) = r_assets
-                                        is_srgb = (attr_name == "albedo_map")
-                                        new_tex = AssetSystem.request_texture(textures_state, filepath, is_srgb=is_srgb)
-                                        setattr(comp.material, attr_name, new_tex)
+                                    is_srgb = (attr_name == "albedo_map")
+                                    new_tex = AssetSystem.request_texture(assets_state, filepath, is_srgb=is_srgb)
+                                    setattr(comp.material, attr_name, new_tex)
 
                             if current_tex is not None:
                                 imgui.same_line()
