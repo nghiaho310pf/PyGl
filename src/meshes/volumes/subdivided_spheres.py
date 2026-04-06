@@ -87,6 +87,23 @@ def _create_subdivided_sphere(base_verts, base_faces, radius, subdivisions):
     return np.array(flat_data, dtype=np.float32), np.array(final_indices, dtype=np.uint32)
 
 
+def generate_tetrasphere(radius=1.0, subdivisions=3):
+    """
+    Generates a tetrasphere.
+
+    Returns:
+        vertices: np.array (float32) -> Interleaved [Pos(3), Norm(3), UV(2)]
+        indices: np.array (uint32) -> EBO indices
+    """
+    base_verts = [
+        [1, 1, 1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]
+    ]
+    base_faces = [
+        [0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]
+    ]
+    return _create_subdivided_sphere(base_verts, base_faces, radius, subdivisions)
+
+
 def generate_icosphere(radius=1.0, subdivisions=3):
     """
     Generates an icosphere.

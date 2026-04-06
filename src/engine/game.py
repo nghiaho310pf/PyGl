@@ -19,6 +19,8 @@ from entities.components.visuals.visuals import Visuals
 from entities.components.camera_state import CameraState
 from entities.registry import Registry
 from entities.systems.disposal import DisposalSystem
+from entities.systems.function_surface import FunctionSurfaceSystem
+from entities.systems.gradient_descent import GradientDescentSurfaceSystem
 from entities.systems.render import RenderSystem
 from entities.systems.assets import AssetSystem
 from entities.systems.spawner import SpawnerSystem
@@ -27,7 +29,7 @@ from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
 from meshes.surfaces.plane import generate_plane
 from meshes.volumes.cube import generate_cube
-from meshes.volumes.icosphere import generate_icosphere
+from meshes.volumes.subdivided_spheres import generate_icosphere
 from entities.components.visuals.assets import Mesh, AssetsState
 from math_utils import float1, vec3
 from entities.components.visuals.material import Material
@@ -48,6 +50,35 @@ class Game(Application):
         assets_state = AssetsState()
         spawner_state = SpawnerState()
 
+        # == material setup ==
+        mat_preview = Material(
+            albedo=vec3(0.4, 0.9, 0.4),
+            roughness=float1(0.5),
+            metallic=float1(0.2),
+            reflectance=float1(0.1),
+            translucency=float1(0.0),
+            ao=float1(0.1),
+        )
+        mat_default = Material(
+            albedo=vec3(0.3, 0.3, 0.3),
+            metallic=float1(0.2),
+            roughness=float1(0.5),
+            reflectance=float1(0.1),
+            translucency=float1(0.0),
+            ao=float1(0.1),
+        )
+
+        # preview entity for adding meshes
+        preview_entity = self.registry.create_entity()
+        self.registry.add_components(
+            preview_entity,
+            EntityFlags(is_internal=True),
+            Transform(position=vec3(0.0, 0.0, 0.0)),
+            Visuals(
+                AssetSystem.create_immediate_mesh(assets_state, np.array([], dtype=np.float32), np.array([], dtype=np.uint32)),
+                material=mat_preview, enabled=False, is_internal=True
+            )
+        )
         # cheap trick: this is a singleton as a child of the selected entity,
         # so that DisposalSystem can do the work of getting rid of dangling IDs for us.
         # this would instead be a tagging component if we had to implement selecting
@@ -71,7 +102,11 @@ class Game(Application):
 
             Disposal(),
 
-            UiState(selection_child_entity=selection_child_entity),
+            UiState(
+                preview_entity=preview_entity,
+                selection_child_entity=selection_child_entity,
+                default_material=mat_default
+            ),
             assets_state,
             spawner_state,
             RenderState(),
@@ -186,6 +221,8 @@ class Game(Application):
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
         SpawnerSystem.update(self.registry)
+        GradientDescentSurfaceSystem.update(self.registry, now, dt)
+        FunctionSurfaceSystem.update(self.registry, now, dt)
         AssetSystem.update(self.registry)
         CameraSystem.update(self.registry, window_size, now, dt)
         UiSystem.update(self.registry, now, dt)

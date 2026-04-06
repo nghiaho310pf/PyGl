@@ -109,6 +109,10 @@ vec3 toneMapAgX(vec3 color) {
 
 void main() {
     vec3 N = normalize(v_Normal);
+    if (!gl_FrontFacing) {
+        N = -N;
+    }
+
     vec3 V = normalize(u_ViewPos - v_WorldPos);
 
     vec3 finalAlbedo = u_Albedo;

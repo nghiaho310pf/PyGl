@@ -193,7 +193,7 @@ class RenderSystem:
         GL.glBindVertexArray(self._quad_vao)
         GL.glDrawArrays(GL.GL_TRIANGLE_STRIP, 0, 4)
         GL.glBindVertexArray(0)
-    
+
     def _draw_mesh(self, mesh: Mesh):
         if mesh.status != AssetStatus.Ready:
             return
@@ -325,12 +325,21 @@ class RenderSystem:
         num_point_lights = len(point_light_positions)
         num_dir_lights = len(dir_light_directions)
 
+        # == batching ==
+        batches: dict[tuple[DrawMode, bool], dict[Material, list[Tuple[Transform, Visuals]]]] = {}
+        for entity, (transform, visuals) in registry.view(Transform, Visuals):
+            if not visuals.enabled: continue
+            mat = visuals.material
+            actual_draw_mode = DrawMode.Wireframe if render_state.global_draw_mode == GlobalDrawMode.Wireframe else visuals.draw_mode
+            batch_key = (actual_draw_mode, visuals.cull_back_faces)
+            if batch_key not in batches: batches[batch_key] = {}
+            if mat not in batches[batch_key]: batches[batch_key][mat] = []
+            batches[batch_key][mat].append((transform, visuals))
+        sorted_batch_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
+
         # == shadow map pass ==
-        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glDepthMask(GL.GL_TRUE)
-        GL.glEnable(GL.GL_CULL_FACE)
-        GL.glCullFace(GL.GL_BACK)
 
         # for point lights
         GL.glViewport(0, 0, self.point_shadow_map_width, self.point_shadow_map_height)
@@ -356,11 +365,20 @@ class RenderSystem:
                 light_view = math_utils.create_look_at(transform.position, transform.position + target_dir, up_dir)
                 self.point_shadowmap_shader.set_mat4("u_Projection", point_light_projection)
                 self.point_shadowmap_shader.set_mat4("u_View", light_view)
-                for entity, (mesh_transform, visuals) in registry.view(Transform, Visuals):
-                    if not visuals.enabled: continue
-                    model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
-                    self.point_shadowmap_shader.set_mat4("u_Model", model_matrix)
-                    self._draw_mesh(visuals.mesh)
+
+                for batch_key in sorted_batch_keys:
+                    draw_mode, cull_faces = batch_key
+                    GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
+                    if cull_faces:
+                        GL.glEnable(GL.GL_CULL_FACE)
+                        GL.glCullFace(GL.GL_BACK)
+                    else:
+                        GL.glDisable(GL.GL_CULL_FACE)
+                    for material, entities in batches[batch_key].items():
+                        for mesh_transform, visuals in entities:
+                            model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
+                            self.point_shadowmap_shader.set_mat4("u_Model", model_matrix)
+                            self._draw_mesh(visuals.mesh)
 
         # for directional lights
         GL.glViewport(0, 0, self.directional_shadow_map_width, self.directional_shadow_map_height)
@@ -381,26 +399,25 @@ class RenderSystem:
             dir_light.light_space_matrix = light_view @ dir_light_projection
             dir_light_space_matrices.append(dir_light.light_space_matrix)
             self.directional_shadowmap_shader.set_mat4("u_LightSpaceMatrix", dir_light.light_space_matrix)
-            for entity, (mesh_transform, visuals) in registry.view(Transform, Visuals):
-                if not visuals.enabled: continue
-                model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
-                self.directional_shadowmap_shader.set_mat4("u_Model", model_matrix)
-                self._draw_mesh(visuals.mesh)
+
+            for batch_key in sorted_batch_keys:
+                draw_mode, cull_faces = batch_key
+                GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
+                if cull_faces:
+                    GL.glEnable(GL.GL_CULL_FACE)
+                    GL.glCullFace(GL.GL_BACK)
+                else:
+                    GL.glDisable(GL.GL_CULL_FACE)
+                for material, entities in batches[batch_key].items():
+                    for mesh_transform, visuals in entities:
+                        model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
+                        self.directional_shadowmap_shader.set_mat4("u_Model", model_matrix)
+                        self._draw_mesh(visuals.mesh)
+
+        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
         # == global state update ==
         self.shader_globals.update(camera_state.projection_matrix, camera_state.view_matrix, camera_transform.position, time)
-
-        # == batching ==
-        batches: dict[tuple[DrawMode, bool], dict[Material, list[Tuple[Transform, Visuals]]]] = {}
-        for entity, (transform, visuals) in registry.view(Transform, Visuals):
-            if not visuals.enabled: continue
-            mat = visuals.material
-            actual_draw_mode = DrawMode.Wireframe if render_state.global_draw_mode == GlobalDrawMode.Wireframe else visuals.draw_mode
-            batch_key = (actual_draw_mode, visuals.cull_back_faces)
-            if batch_key not in batches: batches[batch_key] = {}
-            if mat not in batches[batch_key]: batches[batch_key][mat] = []
-            batches[batch_key][mat].append((transform, visuals))
-        sorted_batch_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
 
         # == depth & normal prepass ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.main_fbo)
@@ -416,6 +433,7 @@ class RenderSystem:
         self.depth_prepass_shader.use()
         for batch_key in sorted_batch_keys:
             draw_mode, cull_faces = batch_key
+            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
             if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
             else: GL.glDisable(GL.GL_CULL_FACE)
             for material, entities in batches[batch_key].items():
@@ -424,6 +442,7 @@ class RenderSystem:
                     self.depth_prepass_shader.set_mat4("u_Model", model_matrix)
                     self._draw_mesh(visuals.mesh)
 
+        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
         GL.glColorMask(GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE, GL.GL_TRUE)
 
         # == shadow mask pass ==
@@ -449,7 +468,7 @@ class RenderSystem:
 
         self.shadow_mask_shader.set_int("u_PointSearchSamples", render_state.point_shadow_search_samples)
         self.shadow_mask_shader.set_float("u_InvSqrtPointSearchSamples", render_state.point_shadow_search_samples ** -0.5)
-        self.shadow_mask_shader.set_int("u_PointPcfSamples", render_state.point_shadow_samples) 
+        self.shadow_mask_shader.set_int("u_PointPcfSamples", render_state.point_shadow_samples)
         self.shadow_mask_shader.set_float("u_InvPointPcfSamples", 1.0 / render_state.point_shadow_samples)
         self.shadow_mask_shader.set_float("u_InvSqrtPointPcfSamples", render_state.point_shadow_samples ** -0.5)
 
@@ -633,8 +652,8 @@ class RenderSystem:
             GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.main_fbo)
             GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0)
             GL.glBlitFramebuffer(
-                0, 0, width, height, 
-                0, 0, width, height, 
+                0, 0, width, height,
+                0, 0, width, height,
                 GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST
             )
 
