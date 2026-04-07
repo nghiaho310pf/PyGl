@@ -99,6 +99,7 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, float lightRadius, sampl
     }
 
     if (blockers < 2) return 0.0;
+    if (blockers == u_PointSearchSamples) return 1.0;
     avgBlockerDepth /= float(blockers);
 
     float penumbraRatio = (currentDepth - avgBlockerDepth) / pow(avgBlockerDepth, 0.7);
@@ -144,6 +145,7 @@ float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, fl
     }
 
     if (blockers < 2) return 0.0;
+    if (blockers == u_DirSearchSamples) return 1.0;
     avgBlockerDepth /= float(blockers);
 
     float penumbra = ((currentDepth - avgBlockerDepth) / max(avgBlockerDepth, 0.025)) * 0.025;
