@@ -273,6 +273,9 @@ class RenderSystem:
             raise RuntimeError("CameraState singleton parented to an entity without (Transform, Camera)")
         (camera_transform, camera) = r_camera
 
+        # choose graphics settings for this frame
+        graphics_settings = render_state.viewport_graphics_settings
+
         # == lights setup ==
         active_point_lights: list[Tuple[Transform, PointLight]] = []
         for light_entity, (point_light_transform, point_light) in registry.view(Transform, PointLight):
@@ -466,17 +469,17 @@ class RenderSystem:
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_normal_tex)
         self.shadow_mask_shader.set_int("u_NormalTexture", 1)
 
-        self.shadow_mask_shader.set_int("u_PointSearchSamples", render_state.point_shadow_search_samples)
-        self.shadow_mask_shader.set_float("u_InvSqrtPointSearchSamples", render_state.point_shadow_search_samples ** -0.5)
-        self.shadow_mask_shader.set_int("u_PointPcfSamples", render_state.point_shadow_samples)
-        self.shadow_mask_shader.set_float("u_InvPointPcfSamples", 1.0 / render_state.point_shadow_samples)
-        self.shadow_mask_shader.set_float("u_InvSqrtPointPcfSamples", render_state.point_shadow_samples ** -0.5)
+        self.shadow_mask_shader.set_int("u_PointSearchSamples", graphics_settings.point_shadow_search_samples)
+        self.shadow_mask_shader.set_float("u_InvSqrtPointSearchSamples", graphics_settings.point_shadow_search_samples ** -0.5)
+        self.shadow_mask_shader.set_int("u_PointPcfSamples", graphics_settings.point_shadow_samples)
+        self.shadow_mask_shader.set_float("u_InvPointPcfSamples", 1.0 / graphics_settings.point_shadow_samples)
+        self.shadow_mask_shader.set_float("u_InvSqrtPointPcfSamples", graphics_settings.point_shadow_samples ** -0.5)
 
-        self.shadow_mask_shader.set_int("u_DirSearchSamples", render_state.directional_shadow_search_samples)
-        self.shadow_mask_shader.set_float("u_InvSqrtDirSearchSamples", render_state.directional_shadow_search_samples ** -0.5)
-        self.shadow_mask_shader.set_int("u_DirPcfSamples", render_state.directional_shadow_samples)
-        self.shadow_mask_shader.set_float("u_InvDirPcfSamples", 1.0 / render_state.directional_shadow_samples)
-        self.shadow_mask_shader.set_float("u_InvSqrtDirPcfSamples", render_state.directional_shadow_samples ** -0.5)
+        self.shadow_mask_shader.set_int("u_DirSearchSamples", graphics_settings.directional_shadow_search_samples)
+        self.shadow_mask_shader.set_float("u_InvSqrtDirSearchSamples", graphics_settings.directional_shadow_search_samples ** -0.5)
+        self.shadow_mask_shader.set_int("u_DirPcfSamples", graphics_settings.directional_shadow_samples)
+        self.shadow_mask_shader.set_float("u_InvDirPcfSamples", 1.0 / graphics_settings.directional_shadow_samples)
+        self.shadow_mask_shader.set_float("u_InvSqrtDirPcfSamples", graphics_settings.directional_shadow_samples ** -0.5)
 
         self.shadow_mask_shader.set_vec3_array("u_LightPos", point_light_positions)
         self.shadow_mask_shader.set_int("u_NumLights", num_point_lights)
@@ -595,7 +598,7 @@ class RenderSystem:
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
         # == smaa ==
-        if render_state.enable_smaa:
+        if graphics_settings.enable_smaa:
             smaa_rt_metrics = np.array([1.0 / width, 1.0 / height, width, height], dtype=np.float32)
 
             # == smaa pass 1 (edge detection) ==
