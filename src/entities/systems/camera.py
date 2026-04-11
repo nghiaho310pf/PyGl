@@ -1,4 +1,3 @@
-import math
 import numpy as np
 from imgui_bundle import imgui
 
@@ -97,6 +96,8 @@ class CameraSystem:
         if is_input_active:
             camera.focal_point_distance = max(0.1, camera.focal_point_distance)
             camera_transform.position = camera_state.focal_point + (backward * camera.focal_point_distance)  # type: ignore
+        else:
+            CameraSystem.sync_focal_point(camera_state, camera, camera_transform)
 
         cam_world_matrix = math_utils.create_transformation_matrix(
             camera_transform.position,
@@ -125,5 +126,5 @@ class CameraSystem:
         rot_matrix = math_utils.create_transformation_matrix(
             vec3(0, 0, 0), transform.rotation, vec3(1, 1, 1)
         )
-        backward = rot_matrix[0:3, 2]
+        backward = math_utils.normalize(rot_matrix[0:3, 2])
         state.focal_point = transform.position - (backward * camera.focal_point_distance)  # type: ignore
