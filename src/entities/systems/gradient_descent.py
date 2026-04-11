@@ -84,11 +84,11 @@ class GradientDescentSurfaceSystem:
                     if o_optimizer.algorithm == OptimizerAlgorithm.SGD:
                         dx += np.random.normal(0, o_optimizer.noise_scale)
                         dz += np.random.normal(0, o_optimizer.noise_scale)
-                    elif o_optimizer.algorithm == OptimizerAlgorithm.MINI_BATCH_SGD:
+                    elif o_optimizer.algorithm == OptimizerAlgorithm.MiniBatchSGD:
                         dx += np.random.normal(0, o_optimizer.noise_scale * 0.2)
                         dz += np.random.normal(0, o_optimizer.noise_scale * 0.2)
 
-                    if o_optimizer.algorithm == OptimizerAlgorithm.MOMENTUM:
+                    if o_optimizer.algorithm == OptimizerAlgorithm.Momentum:
                         o_optimizer.velocity_x = (o_optimizer.momentum_rate * o_optimizer.velocity_x) - (o_optimizer.learning_rate * dx)
                         o_optimizer.velocity_z = (o_optimizer.momentum_rate * o_optimizer.velocity_z) - (o_optimizer.learning_rate * dz)
                     else:

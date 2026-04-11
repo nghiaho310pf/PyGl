@@ -7,15 +7,15 @@ from math_utils import vec3
 
 
 class OptimizerAlgorithm(Enum):
-    BATCH_GD = auto()
+    BatchGD = auto()
     SGD = auto()
-    MINI_BATCH_SGD = auto()
-    MOMENTUM = auto()
+    MiniBatchSGD = auto()
+    Momentum = auto()
 
 
 @dataclass(slots=True)
 class OptimizerState:
-    algorithm: OptimizerAlgorithm = OptimizerAlgorithm.BATCH_GD
+    algorithm: OptimizerAlgorithm = OptimizerAlgorithm.BatchGD
     
     # hyperparameters
     learning_rate: float = 0.001

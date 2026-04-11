@@ -532,6 +532,12 @@ class UiSystem:
                     disposal.entities_to_dispose.add(selected_entity)
                 imgui.pop_style_color(3)
 
+                if entity_flags is not None:
+                    changed_classification, new_classification = imgui.drag_int(
+                        "Classification", entity_flags.classification, 1, 0, 65536)
+                    if changed_classification:
+                        entity_flags.classification = new_classification
+
                 target_camera = registry.get_parent(camera_state_entity)
                 if target_camera is not None and target_camera != selected_entity:
                     cam_comps = registry.get_components(target_camera, Transform, Camera)
@@ -939,7 +945,7 @@ class UiSystem:
                         new_entity,
                         EntityFlags(name=f"Optimizer {new_entity}"),
                         Transform(position=spawn_pos),
-                        OptimizerState(algorithm=OptimizerAlgorithm.BATCH_GD),
+                        OptimizerState(algorithm=OptimizerAlgorithm.BatchGD),
                         Visuals(optimizer_mesh, copy.copy(ui_state.default_material)),
                     )
 
@@ -961,12 +967,12 @@ class UiSystem:
                 if changed_lr:
                     comp.learning_rate = new_lr
 
-                if comp.algorithm == OptimizerAlgorithm.MOMENTUM:
+                if comp.algorithm == OptimizerAlgorithm.Momentum:
                     changed_mom, new_mom = imgui.slider_float("Momentum Rate", comp.momentum_rate, 0.0, 1.0)
                     if changed_mom:
                         comp.momentum_rate = new_mom
 
-                if comp.algorithm in (OptimizerAlgorithm.SGD, OptimizerAlgorithm.MINI_BATCH_SGD):
+                if comp.algorithm in (OptimizerAlgorithm.SGD, OptimizerAlgorithm.MiniBatchSGD):
                     changed_noise, new_noise = imgui.drag_float("Noise Scale", comp.noise_scale, 0.1, 0.0, 100.0)
                     if changed_noise:
                         comp.noise_scale = new_noise

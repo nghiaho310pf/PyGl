@@ -8,6 +8,7 @@ from OpenGL import GL
 import PIL.Image as Image
 
 from entities.components.camera_state import CameraState
+from entities.components.entity_flags import EntityFlags
 from entities.components.visuals.assets import Mesh, AssetStatus
 from entities.components.render_state import RenderState, GlobalDrawMode
 from entities.components.camera import Camera
@@ -291,7 +292,7 @@ class RenderSystem:
         # bind_map("normal_map",   "u_NormalMap",   "u_UseNormalMap",   1)
         # bind_map("specular_map", "u_SpecularMap", "u_UseSpecularMap", 2)
 
-    def _export_dataset_frame(self, width, height, camera: Camera, frame_name):
+    def _export_dataset_frame(self, registry: Registry, width, height, camera: Camera, frame_name: str):
         exports = {
             "images": (0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
             "segmentation": (self.segmentation_fbo, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
@@ -319,8 +320,7 @@ class RenderSystem:
                     raise RuntimeError("GL.glReadPixels did not return a NumPy array for depth buffer")
                 z_n = raw_data.reshape((height, width))
                 z_lin = (2.0 * camera.near * camera.far) / (camera.far + camera.near - z_n * (camera.far - camera.near))
-                unique_values = len(np.unique(z_lin))
-                depth_mm = (z_lin * 1000).astype(np.uint16) 
+                depth_mm = (z_lin * 1000).astype(np.uint16)
 
                 img = Image.fromarray(depth_mm, mode="I;16")
                 img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
@@ -331,9 +331,56 @@ class RenderSystem:
                 img = Image.frombytes(pil_mode, (width, height), raw_data)
                 img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
+                if folder == "segmentation":
+                    self._export_yolo_labels(base_path / "labels", frame_name, width, height, np.array(img), registry)
+
                 img.save(save_path)
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+
+    def _get_distributed_color(self, entity_id: int) -> np.ndarray:
+        phi = 0.618033988749895
+        h = (entity_id * phi) % 1.0
+        s = 0.5 + (entity_id % 5) * 0.1
+        v = 0.95
+        return np.array(colorsys.hsv_to_rgb(h, s, v))
+
+    def _export_yolo_labels(self, export_dir: Path, frame_name: str, width: int, height: int, seg_array: np.ndarray, registry: Registry):
+        export_dir.mkdir(parents=True, exist_ok=True)
+        yolo_lines = []
+
+        for entity, (transform, visuals, flags) in registry.view(Transform, Visuals, EntityFlags):
+            if not visuals.enabled: continue
+
+            color_float = self._get_distributed_color(entity)
+            target_color = np.clip(np.round(color_float * 255), 0, 255).astype(np.uint8)
+
+            print(f"Color of entity #{entity}: {target_color}")
+
+            mask = (seg_array[:, :, 0] == target_color[0]) & \
+                   (seg_array[:, :, 1] == target_color[1]) & \
+                   (seg_array[:, :, 2] == target_color[2])
+
+            coords = np.argwhere(mask)
+            if coords.size == 0:
+                print(f"Entity {entity} is not visible in the mask")
+                # occluded, skip
+                continue
+
+            # NOTE: argwhere returns (y, x)
+            y_min, x_min = coords.min(axis=0)
+            y_max, x_max = coords.max(axis=0)
+
+            # normalize for YOLO [x_center, y_center, width, height]
+            x_center = (x_min + x_max) / (2.0 * width)
+            y_center = (y_min + y_max) / (2.0 * height)
+            bbox_w = (x_max - x_min) / float(width)
+            bbox_h = (y_max - y_min) / float(height)
+
+            yolo_lines.append(f"{flags.classification} {x_center:.6f} {y_center:.6f} {bbox_w:.6f} {bbox_h:.6f}\n")
+
+        with open(export_dir / f"{frame_name}.txt", "w") as f:
+            f.writelines(yolo_lines)
 
     def update(self, registry: Registry, window_size: tuple[int, int], time: float, delta_time: float):
         width, height = window_size
@@ -687,25 +734,19 @@ class RenderSystem:
 
         # == segmentation mask pass ==
         if render_state.is_capture:
-            def get_distributed_color(entity_id):
-                phi = 0.618033988749895
-                h = (entity_id * phi) % 1.0
-                s = 0.5 + (entity_id % 5) * 0.1
-                v = 0.95 
-
-                return np.array(colorsys.hsv_to_rgb(h, s, v))
-
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
             GL.glViewport(0, 0, width, height)
             GL.glClearColor(0, 0, 0, 0)
-            GL.glClear(GL.GL_COLOR_BUFFER_BIT) 
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
             self.id_shader.use()
 
             for entity, (transform, visuals) in registry.view(Transform, Visuals):
                 if not visuals.enabled: continue
 
-                self.id_shader.set_vec3("u_EntityColor", get_distributed_color(entity))
+                target_color = self._get_distributed_color(entity)
+                print(f"Color of entity #{entity}: {target_color}")
+                self.id_shader.set_vec3("u_EntityColor", target_color)
 
                 model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
                 self.id_shader.set_mat4("u_Model", model_matrix)
@@ -781,7 +822,7 @@ class RenderSystem:
 
         # == handle capture ==
         if render_state.is_capture:
-            self._export_dataset_frame(width, height, camera, str(render_state.frame_number).zfill(6))
+            self._export_dataset_frame(registry, width, height, camera, str(render_state.frame_number).zfill(6))
             render_state.is_capture = False
 
         render_state.frame_number += 1
