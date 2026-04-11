@@ -41,7 +41,7 @@ from meshes.volumes.subdivided_spheres import generate_icosphere, generate_tetra
 from meshes.volumes.tetrahedron import generate_tetrahedron
 from meshes.volumes.torus import generate_torus
 from meshes.volumes.uv_sphere import generate_uv_sphere
-from math_utils import float1, quaternions_from_euler, vec3, quaternion_identity, quaternion_to_euler
+from math_utils import fit_euler, float1, quaternions_from_euler, vec3, quaternion_identity, quaternion_to_euler
 
 
 class UiSystem:
@@ -668,8 +668,8 @@ class UiSystem:
                 # no, we're not gonna be cute and use an epsilon or a dot product.
                 # if it changed, it changed.
                 if not np.array_equal(comp.rotation, ui_state.last_synced_quaternion):
-                    # TODO: perhaps fit the quaternion back into `ui_state.euler_buffer` in a way that inflicts the smallest delta to `ui_state.euler_buffer`.
-                    ui_state.euler_buffer = quaternion_to_euler(comp.rotation)
+                    new_euler = quaternion_to_euler(comp.rotation)
+                    ui_state.euler_buffer = fit_euler(new_euler, ui_state.euler_buffer)
                     ui_state.last_synced_quaternion = comp.rotation.copy()
 
                 changed_rot, new_euler = imgui.drag_float3("Rotation", ui_state.euler_buffer.tolist(), 0.1)

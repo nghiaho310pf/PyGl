@@ -5,7 +5,7 @@ from entities.components.camera import Camera
 from entities.components.transform import Transform
 from entities.components.camera_state import CameraState
 from entities.registry import Registry
-from math_utils import vec3
+from math_utils import fit_euler, vec3
 import math_utils
 
 
@@ -39,7 +39,8 @@ class CameraSystem:
         io = imgui.get_io()
 
         if not np.array_equal(camera_transform.rotation, camera_state.last_synced_rotation):
-            camera_state.euler_buffer = math_utils.quaternion_to_euler(camera_transform.rotation)
+            new_euler = math_utils.quaternion_to_euler(camera_transform.rotation)
+            camera_state.euler_buffer = fit_euler(new_euler, camera_state.euler_buffer)
             camera_state.last_synced_rotation = camera_transform.rotation.copy()
 
         if imgui.is_mouse_clicked(0) and not io.want_capture_mouse:
