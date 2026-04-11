@@ -121,6 +121,9 @@ class CameraSystem:
         window_width, window_height = window_size
         aspect_ratio = window_width / window_height
 
+        camera_state.camera_position = camera_transform.position
+        camera_state.camera_near = camera.near
+        camera_state.camera_far = camera.far
         camera_state.front = front
         camera_state.right = right
         camera_state.up = up

@@ -292,7 +292,7 @@ class RenderSystem:
         # bind_map("normal_map",   "u_NormalMap",   "u_UseNormalMap",   1)
         # bind_map("specular_map", "u_SpecularMap", "u_UseSpecularMap", 2)
 
-    def _export_dataset_frame(self, registry: Registry, width, height, camera: Camera, frame_name: str):
+    def _export_dataset_frame(self, registry: Registry, width, height, camera_state: CameraState, frame_name: str):
         exports = {
             "images": (0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
             "segmentation": (self.segmentation_fbo, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
@@ -319,7 +319,7 @@ class RenderSystem:
                 if not isinstance(raw_data, np.ndarray):
                     raise RuntimeError("GL.glReadPixels did not return a NumPy array for depth buffer")
                 z_n = raw_data.reshape((height, width))
-                z_lin = (2.0 * camera.near * camera.far) / (camera.far + camera.near - z_n * (camera.far - camera.near))
+                z_lin = (2.0 * camera_state.camera_near * camera_state.camera_far) / (camera_state.camera_far + camera_state.camera_near - z_n * (camera_state.camera_far - camera_state.camera_near))
                 depth_mm = (z_lin * 1000).astype(np.uint16)
 
                 img = Image.fromarray(depth_mm, mode="I;16")
@@ -394,14 +394,6 @@ class RenderSystem:
         if r_camera_state is None:
             raise RuntimeError("RenderSystem is missing a CameraState singleton")
         camera_state_entity, (camera_state, ) = r_camera_state
-
-        camera_parent = registry.get_parent(camera_state_entity)
-        if camera_parent is None:
-            return
-        r_camera = registry.get_components(camera_parent, Transform, Camera)
-        if r_camera is None:
-            raise RuntimeError("CameraState singleton parented to an entity without (Transform, Camera)")
-        (camera_transform, camera) = r_camera
 
         # choose graphics settings for this frame
         if render_state.is_capture:
@@ -552,7 +544,7 @@ class RenderSystem:
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
         # == global state update ==
-        self.shader_globals.update(camera_state.projection_matrix, camera_state.view_matrix, camera_transform.position, time)
+        self.shader_globals.update(camera_state.projection_matrix, camera_state.view_matrix, camera_state.camera_position, time)
 
         # == depth & normal prepass ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.main_fbo)
@@ -643,8 +635,8 @@ class RenderSystem:
         # == shadow map blur pass ==
         GL.glDisable(GL.GL_DEPTH_TEST)
         self.shadow_blur_shader.use()
-        self.shadow_blur_shader.set_float("u_Near", camera.near)
-        self.shadow_blur_shader.set_float("u_Far", camera.far)
+        self.shadow_blur_shader.set_float("u_Near", camera_state.camera_near)
+        self.shadow_blur_shader.set_float("u_Far", camera_state.camera_far)
         self.shadow_blur_shader.set_float("u_DepthSensitivity", render_state.shadow_blur_depth_sensitivity)
         self.shadow_blur_shader.set_float("u_NormalThreshold", render_state.shadow_blur_normal_threshold)
 
@@ -690,8 +682,8 @@ class RenderSystem:
         current_shader.use()
 
         if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
-            current_shader.set_float("u_Near", camera.near)
-            current_shader.set_float("u_Far", camera.far)
+            current_shader.set_float("u_Near", camera_state.camera_near)
+            current_shader.set_float("u_Far", camera_state.camera_far)
         else:
             current_shader.set_vec3_array("u_LightPos", point_light_positions)
             current_shader.set_vec3_array("u_LightColor", point_light_colors)
@@ -818,7 +810,7 @@ class RenderSystem:
 
         # == handle capture ==
         if render_state.is_capture:
-            self._export_dataset_frame(registry, width, height, camera, str(render_state.frame_number).zfill(6))
+            self._export_dataset_frame(registry, width, height, camera_state, str(render_state.frame_number).zfill(6))
             render_state.is_capture = False
 
         render_state.frame_number += 1

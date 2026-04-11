@@ -6,19 +6,27 @@ import numpy.typing as npt
 
 @dataclass(slots=True, eq=False)
 class CameraState:
+    # == user interaction state ==
     is_panning: bool = False
     is_zooming: bool = False
     is_rotating: bool = False
 
+    # == camera control settings ==
     pan_speed: float = 0.002
     zoom_speed: float = 0.01
     scroll_zoom_speed: float = 0.1
     rotation_speed: float = 0.2
 
+    # == camera control state ==
     focal_point: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 0.0], dtype=np.float32))
     last_camera_id: int | None = None
     euler_buffer: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 0.0], dtype=np.float32))
     last_synced_rotation: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32))
+
+    # == data passed to RenderSystem ==
+    camera_position: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 0.0], dtype=np.float32))
+    camera_near: float = 0.1
+    camera_far: float = 100.0
 
     front: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 1.0], dtype=np.float32))
     right: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([1.0, 0.0, 0.0], dtype=np.float32))
