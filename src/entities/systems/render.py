@@ -58,8 +58,8 @@ class RenderSystem:
         self.smaa_area_tex = smaa_area_tex.load()
         self.smaa_search_tex = smaa_search_tex.load()
 
-        self.directional_shadow_map_width = 2048
-        self.directional_shadow_map_height = 2048
+        self.directional_shadow_map_width = 4096
+        self.directional_shadow_map_height = 4096
         self.point_shadow_map_width = 512
         self.point_shadow_map_height = 512
 
@@ -361,7 +361,6 @@ class RenderSystem:
 
             coords = np.argwhere(mask)
             if coords.size == 0:
-                print(f"Entity {entity} is not visible in the mask")
                 # occluded, skip
                 continue
 
