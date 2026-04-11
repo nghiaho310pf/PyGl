@@ -48,7 +48,7 @@ def generate_cone(radius=1.0, height=2.0, sectors=32):
     bottom_offset = len(data) // 8
 
     data.extend([0.0, -height / 2.0, 0.0, 0.0, -1.0, 0.0, 0.5, 0.5])
-    
+
     for i in range(sectors + 1):
         u = i / sectors
         theta = i * 2.0 * math.pi / sectors

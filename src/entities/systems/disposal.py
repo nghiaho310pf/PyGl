@@ -9,7 +9,7 @@ class DisposalSystem:
         r_disposal = registry.get_singleton(Disposal)
         if not r_disposal:
             raise RuntimeError("DisposalSystem is missing a Disposal singleton")
-            
+
         _, (disposal, ) = r_disposal
         if not disposal.entities_to_dispose:
             return
@@ -38,11 +38,11 @@ class DisposalSystem:
         for entity in to_dispose:
             children = registry.get_children(entity)
             entities_to_orphan: set[int] = set()
-            
+
             for child in children:
                 if child not in to_dispose:
                     entities_to_orphan.add(child)
-            
+
             for child in entities_to_orphan:
                 registry.set_parent(child, None)
 

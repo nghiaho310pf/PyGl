@@ -60,7 +60,7 @@ class UiState:
 
     # arrows
     arrow_tail_length: float = 1.0
- 
+
     # spheres
     sphere_radius: float = 0.5
     uv_sphere_stacks: int = 20

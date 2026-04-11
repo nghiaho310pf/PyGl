@@ -71,7 +71,7 @@ float correlatedSmith(float NdotV, float NdotL, float roughness) {
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     float f = clamp(1.0 - cosTheta, 0.0, 1.0);
     float f2 = f * f;
-    float f5 = f2 * f2 * f; 
+    float f5 = f2 * f2 * f;
     return F0 + (1.0 - F0) * f5;
 }
 

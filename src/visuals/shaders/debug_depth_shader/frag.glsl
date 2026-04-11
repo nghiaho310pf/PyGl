@@ -17,7 +17,7 @@ float filmGrain(vec2 coords) {
 
 float linearizeDepth(float depth) {
     float z = depth * 2.0 - 1.0;
-    return (2.0 * u_Near * u_Far) / (u_Far + u_Near - z * (u_Far - u_Near));    
+    return (2.0 * u_Near * u_Far) / (u_Far + u_Near - z * (u_Far - u_Near));
 }
 
 void main() {

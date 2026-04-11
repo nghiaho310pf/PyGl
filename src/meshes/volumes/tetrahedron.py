@@ -16,7 +16,7 @@ def generate_tetrahedron(size=1.0):
         [s, s, s], [s, -s, -s], [-s, s, -s], [-s, -s, s]
     ]
     faces = [(0, 1, 2), (0, 3, 1), (0, 2, 3), (1, 3, 2)]
-    
+
     data = []
     indices = []
     for i, face in enumerate(faces):

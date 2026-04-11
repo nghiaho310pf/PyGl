@@ -9,9 +9,9 @@ from PIL import Image
 from OpenGL import GL
 
 from entities.components.visuals.assets import (
-    AssetsState, AssetStatus, Mesh, Texture, 
+    AssetsState, AssetStatus, Mesh, Texture,
     ModelAsset, ModelNode, MaterialTemplate,
-    ModelTask, MeshFileTask, MeshGeometryTask, 
+    ModelTask, MeshFileTask, MeshGeometryTask,
     TextureFileTask, TextureImageTask,
     ModelResult, MeshResult, TextureResult
 )
@@ -123,8 +123,8 @@ def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, result_queue: 
         interleaved[:, 6:8] = uvs
 
         result_queue.put(MeshResult(
-            asset_id=asset_id, 
-            vertices=interleaved.ravel(), 
+            asset_id=asset_id,
+            vertices=interleaved.ravel(),
             indices=geom.faces.ravel().astype(np.uint32)
         ))
     except Exception as e:
@@ -160,7 +160,7 @@ class AssetSystem:
             )
             thread.start()
             assets_state.worker_started = True
-    
+
     @staticmethod
     def generate_id(assets_state: AssetsState) -> int:
         return next(assets_state.id_counter)
@@ -195,7 +195,7 @@ class AssetSystem:
                             for node in nodes:
                                 if node.mesh_id not in assets_state.meshes:
                                     assets_state.meshes[node.mesh_id] = Mesh(id=node.mesh_id, status=AssetStatus.Loading)
-                                
+
                                 tex_id = node.material_template.albedo_map_id
                                 if tex_id is not None and tex_id not in assets_state.textures:
                                     assets_state.textures[tex_id] = Texture(id=tex_id, filepath="", status=AssetStatus.Loading, is_srgb=True)
@@ -236,9 +236,9 @@ class AssetSystem:
         assets_state.meshes[asset_id] = mesh
         assets_state.result_queue.put(
             MeshResult(
-                asset_id=asset_id, 
-                vertices=vertices, 
-                indices=indices, 
+                asset_id=asset_id,
+                vertices=vertices,
+                indices=indices,
                 error=None
             )
         )
@@ -285,7 +285,7 @@ class AssetSystem:
     @staticmethod
     def request_texture(assets_state: AssetsState, filepath_or_id: str | int, is_srgb: bool = False) -> Texture:
         AssetSystem._ensure_worker(assets_state)
-        
+
         if isinstance(filepath_or_id, int):
             if filepath_or_id in assets_state.textures:
                 return assets_state.textures[filepath_or_id]

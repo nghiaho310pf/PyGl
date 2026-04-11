@@ -14,7 +14,7 @@ class SpawnerSystem:
         r_spawner = registry.get_singleton(SpawnerState)
         if r_spawner is None: return
         spawner_entity, (spawner_state, ) = r_spawner
-        
+
         r_assets = registry.get_singleton(AssetsState)
         if r_assets is None: return
         assets_entity, (assets_state, ) = r_assets

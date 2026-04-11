@@ -14,7 +14,7 @@ def generate_pentagon(size=10.0):
     """
     radius = size / 2.0
     angles = [math.pi/2 + i * 2 * math.pi / 5 for i in range(5)]
-    
+
     positions = []
     for a in angles:
         x = radius * math.cos(a)

@@ -94,9 +94,9 @@ class CameraSystem:
         camera.focal_point_distance = max(0.1, camera.focal_point_distance)
 
         is_input_active = (
-            camera_state.is_rotating or 
-            camera_state.is_panning or 
-            camera_state.is_zooming or 
+            camera_state.is_rotating or
+            camera_state.is_panning or
+            camera_state.is_zooming or
             (not io.want_capture_mouse and io.mouse_wheel != 0.0)
         )
 

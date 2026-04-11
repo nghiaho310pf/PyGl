@@ -130,7 +130,7 @@ float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, fl
     float avgBlockerDepth = 0.0;
     int blockers = 0;
 
-    float searchWidth = 0.005; 
+    float searchWidth = 0.005;
 
     for (int i = 0; i < u_DirSearchSamples; ++i) {
         float r = VOGEL_DISK[i].x * u_InvSqrtDirSearchSamples;
@@ -171,7 +171,7 @@ void main() {
     if (depth == 1.0) discard;
 
     vec3 N = texture(u_NormalTexture, v_UV).xyz;
-    
+
     vec4 ndc = vec4(v_UV * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     vec4 worldPosProj = u_InverseViewProjection * ndc;
     vec3 v_WorldPos = worldPosProj.xyz / worldPosProj.w;

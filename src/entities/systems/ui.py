@@ -577,7 +577,7 @@ class UiSystem:
                 imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)
 
                 imgui.table_next_row()
-                
+
                 imgui.table_next_column()
                 imgui.align_text_to_frame_padding()
                 imgui.text("Draw")
@@ -675,7 +675,7 @@ class UiSystem:
                 if changed_scale:
                     comp.scale = vec3(*new_scale)
                 imgui.tree_pop()
-        
+
         elif isinstance(comp, DirectionalLight):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
                 changed_enabled, new_enabled = imgui.checkbox(
@@ -786,7 +786,7 @@ class UiSystem:
                 if imgui.tree_node_ex("Textures", imgui.TreeNodeFlags_.default_open):
                     if imgui.begin_table("material_textures_table", 3):
                         imgui.table_setup_column("Map", imgui.TableColumnFlags_.width_fixed)
-                        imgui.table_setup_column("Status", imgui.TableColumnFlags_.width_fixed, 60.0) 
+                        imgui.table_setup_column("Status", imgui.TableColumnFlags_.width_fixed, 60.0)
                         imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)
 
                         texture_maps = [
@@ -805,7 +805,7 @@ class UiSystem:
 
                             imgui.table_next_column()
                             current_tex = getattr(comp.material, attr_name)
-                            
+
                             if current_tex is None:
                                 imgui.align_text_to_frame_padding()
                                 imgui.text_disabled("(None)")
@@ -827,7 +827,7 @@ class UiSystem:
                             if imgui.button("Browse..."):
                                 dialog = pfd.open_file(
                                     title=f"Select {display_name} Texture",
-                                    default_path="", 
+                                    default_path="",
                                     filters=["Image Files", "*.png *.jpg *.jpeg *.bmp *.tga", "All Files", "*"]
                                 )
                                 result = dialog.result()
@@ -851,7 +851,7 @@ class UiSystem:
                     imgui.tree_pop()
 
                 imgui.tree_pop()
-        
+
         elif isinstance(comp, SurfaceFunction):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
                 changed_res, new_res = imgui.slider_int("Resolution", comp.resolution, 2, 200)
@@ -889,7 +889,7 @@ class UiSystem:
                 imgui.pop_text_wrap_pos()
 
                 imgui.tree_pop()
-        
+
         elif isinstance(comp, GradientDescentSurface):
             if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
                 changed_run, new_run = imgui.checkbox("Running", comp.is_running)
@@ -928,7 +928,7 @@ class UiSystem:
                 if changed_size:
                     comp.size = new_size
                     comp.dirty = True
-                
+
                 imgui.text_disabled(f"Iterations: {comp.iterations}")
 
                 if imgui.button("+ Add optimizer"):
@@ -951,7 +951,7 @@ class UiSystem:
 
                     registry.set_parent(new_entity, entity_id)
                     registry.set_parent(ui_state.selection_child_entity, new_entity)
-                
+
                 imgui.tree_pop()
 
         elif isinstance(comp, OptimizerState):

@@ -71,7 +71,7 @@ class GradientDescentSurfaceSystem:
 
                 if do_step:
                     dx, dz = GradientDescentSurfaceSystem.evaluate_gradient(
-                        g_surface.function_type, local_x, local_z, 
+                        g_surface.function_type, local_x, local_z,
                         g_surface.rosenbrock_a, g_surface.rosenbrock_b
                     )
 
@@ -107,13 +107,13 @@ class GradientDescentSurfaceSystem:
                 new_pos_world = new_pos_local @ m_surf
 
                 o_transform.position = vec3(new_pos_world[0], new_pos_world[1], new_pos_world[2])
-                
+
                 if do_step:
                     o_optimizer.trajectory.append(vec3(new_pos_world[0], new_pos_world[1], new_pos_world[2]))
 
             if do_step:
                 g_surface.iterations += 1
-    
+
     @staticmethod
     def evaluate_loss(func_type: LossFunctionType, x, z, a=1.0, b=100.0):
         if func_type == LossFunctionType.Himmelblau:
@@ -139,7 +139,7 @@ class GradientDescentSurfaceSystem:
             dx, dz = 0, 0
 
         return dx, dz
-    
+
     @staticmethod
     def _generate_mesh(assets_state: AssetsState, visuals: Visuals, surface: GradientDescentSurface):
         res = max(2, surface.resolution)
@@ -152,13 +152,13 @@ class GradientDescentSurfaceSystem:
 
         # == evaluate the expression (vectorized) ==
         Y = GradientDescentSurfaceSystem.evaluate_loss(
-            surface.function_type, X, Z, 
+            surface.function_type, X, Z,
             surface.rosenbrock_a, surface.rosenbrock_b
         ).astype(np.float32)
 
         # == calculate analytical normals ==
         dX, dZ = GradientDescentSurfaceSystem.evaluate_gradient(
-            surface.function_type, X, Z, 
+            surface.function_type, X, Z,
             surface.rosenbrock_a, surface.rosenbrock_b
         )
         # surface normal formula: (-df/dx, 1, -df/dz)

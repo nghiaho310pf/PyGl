@@ -18,7 +18,7 @@ class IconRenderSystem:
         if r_admin is None:
             raise RuntimeError("IconRenderSystem is missing a (IconRenderState, RenderState, UiState) singleton")
         _, (icon_render_state, render_state, ui_state) = r_admin
-        
+
         r_camera_state = registry.get_singleton(CameraState)
         if r_camera_state is None:
             raise RuntimeError("IconRenderSystem is missing a CameraState singleton")
