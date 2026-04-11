@@ -143,14 +143,14 @@ def quaternions_from_euler(euler_degrees):
     return vec4(*sorted_q1), vec4(*sorted_q2)
 
 
-def fit_euler(new_degrees: npt.NDArray[np.float32], old_degrees: npt.NDArray[np.float32]):
-    alt_degrees = np.array([new_degrees[0] + 180.0, 180.0 - new_degrees[1], new_degrees[2] + 180.0])
+def minimize_euler(degrees: npt.NDArray[np.float32]):
+    sol1 = (degrees + 180.0) % 360.0 - 180.0
 
-    sol1 = new_degrees + np.round((old_degrees - new_degrees) / 360.0) * 360.0
-    sol2 = alt_degrees + np.round((old_degrees - alt_degrees) / 360.0) * 360.0
+    alt_degrees = np.array([degrees[0] + 180.0, 180.0 - degrees[1], degrees[2] + 180.0])
+    sol2 = (alt_degrees + 180.0) % 360.0 - 180.0
 
-    dist1_sq = np.sum((sol1 - old_degrees) ** 2)
-    dist2_sq = np.sum((sol2 - old_degrees) ** 2)
+    dist1_sq = np.sum(sol1 ** 2)
+    dist2_sq = np.sum(sol2 ** 2)
 
     return sol1 if dist1_sq < dist2_sq else sol2
 
