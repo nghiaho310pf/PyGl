@@ -86,8 +86,9 @@ class Shader:
             GL.glUniform1i(loc, value)
 
     def set_mat4(self, name, matrix):
-        loc = GL.glGetUniformLocation(self.program, name)
-        GL.glUniformMatrix4fv(loc, 1, GL.GL_FALSE, matrix)
+        loc = self._get_uniform_location(name)
+        if loc != -1:
+            GL.glUniformMatrix4fv(loc, 1, GL.GL_TRUE, matrix)
 
     def set_vec3_array(self, name, values):
         loc = self._get_uniform_location(name)
@@ -99,7 +100,7 @@ class Shader:
         loc = self._get_uniform_location(name)
         if loc != -1:
             flattened_matrices = np.array(matrices, dtype=np.float32).flatten()
-            GL.glUniformMatrix4fv(loc, len(matrices), GL.GL_FALSE, flattened_matrices)
+            GL.glUniformMatrix4fv(loc, len(matrices), GL.GL_TRUE, flattened_matrices)
 
     def set_int_array(self, name, values):
         loc = self._get_uniform_location(name)
@@ -134,8 +135,8 @@ class ShaderGlobals:
 
     def update(self, projection_matrix, view_matrix, camera_position, time: float):
         data = (
-                projection_matrix.tobytes() +
-                view_matrix.tobytes() +
+                projection_matrix.T.tobytes() +
+                view_matrix.T.tobytes() +
                 struct.pack('3ff', camera_position[0], camera_position[1], camera_position[2], time)
         )
 

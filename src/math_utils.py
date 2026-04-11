@@ -1,6 +1,6 @@
 import math
-
 import numpy as np
+import numpy.typing as npt
 
 
 def float1(x):
@@ -23,8 +23,8 @@ def create_perspective_projection(fovy, aspect, near, far):
     result[0, 0] = 1.0 / (aspect * tan_half_fovy)
     result[1, 1] = 1.0 / tan_half_fovy
     result[2, 2] = -(far + near) / (far - near)
-    result[2, 3] = -1.0
-    result[3, 2] = -(2.0 * far * near) / (far - near)
+    result[2, 3] = -(2.0 * far * near) / (far - near)
+    result[3, 2] = -1.0
 
     return result
 
@@ -34,9 +34,9 @@ def create_orthographic_projection(left, right, bottom, top, near, far):
     result[0, 0] = 2.0 / (right - left)
     result[1, 1] = 2.0 / (top - bottom)
     result[2, 2] = -2.0 / (far - near)
-    result[3, 0] = -(right + left) / (right - left)
-    result[3, 1] = -(top + bottom) / (top - bottom)
-    result[3, 2] = -(far + near) / (far - near)
+    result[0, 3] = -(right + left) / (right - left)
+    result[1, 3] = -(top + bottom) / (top - bottom)
+    result[2, 3] = -(far + near) / (far - near)
     return result
 
 
@@ -46,21 +46,14 @@ def create_look_at(eye, target, up):
     y_axis = np.cross(z_axis, x_axis)
 
     result = np.identity(4, dtype=np.float32)
-    result[0, 0] = x_axis[0]
-    result[1, 0] = x_axis[1]
-    result[2, 0] = x_axis[2]
 
-    result[0, 1] = y_axis[0]
-    result[1, 1] = y_axis[1]
-    result[2, 1] = y_axis[2]
+    result[0, :3] = x_axis
+    result[1, :3] = y_axis
+    result[2, :3] = z_axis
 
-    result[0, 2] = z_axis[0]
-    result[1, 2] = z_axis[1]
-    result[2, 2] = z_axis[2]
-
-    result[3, 0] = -np.dot(x_axis, eye)
-    result[3, 1] = -np.dot(y_axis, eye)
-    result[3, 2] = -np.dot(z_axis, eye)
+    result[0, 3] = -np.dot(x_axis, eye)
+    result[1, 3] = -np.dot(y_axis, eye)
+    result[2, 3] = -np.dot(z_axis, eye)
 
     return result
 
@@ -94,15 +87,15 @@ def calculate_direction_from_rotation(rotation_degrees):
     return mat_rot @ default_dir
 
 
-def create_transformation_matrix(position, rotation_euler, scale):
+def create_transformation_matrix(position, rotation_euler, scale) -> npt.NDArray[np.float32]:
     """
     Creates a model matrix (translation * rotation * scale).
     rotation_euler: (x_degrees, y_degrees, z_degrees)
     """
     mat_trans = np.identity(4, dtype=np.float32)
-    mat_trans[3, 0] = position[0]
-    mat_trans[3, 1] = position[1]
-    mat_trans[3, 2] = position[2]
+    mat_trans[0, 3] = position[0]
+    mat_trans[1, 3] = position[1]
+    mat_trans[2, 3] = position[2]
 
     rx, ry, rz = np.radians(rotation_euler)
 
@@ -137,4 +130,4 @@ def create_transformation_matrix(position, rotation_euler, scale):
     mat_scale[1, 1] = scale[1]
     mat_scale[2, 2] = scale[2]
 
-    return mat_scale @ mat_rot @ mat_trans
+    return mat_trans @ mat_rot @ mat_scale  # type: ignore

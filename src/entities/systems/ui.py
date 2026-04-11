@@ -1007,6 +1007,5 @@ class UiSystem:
         camera_transform: Transform,
         target_transform: Transform,
     ):
-        camera_state.focal_point = np.array(target_transform.position, dtype=np.float32)
-        cam_pos = camera_state.focal_point - camera_state.front * camera.focal_point_distance
-        camera_transform.position = vec3(*cam_pos)
+        camera_state.focal_point = target_transform.position
+        camera_transform.position = camera_state.focal_point - camera_state.front * camera.focal_point_distance  # type: ignore

@@ -158,7 +158,7 @@ class Game(Application):
         self.registry.add_components(
             e2,
             EntityFlags(name="Cube"),
-            Transform(position=vec3(-1.6, 0.5, 0), rotation=vec3(0.0, -57.0, 0.0)),
+            Transform(position=vec3(-1.6, 0.5, 0), rotation=vec3(0.0, 57.0, 0.0)),
             Visuals(AssetSystem.create_immediate_mesh(assets_state, cube_vertices, cube_indices), mat_blue)
         )
 
@@ -176,14 +176,14 @@ class Game(Application):
         self.registry.add_components(
             c,
             EntityFlags(name="Camera 1"),
-            Transform(position=vec3(0.0, 2.4, 5.0), rotation=vec3(-22.0, -100.0, 0.0)),
+            Transform(position=vec3(0.0, 2.4, 5.0), rotation=vec3(-22.0, 0.0, 0.0)),
             Camera()
         )
         c = self.registry.create_entity()
         self.registry.add_components(
             c,
             EntityFlags(name="Camera 2"),
-            Transform(position=vec3(5.0, 2.4, 0.0), rotation=vec3(-22.0, -167.0, 0.0)),
+            Transform(position=vec3(5.0, 2.4, 0.0), rotation=vec3(-22.0, 90.0, 0.0)),
             Camera()
         )
 

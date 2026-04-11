@@ -39,7 +39,7 @@ class GradientDescentSurfaceSystem:
                     o_transform, o_optimizer = r_optimizer
 
                     pos_world = np.array([o_transform.position[0], o_transform.position[1], o_transform.position[2], 1.0], dtype=np.float32)
-                    pos_local = pos_world @ m_inv
+                    pos_local = m_inv @ pos_world
 
                     new_local_y = float1(GradientDescentSurfaceSystem.evaluate_loss(
                         g_surface.function_type, pos_local[0], pos_local[2],
@@ -47,7 +47,7 @@ class GradientDescentSurfaceSystem:
                     ))
                     pos_local[1] = new_local_y
 
-                    new_pos_world = pos_local @ m_surf
+                    new_pos_world = m_surf @ pos_local
                     o_transform.position = vec3(new_pos_world[0], new_pos_world[1], new_pos_world[2])
 
             do_step = False
@@ -64,7 +64,7 @@ class GradientDescentSurfaceSystem:
                 o_transform, o_optimizer = r_optimizer
 
                 pos_world = np.array([o_transform.position[0], o_transform.position[1], o_transform.position[2], 1.0], dtype=np.float32)
-                pos_local = pos_world @ m_inv
+                pos_local = m_inv @ pos_world
 
                 local_x = pos_local[0]
                 local_z = pos_local[2]
@@ -104,7 +104,7 @@ class GradientDescentSurfaceSystem:
                 ))
 
                 new_pos_local = np.array([local_x, local_y, local_z, 1.0], dtype=np.float32)
-                new_pos_world = new_pos_local @ m_surf
+                new_pos_world = m_surf @ new_pos_local
 
                 o_transform.position = vec3(new_pos_world[0], new_pos_world[1], new_pos_world[2])
 

@@ -59,7 +59,7 @@ class IconRenderSystem:
     ):
         world_pos = np.array(
             [transform.position[0], transform.position[1], transform.position[2], 1.0])
-        clip_pos = world_pos @ view_projection_matrix
+        clip_pos = view_projection_matrix @ world_pos
 
         if clip_pos[3] <= 0:
             return

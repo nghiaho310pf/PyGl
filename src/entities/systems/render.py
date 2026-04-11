@@ -533,8 +533,7 @@ class RenderSystem:
             light_pos = -math_utils.normalize(direction) * 20.0
             light_view = math_utils.create_look_at(light_pos, np.array([0.0, 0.0, 0.0], dtype=np.float32), np.array([0.0, 1.0, 0.0], dtype=np.float32))
 
-            # NOTE: multiplication order is reversed for column-major interpretation from row-major numpy
-            dir_light.light_space_matrix = light_view @ dir_light_projection
+            dir_light.light_space_matrix = dir_light_projection @ light_view
             dir_light_space_matrices.append(dir_light.light_space_matrix)
             self.directional_shadowmap_shader.set_mat4("u_LightSpaceMatrix", dir_light.light_space_matrix)
 
