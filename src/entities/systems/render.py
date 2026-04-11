@@ -355,8 +355,6 @@ class RenderSystem:
             color_float = self._get_distributed_color(entity)
             target_color = np.clip(np.round(color_float * 255), 0, 255).astype(np.uint8)
 
-            print(f"Color of entity #{entity}: {target_color}")
-
             mask = (seg_array[:, :, 0] == target_color[0]) & \
                    (seg_array[:, :, 1] == target_color[1]) & \
                    (seg_array[:, :, 2] == target_color[2])
@@ -744,7 +742,6 @@ class RenderSystem:
                 if not visuals.enabled: continue
 
                 target_color = self._get_distributed_color(entity)
-                print(f"Color of entity #{entity}: {target_color}")
                 self.id_shader.set_vec3("u_EntityColor", target_color)
 
                 model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
