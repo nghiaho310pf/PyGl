@@ -193,7 +193,7 @@ class Game(Application):
             l1,
             EntityFlags(name="Main light"),
             DirectionalLight(
-                rotation=vec3(-117.0, -39.0, 142.0),
+                rotation=vec3(160.0, -112.0, 54.0),
                 strength=float1(20.0)
             )
         )

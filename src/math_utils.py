@@ -11,6 +11,10 @@ def vec3(x, y, z):
     return np.array([x, y, z], dtype=np.float32)
 
 
+def vec4(x, y, z, w):
+    return np.array([x, y, z, w], dtype=np.float32)
+
+
 def normalize(v):
     norm = np.linalg.norm(v)
     return v if norm == 0 else v / norm
@@ -83,7 +87,7 @@ def calculate_direction_from_rotation(rotation_degrees):
 
     mat_rot = mat_rot_z @ mat_rot_y @ mat_rot_x
 
-    default_dir = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    default_dir = np.array([0.0, 0.0, -1.0], dtype=np.float32)
     return mat_rot @ default_dir
 
 
@@ -99,7 +103,7 @@ def create_transformation_matrix(position, rotation_euler, scale) -> npt.NDArray
 
     rx, ry, rz = np.radians(rotation_euler)
 
-    c, s = math.cos(rz), math.sin(rz)
+    c, s = np.cos(rz), np.sin(rz)
     mat_rot_z = np.array([
         [c, -s, 0, 0],
         [s, c, 0, 0],
@@ -107,7 +111,7 @@ def create_transformation_matrix(position, rotation_euler, scale) -> npt.NDArray
         [0, 0, 0, 1]
     ], dtype=np.float32)
 
-    c, s = math.cos(ry), math.sin(ry)
+    c, s = np.cos(ry), np.sin(ry)
     mat_rot_y = np.array([
         [c, 0, s, 0],
         [0, 1, 0, 0],
@@ -115,7 +119,7 @@ def create_transformation_matrix(position, rotation_euler, scale) -> npt.NDArray
         [0, 0, 0, 1]
     ], dtype=np.float32)
 
-    c, s = math.cos(rx), math.sin(rx)
+    c, s = np.cos(rx), np.sin(rx)
     mat_rot_x = np.array([
         [1, 0, 0, 0],
         [0, c, -s, 0],
