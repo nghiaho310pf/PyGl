@@ -87,47 +87,142 @@ def calculate_direction_from_rotation(rotation_degrees):
 
     mat_rot = mat_rot_z @ mat_rot_y @ mat_rot_x
 
-    default_dir = np.array([0.0, 0.0, -1.0], dtype=np.float32)
+    default_dir = vec3(0.0, 0.0, -1.0)
     return mat_rot @ default_dir
 
 
-def create_transformation_matrix(position, rotation_euler, scale) -> npt.NDArray[np.float32]:
+def quaternion_from_euler(euler_degrees):
+    rad = np.radians(euler_degrees) * 0.5
+    sx, sy, sz = np.sin(rad)
+    cx, cy, cz = np.cos(rad)
+
+    return vec4(
+        sx * cy * cz - cx * sy * sz, # x
+        cx * sy * cz + sx * cy * sz, # y
+        cx * cy * sz - sx * sy * cz, # z
+        cx * cy * cz + sx * sy * sz  # w
+    )
+
+
+def quaternion_to_euler(q):
+    x, y, z, w = q
+
+    sinr_cosp = 2 * (w * x + y * z)
+    cosr_cosp = 1 - 2 * (x * x + y * y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+
+    sinp = 2 * (w * y - z * x)
+    if abs(sinp) >= 1:
+        pitch = math.copysign(math.pi / 2, sinp)
+    else:
+        pitch = math.asin(sinp)
+
+    siny_cosp = 2 * (w * z + x * y)
+    cosy_cosp = 1 - 2 * (y * y + z * z)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
+
+    # suppress negative zeroes
+    return np.degrees(vec3(roll, pitch, yaw)) + float1(0.0)
+
+
+def quaternions_from_euler(euler_degrees):
+    rad = np.radians(euler_degrees) * 0.5
+    sx, sy, sz = np.sin(rad)
+    cx, cy, cz = np.cos(rad)
+
+    x = sx * cy * cz - cx * sy * sz
+    y = cx * sy * cz + sx * cy * sz
+    z = cx * cy * sz - sx * sy * cz
+    w = cx * cy * cz + sx * sy * sz
+
+    q1 = (x, y, z, w)
+    q2 = (-x, -y, -z, -w)
+
+    sorted_q1, sorted_q2 = sorted([q1, q2])
+
+    return vec4(*sorted_q1), vec4(*sorted_q2)
+
+
+def quaternion_to_axes(q):
+    mat = quaternion_matrix(q)
+    right = mat[:3, 0]
+    up = mat[:3, 1]
+    front = mat[:3, 2]
+    return right, up, front
+
+
+def rotate_vector_by_quaternion(v, q):
+    v_q = vec4(v[0], v[1], v[2], 0.0)
+    q_conj = vec4(-q[0], -q[1], -q[2], q[3])
+    return quaternion_mul(quaternion_mul(q, v_q), q_conj)[:3]
+
+
+def quaternion_mul(q1, q2):
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+
+    return vec4(
+        w1*x2 + x1*w2 + y1*z2 - z1*y2,
+        w1*y2 - x1*z2 + y1*w2 + z1*x2,
+        w1*z2 + x1*y2 - y1*x2 + z1*w2,
+        w1*w2 - x1*x2 - y1*y2 - z1*z2
+    )
+
+
+def quaternion_matrix(q):
+    q = normalize(q)
+    x, y, z, w = q
+
+    xx, yy, zz = x*x, y*y, z*z
+    wx, wy, wz = w*x, w*y, w*z
+    xy, xz, yz = x*y, x*z, y*z
+
+    return np.array([
+        [1.0 - 2.0*(yy + zz), 2.0*(xy - wz),       2.0*(xz + wy),       0.0],
+        [2.0*(xy + wz),       1.0 - 2.0*(xx + zz), 2.0*(yz - wx),       0.0],
+        [2.0*(xz - wy),       2.0*(yz + wx),       1.0 - 2.0*(xx + yy), 0.0],
+        [0.0,                 0.0,                 0.0,                 1.0]
+    ], dtype=np.float32)
+
+
+def quaternion_slerp(q0, q1, fraction):
+    q0 = normalize(q0)
+    q1 = normalize(q1)
+
+    dot = np.dot(q0, q1)
+
+    if dot < 0.0:
+        q1 = -q1
+        dot = -dot
+
+    dot = np.clip(dot, -1.0, 1.0)
+
+    if dot > 0.9995:
+        return normalize(q0 + fraction * (q1 - q0))
+
+    theta_0 = math.acos(dot)
+    theta = theta_0 * fraction
+
+    q2 = normalize(q1 - q0 * dot)
+
+    return q0 * math.cos(theta) + q2 * math.sin(theta)
+
+
+def quaternion_identity():
+    return vec4(0.0, 0.0, 0.0, 1.0)
+
+
+def create_transformation_matrix(position, rotation_quaternion, scale) -> npt.NDArray[np.float32]:
     """
     Creates a model matrix (translation * rotation * scale).
-    rotation_euler: (x_degrees, y_degrees, z_degrees)
+    rotation_quaternion: (x, y, z, w)
     """
     mat_trans = np.identity(4, dtype=np.float32)
     mat_trans[0, 3] = position[0]
     mat_trans[1, 3] = position[1]
     mat_trans[2, 3] = position[2]
 
-    rx, ry, rz = np.radians(rotation_euler)
-
-    c, s = np.cos(rz), np.sin(rz)
-    mat_rot_z = np.array([
-        [c, -s, 0, 0],
-        [s, c, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1]
-    ], dtype=np.float32)
-
-    c, s = np.cos(ry), np.sin(ry)
-    mat_rot_y = np.array([
-        [c, 0, s, 0],
-        [0, 1, 0, 0],
-        [-s, 0, c, 0],
-        [0, 0, 0, 1]
-    ], dtype=np.float32)
-
-    c, s = np.cos(rx), np.sin(rx)
-    mat_rot_x = np.array([
-        [1, 0, 0, 0],
-        [0, c, -s, 0],
-        [0, s, c, 0],
-        [0, 0, 0, 1]
-    ], dtype=np.float32)
-
-    mat_rot = mat_rot_z @ mat_rot_y @ mat_rot_x
+    mat_rot = quaternion_matrix(rotation_quaternion)
 
     mat_scale = np.identity(4, dtype=np.float32)
     mat_scale[0, 0] = scale[0]

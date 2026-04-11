@@ -6,6 +6,7 @@ from entities.components.entity_flags import EntityFlags
 from entities.components.visuals.visuals import Visuals
 from entities.components.visuals.material import Material
 from entities.systems.assets import AssetSystem
+import math_utils
 
 
 class SpawnerSystem:
@@ -51,7 +52,7 @@ class SpawnerSystem:
             entity = registry.create_entity()
 
             world_pos = root_transform.position + node.local_position
-            world_rot = root_transform.rotation + node.local_rotation
+            world_rot = math_utils.quaternion_mul(root_transform.rotation, node.local_rotation)
             world_scale = root_transform.scale * node.local_scale
 
             node_transform = Transform(position=world_pos, rotation=world_rot, scale=world_scale)

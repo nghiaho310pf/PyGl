@@ -16,7 +16,7 @@ from entities.components.visuals.assets import (
     ModelResult, MeshResult, TextureResult
 )
 from entities.registry import Registry
-from math_utils import vec3
+from math_utils import vec3, vec4
 
 def background_asset_worker(assets_state: AssetsState, task_queue: queue.Queue, result_queue: queue.Queue):
     while True:
@@ -47,8 +47,9 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
             geom = scene.geometry[geometry_name]
 
             pos = tf.translation_from_matrix(transform_matrix)
-            euler_rad = tf.euler_from_matrix(transform_matrix)
-            rot = np.degrees(euler_rad)  # type: ignore
+            # trimesh [w, x, y, z] -> [x, y, z, w]
+            q = tf.quaternion_from_matrix(transform_matrix)
+            rot = vec4(q[1], q[2], q[3], q[0])
             scale = tf.scale_from_matrix(transform_matrix)[0]
 
             virtual_mesh_id = AssetSystem.generate_id(assets_state)

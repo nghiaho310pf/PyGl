@@ -17,6 +17,8 @@ class CameraState:
 
     focal_point: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 0.0], dtype=np.float32))
     last_camera_id: int | None = None
+    euler_buffer: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 0.0], dtype=np.float32))
+    last_synced_rotation: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32))
 
     front: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([0.0, 0.0, 1.0], dtype=np.float32))
     right: npt.NDArray[np.float32] = field(default_factory=lambda: np.array([1.0, 0.0, 0.0], dtype=np.float32))

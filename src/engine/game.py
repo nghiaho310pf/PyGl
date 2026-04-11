@@ -31,7 +31,7 @@ from meshes.surfaces.plane import generate_plane
 from meshes.volumes.cube import generate_cube
 from meshes.volumes.subdivided_spheres import generate_icosphere
 from entities.components.visuals.assets import Mesh, AssetsState
-from math_utils import float1, vec3
+from math_utils import float1, quaternion_from_euler, vec3
 from entities.components.visuals.material import Material
 
 
@@ -158,7 +158,7 @@ class Game(Application):
         self.registry.add_components(
             e2,
             EntityFlags(name="Cube"),
-            Transform(position=vec3(-1.6, 0.5, 0), rotation=vec3(0.0, 57.0, 0.0)),
+            Transform(position=vec3(-1.6, 0.5, 0), rotation=quaternion_from_euler(vec3(0.0, 57.0, 0.0))),
             Visuals(AssetSystem.create_immediate_mesh(assets_state, cube_vertices, cube_indices), mat_blue)
         )
 
@@ -176,14 +176,14 @@ class Game(Application):
         self.registry.add_components(
             c,
             EntityFlags(name="Camera 1"),
-            Transform(position=vec3(0.0, 2.4, 5.0), rotation=vec3(-22.0, 0.0, 0.0)),
+            Transform(position=vec3(0.0, 2.4, 5.0), rotation=quaternion_from_euler(vec3(-22.0, 0.0, 0.0))),
             Camera()
         )
         c = self.registry.create_entity()
         self.registry.add_components(
             c,
             EntityFlags(name="Camera 2"),
-            Transform(position=vec3(5.0, 2.4, 0.0), rotation=vec3(-22.0, 90.0, 0.0)),
+            Transform(position=vec3(5.0, 2.4, 0.0), rotation=quaternion_from_euler(vec3(-22.0, 90.0, 0.0))),
             Camera()
         )
 

@@ -38,6 +38,10 @@ class CameraSystem:
 
         io = imgui.get_io()
 
+        if not np.array_equal(camera_transform.rotation, camera_state.last_synced_rotation):
+            camera_state.euler_buffer = math_utils.quaternion_to_euler(camera_transform.rotation)
+            camera_state.last_synced_rotation = camera_transform.rotation.copy()
+
         if imgui.is_mouse_clicked(0) and not io.want_capture_mouse:
             camera_state.is_rotating = True
         if imgui.is_mouse_released(0):
@@ -57,10 +61,14 @@ class CameraSystem:
             yaw_change = io.mouse_delta.x * camera_state.rotation_speed
             pitch_change = io.mouse_delta.y * camera_state.rotation_speed
 
-            new_pitch = camera_transform.rotation[0] - pitch_change
-            new_yaw = camera_transform.rotation[1] - yaw_change
-            new_pitch = max(-89.0, min(89.0, new_pitch))
-            camera_transform.rotation = vec3(new_pitch, new_yaw, camera_transform.rotation[2])
+            camera_state.euler_buffer[1] -= yaw_change
+            camera_state.euler_buffer[0] -= pitch_change
+
+            camera_state.euler_buffer[0] = np.clip(camera_state.euler_buffer[0], -89.0, 89.0)
+
+            q1, q2 = math_utils.quaternions_from_euler(camera_state.euler_buffer)
+            camera_transform.rotation = q1 if np.dot(camera_transform.rotation, q1) >= 0 else q2
+            camera_state.last_synced_rotation = camera_transform.rotation.copy()
 
         cam_rot_matrix = math_utils.create_transformation_matrix(
             vec3(0, 0, 0),

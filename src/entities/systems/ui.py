@@ -41,7 +41,7 @@ from meshes.volumes.subdivided_spheres import generate_icosphere, generate_tetra
 from meshes.volumes.tetrahedron import generate_tetrahedron
 from meshes.volumes.torus import generate_torus
 from meshes.volumes.uv_sphere import generate_uv_sphere
-from math_utils import float1, vec3
+from math_utils import float1, quaternions_from_euler, vec3, quaternion_identity, quaternion_to_euler
 
 
 class UiSystem:
@@ -118,7 +118,7 @@ class UiSystem:
                     ui_state.should_close_add_menu = True
 
             preview_transform.position = vec3(*camera_state.focal_point)
-            preview_transform.rotation = vec3(0.0, 0.0, 0.0)
+            preview_transform.rotation = quaternion_identity()
             preview_transform.scale = vec3(1.0, 1.0, 1.0)
 
             changed_type = False
@@ -665,10 +665,23 @@ class UiSystem:
                 if changed_pos:
                     comp.position = vec3(*new_pos)
 
-                changed_rot, new_rot = imgui.drag_float3(
-                    "Rotation", comp.rotation.tolist(), 0.1)
+                # no, we're not gonna be cute and use an epsilon or a dot product.
+                # if it changed, it changed.
+                if not np.array_equal(comp.rotation, ui_state.last_synced_quaternion):
+                    # TODO: perhaps fit the quaternion back into `ui_state.euler_buffer` in a way that inflicts the smallest delta to `ui_state.euler_buffer`.
+                    ui_state.euler_buffer = quaternion_to_euler(comp.rotation)
+                    ui_state.last_synced_quaternion = comp.rotation.copy()
+
+                changed_rot, new_euler = imgui.drag_float3("Rotation", ui_state.euler_buffer.tolist(), 0.1)
+
                 if changed_rot:
-                    comp.rotation = (vec3(*new_rot) + 180.0) % 360.0 - 180.0
+                    ui_state.euler_buffer = vec3(*new_euler)
+                    new_quat_1, new_quat_2 = quaternions_from_euler(ui_state.euler_buffer)
+                    if np.dot(comp.rotation, new_quat_1) >= 0:
+                        comp.rotation = new_quat_1
+                    else:
+                        comp.rotation = new_quat_2
+                    ui_state.last_synced_quaternion = comp.rotation.copy()
 
                 changed_scale, new_scale = imgui.drag_float3(
                     "Scale", comp.scale.tolist(), 0.1)

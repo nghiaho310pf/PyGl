@@ -1,7 +1,11 @@
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
+import numpy as np
+import numpy.typing as npt
+
 from entities.components.visuals.material import Material
+from math_utils import quaternion_identity, vec3
 
 
 class AddType(Enum):
@@ -84,4 +88,6 @@ class UiState:
     preview_visual_initialized: bool = False
 
     # == other stuff ==
+    euler_buffer: npt.NDArray[np.float32] = field(default_factory=lambda: vec3(0.0, 0.0, 0.0))
+    last_synced_quaternion: npt.NDArray[np.float32] = field(default_factory=quaternion_identity)
     should_close_add_menu: bool = False
