@@ -563,6 +563,9 @@ class UiSystem:
 
         # == graphics settings section ==
         if imgui.collapsing_header("Graphics", imgui.TreeNodeFlags_.default_open):
+            if imgui.button("Capture this frame"):
+                render_state.is_capture = True
+
             if imgui.begin_table("graphics_render_mode", 2):
                 imgui.table_setup_column("Label", imgui.TableColumnFlags_.width_fixed)
                 imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)

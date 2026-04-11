@@ -24,6 +24,9 @@ class GraphicsSettings:
 class RenderState:
     global_draw_mode: GlobalDrawMode = GlobalDrawMode.Normal
 
+    frame_number: int = 0
+    is_capture: bool = False
+
     shadow_blur_depth_sensitivity: np.float32 = np.float32(5.0)
     shadow_blur_normal_threshold: np.float32 = np.float32(0.7)
 

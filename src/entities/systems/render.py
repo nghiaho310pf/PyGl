@@ -1,8 +1,11 @@
+import colorsys
+from pathlib import Path
 from typing import Tuple
+import ctypes
 
 import numpy as np
 from OpenGL import GL
-import ctypes
+import PIL.Image as Image
 
 from entities.components.camera_state import CameraState
 from entities.components.visuals.assets import Mesh, AssetStatus
@@ -15,7 +18,7 @@ from entities.components.visuals.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from entities.components.visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
-from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader
+from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader, id_shader
 from visuals.shaders.smaa import shaders as smaa_shaders, smaa_area_tex, smaa_search_tex
 import math_utils
 
@@ -32,6 +35,7 @@ class RenderSystem:
         self.depth_prepass_shader = depth_prepass_shader.make_shader()
         self.tf2_ggx_shader = tf2_ggx_smith.make_shader()
         self.debug_depth_shader = debug_depth_shader.make_shader()
+        self.id_shader = id_shader.make_shader()
         (
             self.smaa_edge_shader,
             self.smaa_weight_shader,
@@ -45,6 +49,7 @@ class RenderSystem:
         self._attach_shader(self.depth_prepass_shader)
         self._attach_shader(self.tf2_ggx_shader)
         self._attach_shader(self.debug_depth_shader)
+        self._attach_shader(self.id_shader)
         self._attach_shader(self.smaa_edge_shader)
         self._attach_shader(self.smaa_weight_shader)
         self._attach_shader(self.smaa_blend_shader)
@@ -170,6 +175,18 @@ class RenderSystem:
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
+        # == segmentation mask FBO ==
+        self.segmentation_fbo = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
+
+        self.seg_color_tex = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.seg_color_tex)
+        # TOOD: use GL_RGB8 for color-coded IDs or GL_R32I for actual integer IDs?
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, self.seg_color_tex, 0)
+        # reuse existing depth texture
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.main_depth_tex, 0)
+
     def _draw_fullscreen_quad(self):
         if not hasattr(self, "_quad_vao"):
             quad_data = np.array([
@@ -250,6 +267,74 @@ class RenderSystem:
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
+    def _setup_shader_properties(self, shader: Shader, material: Material):
+        shader.set_vec3("u_Albedo", material.albedo)
+        shader.set_float("u_Roughness", float(material.roughness))
+        shader.set_float("u_Metallic", float(material.metallic))
+        shader.set_float("u_Reflectance", float(material.reflectance))
+        shader.set_float("u_Translucency", float(material.translucency))
+        shader.set_float("u_AO", float(material.ao))
+
+        def bind_map(tex_attr, sampler_name, flag_name, unit):
+            GL.glActiveTexture(GL.GL_TEXTURE0 + unit)
+            tex = getattr(material, tex_attr, None)
+            if tex and tex.status == AssetStatus.Ready and tex.gl_id:
+                GL.glBindTexture(GL.GL_TEXTURE_2D, tex.gl_id)
+                shader.set_int(sampler_name, unit)
+                shader.set_int(flag_name, 1)
+            else:
+                GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
+                shader.set_int(sampler_name, unit)
+                shader.set_int(flag_name, 0)
+
+        bind_map("albedo_map",   "u_AlbedoMap",   "u_UseAlbedoMap",   0)
+        # bind_map("normal_map",   "u_NormalMap",   "u_UseNormalMap",   1)
+        # bind_map("specular_map", "u_SpecularMap", "u_UseSpecularMap", 2)
+
+    def _export_dataset_frame(self, width, height, camera: Camera, frame_name):
+        exports = {
+            "images": (0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
+            "segmentation": (self.segmentation_fbo, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
+            "depth": (self.main_fbo, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, "F"),
+        }
+
+        base_path = Path("dataset")
+
+        for folder, (fbo, gl_fmt, gl_type, pil_mode) in exports.items():
+            export_dir = base_path / folder
+            export_dir.mkdir(parents=True, exist_ok=True)
+
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, fbo)
+
+            if fbo == self.segmentation_fbo:
+                GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
+            elif fbo == 0:
+                GL.glReadBuffer(GL.GL_BACK)
+
+            raw_data = GL.glReadPixels(0, 0, width, height, gl_fmt, gl_type)
+            save_path = export_dir / f"{frame_name}.png"
+
+            if folder == "depth":
+                if not isinstance(raw_data, np.ndarray):
+                    raise RuntimeError("GL.glReadPixels did not return a NumPy array for depth buffer")
+                z_n = raw_data.reshape((height, width))
+                z_lin = (2.0 * camera.near * camera.far) / (camera.far + camera.near - z_n * (camera.far - camera.near))
+                unique_values = len(np.unique(z_lin))
+                depth_mm = (z_lin * 1000).astype(np.uint16) 
+
+                img = Image.fromarray(depth_mm, mode="I;16")
+                img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+                img.save(save_path)
+            else:
+                if not isinstance(raw_data, bytes):
+                    raise RuntimeError("GL.glReadPixels did not return bytes for non-depth buffer")
+                img = Image.frombytes(pil_mode, (width, height), raw_data)
+                img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+
+                img.save(save_path)
+
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+
     def update(self, registry: Registry, window_size: tuple[int, int], time: float, delta_time: float):
         width, height = window_size
         self._setup_fbos(width, height)
@@ -274,7 +359,10 @@ class RenderSystem:
         (camera_transform, camera) = r_camera
 
         # choose graphics settings for this frame
-        graphics_settings = render_state.viewport_graphics_settings
+        if render_state.is_capture:
+            graphics_settings = render_state.capture_graphics_settings
+        else:
+            graphics_settings = render_state.viewport_graphics_settings
 
         # == lights setup ==
         active_point_lights: list[Tuple[Transform, PointLight]] = []
@@ -588,7 +676,7 @@ class RenderSystem:
             else: GL.glDisable(GL.GL_CULL_FACE)
             for material, entities in batches[batch_key].items():
                 if render_state.global_draw_mode != GlobalDrawMode.DepthOnly:
-                    self.setup_shader_properties(current_shader, material)
+                    self._setup_shader_properties(current_shader, material)
                 for transform, visuals in entities:
                     model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
                     current_shader.set_mat4("u_Model", model_matrix)
@@ -596,6 +684,32 @@ class RenderSystem:
 
         # reset to fill for subsequent passes
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
+
+        # == segmentation mask pass ==
+        if render_state.is_capture:
+            def get_distributed_color(entity_id):
+                phi = 0.618033988749895
+                h = (entity_id * phi) % 1.0
+                s = 0.5 + (entity_id % 5) * 0.1
+                v = 0.95 
+
+                return np.array(colorsys.hsv_to_rgb(h, s, v))
+
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
+            GL.glViewport(0, 0, width, height)
+            GL.glClearColor(0, 0, 0, 0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT) 
+
+            self.id_shader.use()
+
+            for entity, (transform, visuals) in registry.view(Transform, Visuals):
+                if not visuals.enabled: continue
+
+                self.id_shader.set_vec3("u_EntityColor", get_distributed_color(entity))
+
+                model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
+                self.id_shader.set_mat4("u_Model", model_matrix)
+                self._draw_mesh(visuals.mesh)
 
         # == smaa ==
         if graphics_settings.enable_smaa:
@@ -665,26 +779,9 @@ class RenderSystem:
         GL.glDepthMask(GL.GL_TRUE)
         GL.glDepthFunc(GL.GL_LESS)
 
-    def setup_shader_properties(self, shader: Shader, material: Material):
-        shader.set_vec3("u_Albedo", material.albedo)
-        shader.set_float("u_Roughness", float(material.roughness))
-        shader.set_float("u_Metallic", float(material.metallic))
-        shader.set_float("u_Reflectance", float(material.reflectance))
-        shader.set_float("u_Translucency", float(material.translucency))
-        shader.set_float("u_AO", float(material.ao))
+        # == handle capture ==
+        if render_state.is_capture:
+            self._export_dataset_frame(width, height, camera, str(render_state.frame_number).zfill(6))
+            render_state.is_capture = False
 
-        def bind_map(tex_attr, sampler_name, flag_name, unit):
-            GL.glActiveTexture(GL.GL_TEXTURE0 + unit)
-            tex = getattr(material, tex_attr, None)
-            if tex and tex.status == AssetStatus.Ready and tex.gl_id:
-                GL.glBindTexture(GL.GL_TEXTURE_2D, tex.gl_id)
-                shader.set_int(sampler_name, unit)
-                shader.set_int(flag_name, 1)
-            else:
-                GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
-                shader.set_int(sampler_name, unit)
-                shader.set_int(flag_name, 0)
-
-        bind_map("albedo_map",   "u_AlbedoMap",   "u_UseAlbedoMap",   0)
-        # bind_map("normal_map",   "u_NormalMap",   "u_UseNormalMap",   1)
-        # bind_map("specular_map", "u_SpecularMap", "u_UseSpecularMap", 2)
+        render_state.frame_number += 1
