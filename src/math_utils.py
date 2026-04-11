@@ -92,7 +92,7 @@ def calculate_direction_from_rotation(rotation_degrees):
 
 
 def quaternion_from_euler(euler_degrees):
-    rad = np.radians(euler_degrees) * 0.5
+    rad = np.radians(euler_degrees.astype(np.float64)) * 0.5
     sx, sy, sz = np.sin(rad)
     cx, cy, cz = np.cos(rad)
 
@@ -104,29 +104,30 @@ def quaternion_from_euler(euler_degrees):
     )
 
 
-def quaternion_to_euler(q):
-    x, y, z, w = q
+def quaternion_to_euler(q: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    q64 = q.astype(np.float64)
+    x, y, z, w = q64
 
     sinr_cosp = 2 * (w * x + y * z)
     cosr_cosp = 1 - 2 * (x * x + y * y)
-    roll = math.atan2(sinr_cosp, cosr_cosp)
+    roll = np.atan2(sinr_cosp, cosr_cosp)
 
     sinp = 2 * (w * y - z * x)
-    if abs(sinp) >= 1:
-        pitch = math.copysign(math.pi / 2, sinp)
+
+    if abs(sinp) >= 1.0 - 1e-7:
+        pitch = np.copysign(np.pi / 2, sinp)
     else:
-        pitch = math.asin(sinp)
+        pitch = np.asin(sinp)
 
     siny_cosp = 2 * (w * z + x * y)
     cosy_cosp = 1 - 2 * (y * y + z * z)
-    yaw = math.atan2(siny_cosp, cosy_cosp)
+    yaw = np.atan2(siny_cosp, cosy_cosp)
 
-    # suppress negative zeroes
-    return np.degrees(vec3(roll, pitch, yaw)) + float1(0.0)
+    return np.degrees(vec3(roll, pitch, yaw)).astype(np.float32)
 
 
 def quaternions_from_euler(euler_degrees):
-    rad = np.radians(euler_degrees) * 0.5
+    rad = np.radians(euler_degrees.astype(np.float64)) * 0.5
     sx, sy, sz = np.sin(rad)
     cx, cy, cz = np.cos(rad)
 
