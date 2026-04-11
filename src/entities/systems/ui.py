@@ -589,7 +589,7 @@ class UiSystem:
                 if imgui.radio_button("wireframe", render_state.global_draw_mode == GlobalDrawMode.Wireframe):
                     render_state.global_draw_mode = GlobalDrawMode.Wireframe
                 imgui.same_line()
-                if imgui.radio_button("depthmap", render_state.global_draw_mode == GlobalDrawMode.DepthOnly):
+                if imgui.radio_button("depth", render_state.global_draw_mode == GlobalDrawMode.DepthOnly):
                     render_state.global_draw_mode = GlobalDrawMode.DepthOnly
 
                 imgui.end_table()
@@ -603,20 +603,23 @@ class UiSystem:
             if changed_ci:
                 icon_render_state.draw_camera_icons = new_ci
 
-            changed_depth_sensitivity, new_depth_sensitivity = imgui.drag_float(
-                "Blur depth sensitivity", float(render_state.shadow_blur_depth_sensitivity), 0.01, 0.0, 200.0)
-            if changed_depth_sensitivity:
-                render_state.shadow_blur_depth_sensitivity = float1(new_depth_sensitivity)
-            changed_norm_thres, new_norm_thres = imgui.drag_float(
-                "Blur normal threshold", float(render_state.shadow_blur_normal_threshold), 0.001, 0.0, 1.0)
-            if changed_norm_thres:
-                render_state.shadow_blur_normal_threshold = float1(new_norm_thres)
+            if imgui.tree_node_ex("Shadow blurring"):
+                changed_depth_sensitivity, new_depth_sensitivity = imgui.drag_float(
+                    "Depth sensitivity", float(render_state.shadow_blur_depth_sensitivity), 0.01, 0.0, 200.0)
+                if changed_depth_sensitivity:
+                    render_state.shadow_blur_depth_sensitivity = float1(new_depth_sensitivity)
+                changed_norm_thres, new_norm_thres = imgui.drag_float(
+                    "Normal threshold", float(render_state.shadow_blur_normal_threshold), 0.001, 0.0, 1.0)
+                if changed_norm_thres:
+                    render_state.shadow_blur_normal_threshold = float1(new_norm_thres)
+
+                imgui.tree_pop()
 
             for name, preset in [
-                ("Viewport", render_state.viewport_graphics_settings),
-                ("Capture", render_state.capture_graphics_settings)
+                ("Viewport settings", render_state.viewport_graphics_settings),
+                ("Capture settings", render_state.capture_graphics_settings)
             ]:
-                if imgui.tree_node_ex(name, imgui.TreeNodeFlags_.default_open):
+                if imgui.tree_node_ex(name):
                     changed_smaa, new_smaa = imgui.checkbox("SMAA", preset.enable_smaa)
                     if changed_smaa:
                         preset.enable_smaa = new_smaa
