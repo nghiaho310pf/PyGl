@@ -42,6 +42,9 @@ class GizmoSystem:
         draw_list = imgui.get_background_draw_list()
 
         world_space_origin = transform.position
+        distance_to_camera = np.linalg.norm(world_space_origin - camera_state.camera_position)
+        gizmo_too_close = distance_to_camera < camera_state.camera_near
+
         screen_space_origin = GizmoSystem._world_to_screen(world_space_origin, camera_state.view_projection_matrix, window_size)
 
         if screen_space_origin is None:
@@ -73,7 +76,7 @@ class GizmoSystem:
         mouse_position = vec2(io.mouse_pos.x, io.mouse_pos.y)
 
         # == handle hovering & mouse-down ==
-        if not gizmo_state.is_dragging:
+        if not gizmo_state.is_dragging and not gizmo_too_close:
             gizmo_state.active_axis = GizmoAxis.NoAxis
             if not io.want_capture_mouse:
                 # let's detect which axis is being hovered
@@ -132,42 +135,43 @@ class GizmoSystem:
                     GizmoSystem._apply_rotation(gizmo_state, transform, camera_state, window_size, mouse_position)
 
         # == render the visual gizmo ==
-        for axis_type, axis_direction in axes.items():
-            is_active = gizmo_state.active_axis == axis_type
-            color = colors[axis_type]
-            if is_active:
-                color = (1.0, 1.0, 0.0, 1.0)
+        if not gizmo_too_close:
+            for axis_type, axis_direction in axes.items():
+                is_active = gizmo_state.active_axis == axis_type
+                color = colors[axis_type]
+                if is_active:
+                    color = (1.0, 1.0, 0.0, 1.0)
 
-            color_u32 = imgui.get_color_u32(color)
-            thickness = 3.0 if is_active else 2.0
+                color_u32 = imgui.get_color_u32(color)
+                thickness = 3.0 if is_active else 2.0
 
-            if gizmo_state.mode == GizmoMode.Translate:
-                world_space_arrow_end = world_space_origin + axis_direction * (world_scale * 50.0)
-                screen_space_arrow_end = GizmoSystem._world_to_screen(world_space_arrow_end, camera_state.view_projection_matrix, window_size)
-                if screen_space_arrow_end is None: continue
+                if gizmo_state.mode == GizmoMode.Translate:
+                    world_space_arrow_end = world_space_origin + axis_direction * (world_scale * 50.0)
+                    screen_space_arrow_end = GizmoSystem._world_to_screen(world_space_arrow_end, camera_state.view_projection_matrix, window_size)
+                    if screen_space_arrow_end is None: continue
 
-                draw_list.add_line(
-                    unpack_vec2(screen_space_origin),
-                    unpack_vec2(screen_space_arrow_end),
-                    color_u32,
-                    thickness
-                )
+                    draw_list.add_line(
+                        unpack_vec2(screen_space_origin),
+                        unpack_vec2(screen_space_arrow_end),
+                        color_u32,
+                        thickness
+                    )
 
-                screen_space_arrow_direction = screen_space_arrow_end - screen_space_origin
-                screen_space_arrow_length = np.linalg.norm(screen_space_arrow_direction)
-                if screen_space_arrow_length > 0.001:
-                    GizmoSystem._draw_arrow_head(draw_list, screen_space_arrow_end, screen_space_arrow_direction / screen_space_arrow_length, color_u32)
+                    screen_space_arrow_direction = screen_space_arrow_end - screen_space_origin
+                    screen_space_arrow_length = np.linalg.norm(screen_space_arrow_direction)
+                    if screen_space_arrow_length > 0.001:
+                        GizmoSystem._draw_arrow_head(draw_list, screen_space_arrow_end, screen_space_arrow_direction / screen_space_arrow_length, color_u32)
 
-            elif gizmo_state.mode == GizmoMode.Rotate:
-                points = GizmoSystem._get_rotation_circle_points(world_space_origin, axis_type, camera_state, window_size, world_scale * 50.0)
-                if len(points) > 1:
-                    for i in range(len(points) - 1):
-                        draw_list.add_line(
-                            unpack_vec2(points[i]),
-                            unpack_vec2(points[i+1]),
-                            color_u32,
-                            thickness
-                        )
+                elif gizmo_state.mode == GizmoMode.Rotate:
+                    points = GizmoSystem._get_rotation_circle_points(world_space_origin, axis_type, camera_state, window_size, world_scale * 50.0)
+                    if len(points) > 1:
+                        for i in range(len(points) - 1):
+                            draw_list.add_line(
+                                unpack_vec2(points[i]),
+                                unpack_vec2(points[i+1]),
+                                color_u32,
+                                thickness
+                            )
 
     @staticmethod
     def _world_to_screen(world_pos, view_projection_matrix, window_size):
