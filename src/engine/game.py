@@ -10,6 +10,7 @@ from entities.components.entity_flags import EntityFlags
 from entities.components.spawner_state import SpawnerState
 from entities.components.visuals.assets import AssetsState
 from entities.components.ui.icon_render_state import IconRenderState
+from entities.components.ui.gizmo_state import GizmoState
 from entities.components.point_light import PointLight
 from entities.components.directional_light import DirectionalLight
 from entities.components.render_state import RenderState
@@ -27,6 +28,7 @@ from entities.systems.spawner import SpawnerSystem
 from entities.systems.ui import UiSystem
 from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
+from entities.systems.gizmo import GizmoSystem
 from meshes.surfaces.plane import generate_plane
 from meshes.volumes.cube import generate_cube
 from meshes.volumes.subdivided_spheres import generate_icosphere
@@ -111,6 +113,7 @@ class Game(Application):
             spawner_state,
             RenderState(),
             IconRenderState(),
+            GizmoState(),
         )
 
         # == demo setup ==
@@ -220,6 +223,8 @@ class Game(Application):
         # here instead of in systems, but this is simpler.
         self.imgui_renderer.process_inputs()
         imgui.new_frame()
+
+        GizmoSystem.update(self.registry, window_size)
         CameraSystem.update(self.registry, window_size, now, dt)
         UiSystem.update(self.registry, now, dt)
         SpawnerSystem.update(self.registry)
@@ -228,6 +233,7 @@ class Game(Application):
         AssetSystem.update(self.registry)
         self.render_system.update(self.registry, window_size, now, dt)
         IconRenderSystem.update(self.registry, window_size)
+
         imgui.render()
         self.imgui_renderer.render(imgui.get_draw_data())
 

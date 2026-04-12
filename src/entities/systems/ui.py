@@ -14,6 +14,7 @@ from entities.components.gd.surface import GradientDescentSurface, LossFunctionT
 from entities.components.spawner_state import SpawnerState
 from entities.components.surface_function import CompilationStatus, SurfaceFunction
 from entities.components.ui.icon_render_state import IconRenderState
+from entities.components.ui.gizmo_state import GizmoState, GizmoMode
 from entities.components.point_light import PointLight
 from entities.components.render_state import GlobalDrawMode, RenderState
 from entities.components.transform import Transform
@@ -50,11 +51,13 @@ class UiSystem:
         r_ui = registry.get_singleton(UiState)
         r_admin = registry.get_singleton(AssetsState, SpawnerState, RenderState, IconRenderState, Disposal)
         r_camera_state = registry.get_singleton(CameraState)
-        if r_ui is None or r_admin is None or r_camera_state is None:
+        r_gizmo = registry.get_singleton(GizmoState)
+        if r_ui is None or r_admin is None or r_camera_state is None or r_gizmo is None:
             return
         ui_entity, (ui_state, ) = r_ui
         admin_entity, (assets_state, spawner_state, render_state, icon_render_state, disposal) = r_admin
         camera_state_entity, (camera_state, ) = r_camera_state
+        gizmo_state_entity, (gizmo_state, ) = r_gizmo
 
         r_preview = registry.get_components(ui_state.preview_entity, Transform, Visuals)
         if r_preview is None:
@@ -76,6 +79,20 @@ class UiSystem:
         if not main_expanded:
             imgui.end()
             return
+
+        if selected_entity is None:
+            imgui.begin_disabled()
+        if imgui.button("Deselect"):
+            registry.set_parent(ui_state.selection_child_entity, None)
+        if selected_entity is None:
+            imgui.end_disabled()
+        imgui.same_line()
+        if imgui.radio_button("Translate", gizmo_state.mode == GizmoMode.Translate):
+            gizmo_state.mode = GizmoMode.Translate
+        imgui.same_line()
+        if imgui.radio_button("Rotate", gizmo_state.mode == GizmoMode.Rotate):
+            gizmo_state.mode = GizmoMode.Rotate
+        imgui.separator()
 
         # warn when there's no camera
         if registry.get_parent(camera_state_entity) is None:

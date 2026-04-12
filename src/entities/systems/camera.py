@@ -4,6 +4,7 @@ from imgui_bundle import imgui
 from entities.components.camera import Camera
 from entities.components.transform import Transform
 from entities.components.camera_state import CameraState
+from entities.components.ui.gizmo_state import GizmoState
 from entities.registry import Registry
 from math_utils import minimize_euler, vec3
 import math_utils
@@ -37,23 +38,30 @@ class CameraSystem:
             camera_state.last_camera_id = parent_entity
 
         io = imgui.get_io()
+        r_gizmo = registry.get_singleton(GizmoState)
+        gizmo_dragging = r_gizmo[1][0].is_dragging if r_gizmo else False
+
+        if gizmo_dragging:
+            camera_state.is_rotating = False
+            camera_state.is_panning = False
+            camera_state.is_zooming = False
 
         if not np.array_equal(camera_transform.rotation, camera_state.last_synced_rotation):
             new_euler = math_utils.quaternion_to_euler(camera_transform.rotation)
             camera_state.euler_buffer = minimize_euler(new_euler)
             camera_state.last_synced_rotation = camera_transform.rotation.copy()
 
-        if imgui.is_mouse_clicked(0) and not io.want_capture_mouse:
+        if imgui.is_mouse_clicked(0) and not io.want_capture_mouse and not gizmo_dragging:
             camera_state.is_rotating = True
         if imgui.is_mouse_released(0):
             camera_state.is_rotating = False
 
-        if imgui.is_mouse_clicked(2) and not io.want_capture_mouse:
+        if imgui.is_mouse_clicked(2) and not io.want_capture_mouse and not gizmo_dragging:
             camera_state.is_panning = True
         if imgui.is_mouse_released(2):
             camera_state.is_panning = False
 
-        if imgui.is_mouse_clicked(1) and not io.want_capture_mouse:
+        if imgui.is_mouse_clicked(1) and not io.want_capture_mouse and not gizmo_dragging:
             camera_state.is_zooming = True
         if imgui.is_mouse_released(1):
             camera_state.is_zooming = False

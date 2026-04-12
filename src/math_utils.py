@@ -1,10 +1,19 @@
 import math
+from typing import Tuple
 import numpy as np
 import numpy.typing as npt
 
 
 def float1(x):
     return np.float32(x)
+
+
+def vec2(x, y):
+    return np.array([x, y], dtype=np.float32)
+
+
+def unpack_vec2(v: npt.NDArray) -> Tuple[float, float]:
+    return (float(v[0]), float(v[1]))
 
 
 def vec3(x, y, z):
@@ -203,6 +212,18 @@ def quaternion_slerp(q0, q1, fraction):
 
 def quaternion_identity():
     return vec4(0.0, 0.0, 0.0, 1.0)
+
+
+def quaternion_from_axis_angle(axis, angle_degrees):
+    axis = normalize(axis)
+    half_angle = math.radians(angle_degrees) * 0.5
+    s = math.sin(half_angle)
+    return vec4(
+        axis[0] * s,
+        axis[1] * s,
+        axis[2] * s,
+        math.cos(half_angle)
+    )
 
 
 def create_transformation_matrix(position, rotation_quaternion, scale) -> npt.NDArray[np.float32]:
