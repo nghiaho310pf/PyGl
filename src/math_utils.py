@@ -63,32 +63,9 @@ def create_look_at(eye, target, up):
 
 
 def calculate_direction_from_rotation(rotation_degrees):
-    rad = np.radians(rotation_degrees)
-    cx, cy, cz = np.cos(rad)
-    sx, sy, sz = np.sin(rad)
-
-    mat_rot_x = np.array([
-        [1, 0, 0],
-        [0, cx, -sx],
-        [0, sx, cx]
-    ], dtype=np.float32)
-
-    mat_rot_y = np.array([
-        [cy, 0, sy],
-        [0, 1, 0],
-        [-sy, 0, cy]
-    ], dtype=np.float32)
-
-    mat_rot_z = np.array([
-        [cz, -sz, 0],
-        [sz, cz, 0],
-        [0, 0, 1]
-    ], dtype=np.float32)
-
-    mat_rot = mat_rot_z @ mat_rot_y @ mat_rot_x
-
+    q = quaternion_from_euler(rotation_degrees)
     default_dir = vec3(0.0, 0.0, -1.0)
-    return mat_rot @ default_dir
+    return rotate_vector_by_quaternion(default_dir, q)
 
 
 def quaternion_from_euler(euler_degrees):
@@ -167,9 +144,10 @@ def quaternion_to_axes(q):
 
 
 def rotate_vector_by_quaternion(v, q):
-    v_q = vec4(v[0], v[1], v[2], 0.0)
-    q_conj = vec4(-q[0], -q[1], -q[2], q[3])
-    return quaternion_mul(quaternion_mul(q, v_q), q_conj)[:3]
+    q_vec = q[:3]
+    q_w = q[3]
+    t = 2.0 * np.cross(q_vec, v)
+    return v + q_w * t + np.cross(q_vec, t)
 
 
 def quaternion_mul(q1, q2):
