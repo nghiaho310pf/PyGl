@@ -232,16 +232,12 @@ def create_transformation_matrix(position, rotation_quaternion, scale) -> npt.ND
     Creates a model matrix (translation * rotation * scale).
     rotation_quaternion: (x, y, z, w)
     """
-    mat_trans = np.identity(4, dtype=np.float32)
-    mat_trans[0, 3] = position[0]
-    mat_trans[1, 3] = position[1]
-    mat_trans[2, 3] = position[2]
+    mat = quaternion_matrix(rotation_quaternion)
 
-    mat_rot = quaternion_matrix(rotation_quaternion)
+    mat[:3, 0] *= scale[0]
+    mat[:3, 1] *= scale[1]
+    mat[:3, 2] *= scale[2]
 
-    mat_scale = np.identity(4, dtype=np.float32)
-    mat_scale[0, 0] = scale[0]
-    mat_scale[1, 1] = scale[1]
-    mat_scale[2, 2] = scale[2]
-
-    return mat_trans @ mat_rot @ mat_scale  # type: ignore
+    mat[:3, 3] = position
+    
+    return mat
