@@ -108,20 +108,22 @@ def quaternion_to_euler(q: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     q64 = q.astype(np.float64)
     x, y, z, w = q64
 
-    sinr_cosp = 2 * (w * x + y * z)
-    cosr_cosp = 1 - 2 * (x * x + y * y)
-    roll = np.atan2(sinr_cosp, cosr_cosp)
-
     sinp = 2 * (w * y - z * x)
 
     if abs(sinp) >= 1.0 - 1e-7:
         pitch = np.copysign(np.pi / 2, sinp)
+        roll = 0.0
+        yaw = 2 * np.atan2(z, w)
     else:
         pitch = np.asin(sinp)
 
-    siny_cosp = 2 * (w * z + x * y)
-    cosy_cosp = 1 - 2 * (y * y + z * z)
-    yaw = np.atan2(siny_cosp, cosy_cosp)
+        sinr_cosp = 2 * (w * x + y * z)
+        cosr_cosp = 1 - 2 * (x * x + y * y)
+        roll = np.atan2(sinr_cosp, cosr_cosp)
+
+        siny_cosp = 2 * (w * z + x * y)
+        cosy_cosp = 1 - 2 * (y * y + z * z)
+        yaw = np.atan2(siny_cosp, cosy_cosp)
 
     return np.degrees(vec3(roll, pitch, yaw)).astype(np.float32)
 
