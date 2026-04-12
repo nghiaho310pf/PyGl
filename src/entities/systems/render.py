@@ -9,6 +9,7 @@ import PIL.Image as Image
 
 from entities.components.camera_state import CameraState
 from entities.components.entity_flags import EntityFlags
+from entities.components.gd.optimizer_state import OptimizerState
 from entities.components.visuals.assets import Mesh, AssetStatus
 from entities.components.render_state import RenderState, GlobalDrawMode
 from entities.components.camera import Camera
@@ -19,7 +20,7 @@ from entities.components.visuals.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from entities.components.visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
-from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader, id_shader
+from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, flat_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader, id_shader
 from visuals.shaders.smaa import shaders as smaa_shaders, smaa_area_tex, smaa_search_tex
 import math_utils
 
@@ -35,6 +36,7 @@ class RenderSystem:
         self.shadow_blur_shader = shadow_blur_shader.make_shader()
         self.depth_prepass_shader = depth_prepass_shader.make_shader()
         self.tf2_ggx_shader = tf2_ggx_smith.make_shader()
+        self.flat_shader = flat_shader.make_shader()
         self.debug_depth_shader = debug_depth_shader.make_shader()
         self.id_shader = id_shader.make_shader()
         (
@@ -49,6 +51,7 @@ class RenderSystem:
         self._attach_shader(self.shadow_blur_shader)
         self._attach_shader(self.depth_prepass_shader)
         self._attach_shader(self.tf2_ggx_shader)
+        self._attach_shader(self.flat_shader)
         self._attach_shader(self.debug_depth_shader)
         self._attach_shader(self.id_shader)
         self._attach_shader(self.smaa_edge_shader)
@@ -84,6 +87,11 @@ class RenderSystem:
         self.blur_textures = []
 
         self.fbo_size = (0, 0)
+
+        # == dynamic line rendering setup ==
+        # very unorthodox, but we have deadlines to meet
+        self.line_vao = GL.glGenVertexArrays(1)
+        self.line_vbo = GL.glGenBuffers(1)
 
     def _setup_fbos(self, width, height):
         if self.fbo_size == (width, height):
@@ -466,6 +474,7 @@ class RenderSystem:
 
         # == shadow map pass ==
         GL.glEnable(GL.GL_DEPTH_TEST)
+        GL.glDepthFunc(GL.GL_LESS)
         GL.glDepthMask(GL.GL_TRUE)
 
         # for point lights
@@ -738,6 +747,40 @@ class RenderSystem:
                 model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
                 self.id_shader.set_mat4("u_Model", model_matrix)
                 self._draw_mesh(visuals.mesh)
+        
+        # == trajectory line rendering ==
+        GL.glBindVertexArray(self.line_vao)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.line_vbo)
+
+        self.flat_shader.use()
+        self.flat_shader.set_mat4("u_Model", np.identity(4, dtype=np.float32))
+        GL.glDisable(GL.GL_CULL_FACE)
+        GL.glDepthFunc(GL.GL_LESS)
+        GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
+
+        GL.glDepthRange(0.0, 0.9998)
+        for entity, (optimizer,) in registry.view(OptimizerState):
+            if len(optimizer.trajectory) < 2:
+                continue
+
+            r_visuals = registry.get_components(entity, Visuals)
+            if r_visuals:
+                (vis, ) = r_visuals
+                self.flat_shader.set_vec3("u_Albedo", vis.material.albedo)
+            else:
+                self.flat_shader.set_vec3("u_Albedo", np.array([1.0, 1.0, 1.0], dtype=np.float32))
+
+            points = np.array(optimizer.trajectory, dtype=np.float32).flatten()
+            GL.glBufferData(GL.GL_ARRAY_BUFFER, points.nbytes, points, GL.GL_DYNAMIC_DRAW)
+
+            GL.glEnableVertexAttribArray(0)
+            GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, 3 * 4, None)
+            GL.glDisableVertexAttribArray(1)
+            GL.glDisableVertexAttribArray(2)
+
+            GL.glDrawArrays(GL.GL_LINE_STRIP, 0, len(optimizer.trajectory))
+        GL.glBindVertexArray(0)
+        GL.glDepthRange(0.0, 1.0)
 
         # == smaa ==
         if graphics_settings.enable_smaa:
