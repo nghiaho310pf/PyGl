@@ -17,6 +17,8 @@ class Registry:
         self._parents: Dict[int, int] = {}
         self._children: Dict[int, Set[int]] = {}
 
+        self._query_cache: Dict[Tuple[Type[Any], ...], Set[int]] = {}
+
     def create_entity(self) -> int:
         entity = self._next_id
         self._next_id += 1
@@ -41,6 +43,9 @@ class Registry:
             for comp_type in components:
                 self._components[comp_type].pop(entity, None)
 
+        for cached_set in self._query_cache.values():
+            cached_set.discard(entity)
+
     def add_components(self, entity: int, *components: Any) -> None:
         if entity not in self._entity_components:
             return
@@ -52,6 +57,28 @@ class Registry:
 
             self._components[comp_type][entity] = c
             self._entity_components[entity][comp_type] = c
+
+        entity_comps = self._entity_components[entity]
+        for query_types, cached_set in self._query_cache.items():
+            if entity not in cached_set and all(qt in entity_comps for qt in query_types):
+                cached_set.add(entity)
+
+    def _get_or_build_cache(self, comp_types: Tuple[Type[Any], ...]) -> Set[int]:
+        if comp_types in self._query_cache:
+            return self._query_cache[comp_types]
+
+        stores = [self._components.get(ct, {}) for ct in comp_types]
+        if any(not store for store in stores):
+            self._query_cache[comp_types] = set()
+            return self._query_cache[comp_types]
+
+        sorted_stores = sorted(stores, key=len)
+        common = set(sorted_stores[0].keys())
+        for store in sorted_stores[1:]:
+            common &= store.keys()
+
+        self._query_cache[comp_types] = common
+        return common
 
     @overload
     def get_components(self, entity: int, c1: Type[T1]) -> Tuple[T1] | None:
@@ -122,26 +149,37 @@ class Registry:
         if not comp_types:
             return
 
-        stores = [self._components.get(ct, {}) for ct in comp_types]
-        if any(not store for store in stores):
+        cached_entities = self._get_or_build_cache(comp_types)
+        if not cached_entities:
             return
 
-        if len(stores) == 1:
-            store = stores[0]
-            for entity, comp in store.items():
-                yield entity, (comp,)
-            return
+        stores = [self._components[ct] for ct in comp_types]
+        count = len(comp_types)
 
-        sorted_stores = sorted(stores, key=len)
-        common_entities = sorted_stores[0].keys() & sorted_stores[1].keys()
-
-        for store in sorted_stores[2:]:
-            if not common_entities:
-                return
-            common_entities &= store.keys()
-
-        for entity in common_entities:
-            yield entity, tuple(store[entity] for store in stores)
+        if count == 1:
+            s0 = stores[0]
+            for e in cached_entities:
+                yield e, (s0[e],)
+        elif count == 2:
+            s0, s1 = stores[0], stores[1]
+            for e in cached_entities:
+                yield e, (s0[e], s1[e])
+        elif count == 3:
+            s0, s1, s2 = stores[0], stores[1], stores[2]
+            for e in cached_entities:
+                yield e, (s0[e], s1[e], s2[e])
+        elif count == 4:
+            s0, s1, s2, s3 = stores[0], stores[1], stores[2], stores[3]
+            for e in cached_entities:
+                yield e, (s0[e], s1[e], s2[e], s3[e])
+        elif count == 5:
+            s0, s1, s2, s3, s4 = stores[0], stores[1], stores[2], stores[3], stores[4]
+            for e in cached_entities:
+                yield e, (s0[e], s1[e], s2[e], s3[e], s4[e])
+        else:
+            # slow fallback path for >5 components
+            for e in cached_entities:
+                yield e, tuple(store[e] for store in stores)
 
     @overload
     def get_singleton(self, c1: Type[T1]) -> \
@@ -175,24 +213,16 @@ class Registry:
         if not comp_types:
             return None
 
-        stores = [self._components.get(ct, {}) for ct in comp_types]
-        if any(not store for store in stores):
-            return
+        cached_entities = self._get_or_build_cache(comp_types)
 
-        if len(stores) == 1:
-            common_entities = stores[0].keys()
-        else:
-            sorted_stores = sorted(stores, key=len)
-            common_entities = sorted_stores[0].keys() & sorted_stores[1].keys()
-            for store in sorted_stores[2:]:
-                if not common_entities:
-                    return None
-                common_entities &= store.keys()
-
-        if not common_entities:
+        try:
+            lowest_entity = min(cached_entities)
+        except ValueError:
+            # Catches empty sequences safely
             return None
 
-        lowest_entity = min(common_entities)
+        stores = [self._components[ct] for ct in comp_types]
+
         return lowest_entity, tuple(store[lowest_entity] for store in stores)
 
     def set_parent(self, child: int, new_parent: int | None) -> None:
