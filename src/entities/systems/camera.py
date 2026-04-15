@@ -46,11 +46,6 @@ class CameraSystem:
             camera_state.is_panning = False
             camera_state.is_zooming = False
 
-        if not np.array_equal(camera_transform.rotation, camera_state.last_synced_rotation):
-            new_euler = math_utils.quaternion_to_euler(camera_transform.rotation)
-            camera_state.euler_buffer = minimize_euler(new_euler)
-            camera_state.last_synced_rotation = camera_transform.rotation.copy()
-
         if imgui.is_mouse_clicked(0) and not io.want_capture_mouse and not gizmo_dragging:
             camera_state.is_rotating = True
         if imgui.is_mouse_released(0):
@@ -70,15 +65,32 @@ class CameraSystem:
             yaw_change = io.mouse_delta.x * camera_state.rotation_speed
             pitch_change = io.mouse_delta.y * camera_state.rotation_speed
 
-            camera_state.euler_buffer[1] -= yaw_change
-            camera_state.euler_buffer[0] -= pitch_change
+            cam_rot_matrix = math_utils.create_transformation_matrix(
+                vec3(0, 0, 0),
+                camera_transform.rotation,
+                vec3(1, 1, 1)
+            )
+            forward = -cam_rot_matrix[0:3, 2]
+            world_up = vec3(0.0, 1.0, 0.0)
 
-            camera_state.euler_buffer[0] = np.clip(camera_state.euler_buffer[0], -89.0, 89.0)
+            if abs(forward[1]) > 0.9999:
+                horizontal_right = cam_rot_matrix[0:3, 0]
+            else:
+                horizontal_right = math_utils.normalize(np.cross(forward, world_up))
 
-            q1, q2 = math_utils.quaternions_from_euler(camera_state.euler_buffer)
-            camera_transform.rotation = q1 if np.dot(camera_transform.rotation, q1) >= 0 else q2
-            camera_state.last_synced_rotation = camera_transform.rotation.copy()
+            current_pitch = np.degrees(np.arcsin(np.clip(forward[1], -1.0, 1.0)))
+            new_pitch = np.clip(current_pitch - pitch_change, -89.0, 89.0)
+            actual_pitch_change = new_pitch - current_pitch
 
+            q_yaw = math_utils.quaternion_from_axis_angle(world_up, -yaw_change)
+            q_pitch = math_utils.quaternion_from_axis_angle(horizontal_right, actual_pitch_change)
+
+            new_rot = math_utils.quaternion_mul(q_pitch, camera_transform.rotation)
+            new_rot = math_utils.quaternion_mul(q_yaw, new_rot)
+
+            camera_transform.rotation = math_utils.normalize(new_rot)
+
+        # recalculate since the code directly above us definitely changed the rotation
         cam_rot_matrix = math_utils.create_transformation_matrix(
             vec3(0, 0, 0),
             camera_transform.rotation,

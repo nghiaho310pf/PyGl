@@ -98,8 +98,8 @@ def quaternion_to_euler(q: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
 
     if abs(sinp) >= 1.0 - 1e-7:
         pitch = np.copysign(np.pi / 2, sinp)
-        roll = 0.0
-        yaw = 2 * np.atan2(z, w)
+        roll = 2 * np.atan2(x, w)
+        yaw = 0.0
     else:
         pitch = np.asin(sinp)
 
