@@ -7,6 +7,7 @@ layout (location = 1) out vec4 out_DirShadows;
 
 uniform sampler2D u_DepthTexture;
 uniform sampler2D u_NormalTexture;
+uniform sampler2D u_BlueNoiseTexture;
 uniform mat4 u_InverseViewProjection;
 
 layout (std140) uniform SceneData {
@@ -60,12 +61,6 @@ uniform sampler2D u_DirShadowMap[MAX_LIGHTS];
 uniform mat4 u_DirLightSpaceMatrix[MAX_LIGHTS];
 
 const float PI2 = 6.28318530718;
-
-float randomNoise(vec2 pos) {
-    float white = fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453);
-    float noise = fract(white + (gl_FragCoord.x + gl_FragCoord.y * 0.5) * 0.375);
-    return noise;
-}
 
 float calculatePointShadow(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane, float bias, float randomRotation) {
     vec3 fragToLight = fragPos - lightPos;
@@ -121,7 +116,8 @@ void main() {
     vec4 worldPosProj = u_InverseViewProjection * ndc;
     vec3 v_WorldPos = worldPosProj.xyz / worldPosProj.w;
 
-    float globalNoise = randomNoise(gl_FragCoord.xy * fract(u_Time * 2.5));
+    vec2 noiseUV = (gl_FragCoord.xy / 64.0) + fract(u_Time * vec2(0.13, 0.17));
+    float globalNoise = texture(u_BlueNoiseTexture, noiseUV).r;
     float randomRotation = globalNoise * PI2;
 
     vec4 pointShadows = vec4(0.0);

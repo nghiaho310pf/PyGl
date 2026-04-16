@@ -20,7 +20,9 @@ from entities.components.visuals.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from entities.components.visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
-from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, flat_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, shadow_mask_shader, id_shader
+from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, flat_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, id_shader
+from visuals.shaders.shadow_mask_shader import blue_noise_tex
+from visuals.shaders.shadow_mask_shader import shaders as shadow_mask_shader
 from visuals.shaders.smaa import shaders as smaa_shaders, smaa_area_tex, smaa_search_tex
 import math_utils
 
@@ -58,6 +60,7 @@ class RenderSystem:
         self._attach_shader(self.smaa_weight_shader)
         self._attach_shader(self.smaa_blend_shader)
 
+        self.blue_noise_tex = blue_noise_tex.load()
         self.smaa_area_tex = smaa_area_tex.load()
         self.smaa_search_tex = smaa_search_tex.load()
 
@@ -599,6 +602,10 @@ class RenderSystem:
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_normal_tex)
         self.shadow_mask_shader.set_int("u_NormalTexture", 1)
 
+        GL.glActiveTexture(GL.GL_TEXTURE2)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.blue_noise_tex)
+        self.shadow_mask_shader.set_int("u_BlueNoiseTexture", 2)
+
         self.shadow_mask_shader.set_int("u_PointPcfSamples", graphics_settings.point_shadow_samples)
         self.shadow_mask_shader.set_float("u_InvPointPcfSamples", 1.0 / graphics_settings.point_shadow_samples)
         self.shadow_mask_shader.set_float("u_InvSqrtPointPcfSamples", graphics_settings.point_shadow_samples ** -0.5)
@@ -617,16 +624,16 @@ class RenderSystem:
         self.shadow_mask_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
 
         for i in range(MAX_LIGHTS):
-            GL.glActiveTexture(GL.GL_TEXTURE2 + i) # type: ignore
+            GL.glActiveTexture(GL.GL_TEXTURE3 + i) # type: ignore
             if i < num_point_lights: GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, point_shadow_map_textures[i])
             else: GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, 0)
-        self.shadow_mask_shader.set_int_array("u_ShadowMap", list(range(2, MAX_LIGHTS + 2)))
+        self.shadow_mask_shader.set_int_array("u_ShadowMap", list(range(3, MAX_LIGHTS + 3)))
 
         for i in range(MAX_LIGHTS):
-            GL.glActiveTexture(GL.GL_TEXTURE2 + MAX_LIGHTS + i) # type: ignore
+            GL.glActiveTexture(GL.GL_TEXTURE3 + MAX_LIGHTS + i) # type: ignore
             if i < num_dir_lights: GL.glBindTexture(GL.GL_TEXTURE_2D, dir_shadow_map_textures[i])
             else: GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
-        self.shadow_mask_shader.set_int_array("u_DirShadowMap", list(range(MAX_LIGHTS + 2, 2 * MAX_LIGHTS + 2)))
+        self.shadow_mask_shader.set_int_array("u_DirShadowMap", list(range(MAX_LIGHTS + 3, 2 * MAX_LIGHTS + 3)))
 
         self._draw_fullscreen_quad()
 
