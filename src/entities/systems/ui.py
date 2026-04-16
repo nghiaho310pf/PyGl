@@ -643,23 +643,13 @@ class UiSystem:
 
                     imgui.text_disabled("Shadows")
 
-                    changed_p_search, new_p_search = imgui.drag_int(
-                        "Point searches", preset.point_shadow_search_samples, 1, 1, 64)
-                    if changed_p_search:
-                        preset.point_shadow_search_samples = new_p_search
-
                     changed_p_pcf, new_p_pcf = imgui.drag_int(
-                        "Point PCFs", preset.point_shadow_samples, 1, 1, 64)
+                        "Point samples", preset.point_shadow_samples, 1, 1, 64)
                     if changed_p_pcf:
                         preset.point_shadow_samples = new_p_pcf
 
-                    changed_d_search, new_d_search = imgui.drag_int(
-                        "Directional searches", preset.directional_shadow_search_samples, 1, 1, 64)
-                    if changed_d_search:
-                        preset.directional_shadow_search_samples = new_d_search
-
                     changed_d_pcf, new_d_pcf = imgui.drag_int(
-                        "Directional PCFs", preset.directional_shadow_samples, 1, 1, 64)
+                        "Directional samples", preset.directional_shadow_samples, 1, 1, 64)
                     if changed_d_pcf:
                         preset.directional_shadow_samples = new_d_pcf
 

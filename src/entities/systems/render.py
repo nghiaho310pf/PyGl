@@ -601,14 +601,10 @@ class RenderSystem:
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.main_normal_tex)
         self.shadow_mask_shader.set_int("u_NormalTexture", 1)
 
-        self.shadow_mask_shader.set_int("u_PointSearchSamples", graphics_settings.point_shadow_search_samples)
-        self.shadow_mask_shader.set_float("u_InvSqrtPointSearchSamples", graphics_settings.point_shadow_search_samples ** -0.5)
         self.shadow_mask_shader.set_int("u_PointPcfSamples", graphics_settings.point_shadow_samples)
         self.shadow_mask_shader.set_float("u_InvPointPcfSamples", 1.0 / graphics_settings.point_shadow_samples)
         self.shadow_mask_shader.set_float("u_InvSqrtPointPcfSamples", graphics_settings.point_shadow_samples ** -0.5)
 
-        self.shadow_mask_shader.set_int("u_DirSearchSamples", graphics_settings.directional_shadow_search_samples)
-        self.shadow_mask_shader.set_float("u_InvSqrtDirSearchSamples", graphics_settings.directional_shadow_search_samples ** -0.5)
         self.shadow_mask_shader.set_int("u_DirPcfSamples", graphics_settings.directional_shadow_samples)
         self.shadow_mask_shader.set_float("u_InvDirPcfSamples", 1.0 / graphics_settings.directional_shadow_samples)
         self.shadow_mask_shader.set_float("u_InvSqrtDirPcfSamples", graphics_settings.directional_shadow_samples ** -0.5)

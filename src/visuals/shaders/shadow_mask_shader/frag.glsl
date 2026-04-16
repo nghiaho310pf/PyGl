@@ -19,14 +19,10 @@ layout (std140) uniform SceneData {
 const int MAX_LIGHTS = 4;
 const int MAX_VOGEL_SAMPLES = 64;
 
-uniform int   u_PointSearchSamples;
-uniform float u_InvSqrtPointSearchSamples;
 uniform int   u_PointPcfSamples;
 uniform float u_InvPointPcfSamples;
 uniform float u_InvSqrtPointPcfSamples;
 
-uniform int   u_DirSearchSamples;
-uniform float u_InvSqrtDirSearchSamples;
 uniform int   u_DirPcfSamples;
 uniform float u_InvDirPcfSamples;
 uniform float u_InvSqrtDirPcfSamples;
@@ -66,44 +62,20 @@ uniform mat4 u_DirLightSpaceMatrix[MAX_LIGHTS];
 
 const float PI2 = 6.28318530718;
 
-float blueNoiseDither(vec2 pos) {
+float randomNoise(vec2 pos) {
     float white = fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453);
     float noise = fract(white + (gl_FragCoord.x + gl_FragCoord.y * 0.5) * 0.375);
     return noise;
 }
 
-float calculatePointShadow(vec3 fragPos, vec3 lightPos, float lightRadius, samplerCube shadowMap, float farPlane, float bias, float randomRotation) {
+float calculatePointShadow(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane, float bias, float randomRotation) {
     vec3 fragToLight = fragPos - lightPos;
     float currentDepth = length(fragToLight) / farPlane;
-
-    float avgBlockerDepth = 0.0;
-    int blockers = 0;
-    float searchWidth = lightRadius * 0.5;
 
     vec3 lightDir = normalize(fragToLight);
     vec3 up = abs(lightDir.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
     vec3 right = normalize(cross(up, lightDir));
     up = cross(lightDir, right);
-
-    for (int i = 0; i < u_PointSearchSamples; ++i) {
-        float r = VOGEL_DISK[i].x * u_InvSqrtPointSearchSamples;
-        float theta = VOGEL_DISK[i].y + randomRotation;
-        vec2 offset2D = vec2(cos(theta), sin(theta)) * r;
-
-        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * searchWidth;
-        float sampleDepth = texture(shadowMap, sampleDir).r;
-        if (sampleDepth < currentDepth - bias) {
-            avgBlockerDepth += sampleDepth;
-            blockers++;
-        }
-    }
-
-    if (blockers < 2) return 0.0;
-    if (blockers == u_PointSearchSamples) return 1.0;
-    avgBlockerDepth /= float(blockers);
-
-    float penumbraRatio = (currentDepth - avgBlockerDepth) / pow(avgBlockerDepth, 0.7);
-    float diskRadius = clamp(penumbraRatio * lightRadius, 0.005, 0.05);
 
     float shadow = 0.0;
     for (int i = 0; i < u_PointPcfSamples; ++i) {
@@ -111,7 +83,7 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, float lightRadius, sampl
         float theta = VOGEL_DISK[i].y + randomRotation;
         vec2 offset2D = vec2(cos(theta), sin(theta)) * r;
 
-        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * diskRadius;
+        vec3 sampleDir = lightDir + (right * offset2D.x + up * offset2D.y) * 0.002;
 
         float closestDepth = texture(shadowMap, sampleDir).r;
         if (currentDepth - bias > closestDepth) shadow += 1.0;
@@ -127,40 +99,14 @@ float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, fl
     if (projCoords.z > 1.0) return 0.0;
 
     float currentDepth = projCoords.z;
-    float avgBlockerDepth = 0.0;
-    int blockers = 0;
-
-    float searchWidth = 0.005;
-
-    for (int i = 0; i < u_DirSearchSamples; ++i) {
-        float r = VOGEL_DISK[i].x * u_InvSqrtDirSearchSamples;
-        float theta = VOGEL_DISK[i].y + randomRotation;
-        vec2 offset = vec2(cos(theta), sin(theta)) * r * searchWidth;
-
-        float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
-        if (sampleDepth < currentDepth - bias) {
-            avgBlockerDepth += sampleDepth;
-            blockers++;
-        }
-    }
-
-    if (blockers < 2) return 0.0;
-    if (blockers == u_DirSearchSamples) return 1.0;
-    avgBlockerDepth /= float(blockers);
-
-    float penumbra = ((currentDepth - avgBlockerDepth) / max(avgBlockerDepth, 0.025)) * 0.025;
-    penumbra = clamp(penumbra, 0.0005, 0.01);
-
     float shadow = 0.0;
     for (int i = 0; i < u_DirPcfSamples; ++i) {
         float r = VOGEL_DISK[i].x * u_InvSqrtDirPcfSamples;
         float theta = VOGEL_DISK[i].y + randomRotation;
-        vec2 offset = vec2(cos(theta), sin(theta)) * r * penumbra;
+        vec2 offset = vec2(cos(theta), sin(theta)) * r * 0.001;
 
         float closestDepth = texture(shadowMap, projCoords.xy + offset).r;
-        if (currentDepth - bias > closestDepth) {
-            shadow += 1.0;
-        }
+        if (currentDepth - bias > closestDepth) shadow += 1.0;
     }
 
     return pow(shadow * u_InvDirPcfSamples, 2.4);
@@ -176,7 +122,7 @@ void main() {
     vec4 worldPosProj = u_InverseViewProjection * ndc;
     vec3 v_WorldPos = worldPosProj.xyz / worldPosProj.w;
 
-    float globalNoise = blueNoiseDither(gl_FragCoord.xy * fract(u_Time * 2.5));
+    float globalNoise = randomNoise(gl_FragCoord.xy * fract(u_Time * 2.5));
     float randomRotation = globalNoise * PI2;
 
     vec4 pointShadows = vec4(0.0);
@@ -189,7 +135,7 @@ void main() {
                 float normalOffsetScale = max(0.02 * (1.0 - dot(N, L)), 0.002);
                 vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale;
                 float shadow = calculatePointShadow(
-                    biasedWorldPos, u_LightPos[i], u_LightRadius[i], u_ShadowMap[i],
+                    biasedWorldPos, u_LightPos[i], u_ShadowMap[i],
                     u_FarPlane[i], 0.00025, randomRotation
                 );
                 pointShadows[i] = smoothstep(0.01, 0.98, shadow);
