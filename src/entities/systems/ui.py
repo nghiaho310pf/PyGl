@@ -644,12 +644,12 @@ class UiSystem:
                     imgui.text_disabled("Shadows")
 
                     changed_p_pcf, new_p_pcf = imgui.drag_int(
-                        "Point samples", preset.point_shadow_samples, 1, 1, 64)
+                        "Point samples", preset.point_shadow_samples, 1, 1, 128)
                     if changed_p_pcf:
                         preset.point_shadow_samples = new_p_pcf
 
                     changed_d_pcf, new_d_pcf = imgui.drag_int(
-                        "Directional samples", preset.directional_shadow_samples, 1, 1, 64)
+                        "Directional samples", preset.directional_shadow_samples, 1, 1, 128)
                     if changed_d_pcf:
                         preset.directional_shadow_samples = new_d_pcf
 

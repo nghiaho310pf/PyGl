@@ -35,8 +35,8 @@ class RenderState:
         enable_smaa=True
     ))
     capture_graphics_settings: GraphicsSettings = field(default_factory=lambda: GraphicsSettings(
-        point_shadow_samples=64,
-        directional_shadow_samples=64,
+        point_shadow_samples=128,
+        directional_shadow_samples=128,
 
         enable_smaa=True
     ))
