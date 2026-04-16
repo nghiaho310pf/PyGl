@@ -48,7 +48,6 @@ const vec2 VOGEL_DISK[MAX_VOGEL_SAMPLES] = vec2[](
 );
 
 uniform vec3 u_LightPos[MAX_LIGHTS];
-uniform float u_LightRadius[MAX_LIGHTS];
 uniform int u_NumLights;
 uniform int u_PointLightCastsShadow[MAX_LIGHTS];
 uniform samplerCube u_ShadowMap[MAX_LIGHTS];

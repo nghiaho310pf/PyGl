@@ -747,10 +747,6 @@ class UiSystem:
                     "Strength", float(comp.strength), 1, 0.0, 1000.0)
                 if changed_strength:
                     comp.strength = float1(new_strength)
-                changed_radius, new_radius = imgui.drag_float(
-                    "Radius", float(comp.radius), 0.001, 0.0, 0.1)
-                if changed_radius:
-                    comp.radius = float1(new_radius)
                 imgui.tree_pop()
 
         elif isinstance(comp, Camera):

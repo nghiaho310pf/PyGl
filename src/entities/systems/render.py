@@ -427,7 +427,6 @@ class RenderSystem:
 
         point_light_positions = []
         point_light_colors = []
-        point_light_radii = []
         point_light_far_planes = []
         point_shadow_map_textures = []
         point_light_casts_shadow = []
@@ -437,7 +436,6 @@ class RenderSystem:
                 self._setup_point_shadow_map(point_light)
             point_light_positions.append(transform.position)
             point_light_colors.append(point_light.color * point_light.strength)
-            point_light_radii.append(point_light.radius)
             point_light_far_planes.append(100.0)
             point_shadow_map_textures.append(point_light.shadow_map_texture)
             point_light_casts_shadow.append(1 if point_light.casts_shadow else 0)
@@ -613,7 +611,6 @@ class RenderSystem:
         self.shadow_mask_shader.set_int("u_NumLights", num_point_lights)
         self.shadow_mask_shader.set_int_array("u_PointLightCastsShadow", point_light_casts_shadow)
         self.shadow_mask_shader.set_float_array("u_FarPlane", point_light_far_planes)
-        self.shadow_mask_shader.set_float_array("u_LightRadius", point_light_radii)
         self.shadow_mask_shader.set_vec3_array("u_DirLightDirection", dir_light_directions)
         self.shadow_mask_shader.set_int("u_NumDirLights", num_dir_lights)
         self.shadow_mask_shader.set_int_array("u_DirLightCastsShadow", dir_light_casts_shadow)
@@ -694,7 +691,6 @@ class RenderSystem:
             current_shader.set_int("u_NumLights", num_point_lights)
             current_shader.set_int_array("u_PointLightCastsShadow", point_light_casts_shadow)
             current_shader.set_float_array("u_FarPlane", point_light_far_planes)
-            current_shader.set_float_array("u_LightRadius", point_light_radii)
             current_shader.set_vec3_array("u_DirLightDirection", dir_light_directions)
             current_shader.set_vec3_array("u_DirLightColor", dir_light_colors)
             current_shader.set_int("u_NumDirLights", num_dir_lights)
