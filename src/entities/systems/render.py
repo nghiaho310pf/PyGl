@@ -69,6 +69,9 @@ class RenderSystem:
         self.point_shadow_map_width = 512
         self.point_shadow_map_height = 512
 
+        # == fullscreen quad setup ==
+        self._setup_fullscreen_quad()
+
         # == default texture for unavailable textures ==
         self.default_texture_id = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
@@ -101,6 +104,29 @@ class RenderSystem:
         self.timer_queries = GL.glGenQueries(self.num_timer_queries)
         self.query_index = 0
         self.gpu_time_ms = 0.0
+
+    def _setup_fullscreen_quad(self):
+        quad_data = np.array([
+            -1.0, -1.0, 0.0, 0.0,
+             3.0, -1.0, 2.0, 0.0,
+            -1.0,  3.0, 0.0, 2.0,
+        ], dtype=np.float32)
+
+        self._fullscreen_quad_vao = GL.glGenVertexArrays(1)
+        self._fullscreen_quad_vbo = GL.glGenBuffers(1)
+        GL.glBindVertexArray(self._fullscreen_quad_vao)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._fullscreen_quad_vbo)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, quad_data.nbytes, quad_data, GL.GL_STATIC_DRAW)
+        GL.glEnableVertexAttribArray(0)
+        GL.glVertexAttribPointer(0, 2, GL.GL_FLOAT, GL.GL_FALSE, 16, None)
+        GL.glEnableVertexAttribArray(1)
+        GL.glVertexAttribPointer(1, 2, GL.GL_FLOAT, GL.GL_FALSE, 16, ctypes.c_void_p(8))
+        GL.glBindVertexArray(0)
+
+    def _draw_fullscreen_quad(self):
+        GL.glBindVertexArray(self._fullscreen_quad_vao)
+        GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
+        GL.glBindVertexArray(0)
 
     def _setup_fbos(self, width, height):
         if self.fbo_size == (width, height):
@@ -204,30 +230,6 @@ class RenderSystem:
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, self.seg_color_tex, 0)
         # reuse existing depth texture
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.main_depth_tex, 0)
-
-    def _draw_fullscreen_quad(self):
-        if not hasattr(self, "_quad_vao"):
-            quad_data = np.array([
-                -1.0,  1.0, 0.0, 1.0,
-                -1.0, -1.0, 0.0, 0.0,
-                 1.0,  1.0, 1.0, 1.0,
-                 1.0, -1.0, 1.0, 0.0,
-            ], dtype=np.float32)
-
-            self._quad_vao = GL.glGenVertexArrays(1)
-            self._quad_vbo = GL.glGenBuffers(1)
-            GL.glBindVertexArray(self._quad_vao)
-            GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._quad_vbo)
-            GL.glBufferData(GL.GL_ARRAY_BUFFER, quad_data.nbytes, quad_data, GL.GL_STATIC_DRAW)
-            GL.glEnableVertexAttribArray(0)
-            GL.glVertexAttribPointer(0, 2, GL.GL_FLOAT, GL.GL_FALSE, 16, None)
-            GL.glEnableVertexAttribArray(1)
-            GL.glVertexAttribPointer(1, 2, GL.GL_FLOAT, GL.GL_FALSE, 16, ctypes.c_void_p(8))
-            GL.glBindVertexArray(0)
-
-        GL.glBindVertexArray(self._quad_vao)
-        GL.glDrawArrays(GL.GL_TRIANGLE_STRIP, 0, 4)
-        GL.glBindVertexArray(0)
 
     def _draw_mesh(self, mesh: Mesh):
         if mesh.status != AssetStatus.Ready:
