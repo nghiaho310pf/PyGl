@@ -73,8 +73,9 @@ uniform float u_FarPlane[MAX_LIGHTS];
 uniform vec3 u_DirLightDirection[MAX_LIGHTS];
 uniform int u_NumDirLights;
 uniform int u_DirLightCastsShadow[MAX_LIGHTS];
-uniform sampler2D u_DirShadowMap[MAX_LIGHTS];
-uniform mat4 u_DirLightSpaceMatrix[MAX_LIGHTS];
+uniform sampler2DArray u_DirShadowMap[MAX_LIGHTS];
+uniform mat4 u_DirLightSpaceMatrices[MAX_LIGHTS * 3];
+uniform float u_CascadeDistances[3];
 
 const float PI2 = 6.28318530718;
 
@@ -102,7 +103,7 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, f
     return pow(shadow * u_InvPointPcfSamples, 2.4);
 }
 
-float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, float bias, float randomRotation) {
+float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2DArray shadowMap, float cascadeIndex, float bias, float randomRotation) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
 
@@ -115,7 +116,7 @@ float calculateDirectionalShadow(vec4 fragPosLightSpace, sampler2D shadowMap, fl
         float theta = VOGEL_DISK[i].y + randomRotation;
         vec2 offset = vec2(cos(theta), sin(theta)) * r * 0.001;
 
-        float closestDepth = texture(shadowMap, projCoords.xy + offset).r;
+        float closestDepth = texture(shadowMap, vec3(projCoords.xy + offset, cascadeIndex)).r;
         if (currentDepth - bias > closestDepth) shadow += 1.0;
     }
 
@@ -154,6 +155,9 @@ void main() {
         }
     }
 
+    vec4 viewSpacePos = u_View * vec4(v_WorldPos, 1.0);
+    float viewSpaceZ = -viewSpacePos.z;
+
     vec4 dirShadows = vec4(0.0);
     for (int i = 0; i < MAX_LIGHTS; ++i) {
         if (i >= u_NumDirLights) break;
@@ -161,10 +165,35 @@ void main() {
             vec3 L = normalize(-u_DirLightDirection[i]);
             float normalOffsetScale = max(0.02 * (1.0 - dot(N, L)), 0.002);
             vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale;
-            vec4 fragPosLightSpace = u_DirLightSpaceMatrix[i] * vec4(biasedWorldPos, 1.0);
+
+            int cascadeIndex = 2;
+            if (viewSpaceZ <= u_CascadeDistances[0]) cascadeIndex = 0;
+            else if (viewSpaceZ <= u_CascadeDistances[1]) cascadeIndex = 1;
+
+            vec4 fragPosLightSpace = u_DirLightSpaceMatrices[i * 3 + cascadeIndex] * vec4(biasedWorldPos, 1.0);
+
             float shadow = calculateDirectionalShadow(
-                fragPosLightSpace, u_DirShadowMap[i], 0.00025, randomRotation
+                fragPosLightSpace, u_DirShadowMap[i], float(cascadeIndex), 0.00025, randomRotation
             );
+
+            if (cascadeIndex < 2) {
+                float nextSplit = u_CascadeDistances[cascadeIndex];
+                float prevSplit = cascadeIndex == 0 ? 0.0 : u_CascadeDistances[cascadeIndex - 1];
+                float splitSize = nextSplit - prevSplit;
+                float blendBand = splitSize * 0.05;
+
+                if (viewSpaceZ > nextSplit - blendBand) {
+                    float blendFactor = (viewSpaceZ - (nextSplit - blendBand)) / blendBand;
+
+                    vec4 nextFragPosLightSpace = u_DirLightSpaceMatrices[i * 3 + cascadeIndex + 1] * vec4(biasedWorldPos, 1.0);
+                    float nextShadow = calculateDirectionalShadow(
+                        nextFragPosLightSpace, u_DirShadowMap[i], float(cascadeIndex + 1), 0.00025, randomRotation
+                    );
+
+                    shadow = mix(shadow, nextShadow, blendFactor);
+                }
+            }
+
             dirShadows[i] = smoothstep(0.01, 0.98, shadow);
         }
     }

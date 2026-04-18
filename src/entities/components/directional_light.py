@@ -15,4 +15,5 @@ class DirectionalLight:
 
     shadow_map_fbo: int = 0
     shadow_map_texture: int = 0
-    light_space_matrix: npt.NDArray[np.float32] = field(default_factory=lambda: np.eye(4, dtype=np.float32))
+    light_space_matrices: list[npt.NDArray[np.float32]] = field(default_factory=list)
+    cascade_distances: list[float] = field(default_factory=list)

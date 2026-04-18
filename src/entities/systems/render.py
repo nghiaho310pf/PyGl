@@ -64,8 +64,8 @@ class RenderSystem:
         self.smaa_area_tex = smaa_area_tex.load()
         self.smaa_search_tex = smaa_search_tex.load()
 
-        self.directional_shadow_map_width = 2048
-        self.directional_shadow_map_height = 2048
+        self.directional_shadow_map_width = 1408
+        self.directional_shadow_map_height = 1408
         self.point_shadow_map_width = 512
         self.point_shadow_map_height = 512
 
@@ -242,17 +242,16 @@ class RenderSystem:
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, dir_light.shadow_map_fbo)
 
         dir_light.shadow_map_texture = GL.glGenTextures(1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, dir_light.shadow_map_texture)
-        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT,
-                        self.directional_shadow_map_width, self.directional_shadow_map_height, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_BORDER)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_BORDER)
+        GL.glBindTexture(GL.GL_TEXTURE_2D_ARRAY, dir_light.shadow_map_texture)
+        GL.glTexImage3D(GL.GL_TEXTURE_2D_ARRAY, 0, GL.GL_DEPTH_COMPONENT,
+                        self.directional_shadow_map_width, self.directional_shadow_map_height, 3, 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_BORDER)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_BORDER)
         border_color = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
-        GL.glTexParameterfv(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_BORDER_COLOR, border_color)
+        GL.glTexParameterfv(GL.GL_TEXTURE_2D_ARRAY, GL.GL_TEXTURE_BORDER_COLOR, border_color)
 
-        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, dir_light.shadow_map_texture, 0)
         GL.glDrawBuffer(GL.GL_NONE)
         GL.glReadBuffer(GL.GL_NONE)
 
@@ -519,36 +518,57 @@ class RenderSystem:
 
         # for directional lights
         GL.glViewport(0, 0, self.directional_shadow_map_width, self.directional_shadow_map_height)
-        dir_light_projection = math_utils.create_orthographic_projection(-10.0, 10.0, -10.0, 10.0, 0.1, 100.0)
+
+        proj = camera_state.projection_matrix
+        fovy = np.degrees(np.arctan(1.0 / proj[1, 1]) * 2.0)
+        aspect = proj[1, 1] / proj[0, 0]
+
+        cascade_levels = [
+            (camera_state.camera_near, camera_state.camera_far * 0.08),
+            (camera_state.camera_near, camera_state.camera_far * 0.25),
+            (camera_state.camera_near, camera_state.camera_far)
+        ]
+        cascade_distances = [c[1] for c in cascade_levels]
+
         for dir_light in active_dir_lights:
-            if not dir_light.casts_shadow: continue
+            dir_light.light_space_matrices.clear()
+            dir_light.cascade_distances = cascade_distances
+
+            if not dir_light.casts_shadow:
+                for _ in range(3):
+                    mat = np.eye(4, dtype=np.float32)
+                    dir_light.light_space_matrices.append(mat)
+                    dir_light_space_matrices.append(mat)
+                continue
+
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, dir_light.shadow_map_fbo)
-            GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
-            self.directional_shadowmap_shader.use()
-
-            # we need a "position" for the directional light to create a view matrix.
-            # since it's position-less, we just pick a spot far enough in the opposite direction.
             direction = math_utils.calculate_direction_from_rotation(dir_light.rotation)
-            light_pos = -math_utils.normalize(direction) * 20.0
-            light_view = math_utils.create_look_at(light_pos, np.array([0.0, 0.0, 0.0], dtype=np.float32), np.array([0.0, 1.0, 0.0], dtype=np.float32))
 
-            dir_light.light_space_matrix = dir_light_projection @ light_view
-            dir_light_space_matrices.append(dir_light.light_space_matrix)
-            self.directional_shadowmap_shader.set_mat4("u_LightSpaceMatrix", dir_light.light_space_matrix)
+            for cascade_idx, (c_near, c_far) in enumerate(cascade_levels):
+                GL.glFramebufferTextureLayer(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, dir_light.shadow_map_texture, 0, cascade_idx)
+                GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
+                self.directional_shadowmap_shader.use()
 
-            for batch_key in sorted_batch_keys:
-                draw_mode, cull_faces = batch_key
-                GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
-                if cull_faces:
-                    GL.glEnable(GL.GL_CULL_FACE)
-                    GL.glCullFace(GL.GL_BACK)
-                else:
-                    GL.glDisable(GL.GL_CULL_FACE)
-                for material, entities in batches[batch_key].items():
-                    for mesh_transform, visuals in entities:
-                        model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
-                        self.directional_shadowmap_shader.set_mat4("u_Model", model_matrix)
-                        self._draw_mesh(visuals.mesh)
+                cascade_proj = math_utils.create_perspective_projection(fovy, aspect, c_near, c_far)
+                light_space_mat = math_utils.get_light_space_matrix(cascade_proj, camera_state.view_matrix, direction)
+
+                dir_light.light_space_matrices.append(light_space_mat)
+                dir_light_space_matrices.append(light_space_mat)
+                self.directional_shadowmap_shader.set_mat4("u_LightSpaceMatrix", light_space_mat)
+
+                for batch_key in sorted_batch_keys:
+                    draw_mode, cull_faces = batch_key
+                    GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
+                    if cull_faces:
+                        GL.glEnable(GL.GL_CULL_FACE)
+                        GL.glCullFace(GL.GL_BACK)
+                    else:
+                        GL.glDisable(GL.GL_CULL_FACE)
+                    for material, entities in batches[batch_key].items():
+                        for mesh_transform, visuals in entities:
+                            model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
+                            self.directional_shadowmap_shader.set_mat4("u_Model", model_matrix)
+                            self._draw_mesh(visuals.mesh)
 
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
@@ -621,7 +641,8 @@ class RenderSystem:
         self.shadow_mask_shader.set_vec3_array("u_DirLightDirection", dir_light_directions)
         self.shadow_mask_shader.set_int("u_NumDirLights", num_dir_lights)
         self.shadow_mask_shader.set_int_array("u_DirLightCastsShadow", dir_light_casts_shadow)
-        self.shadow_mask_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
+        self.shadow_mask_shader.set_mat4_array("u_DirLightSpaceMatrices", dir_light_space_matrices)
+        self.shadow_mask_shader.set_float_array("u_CascadeDistances", cascade_distances)
 
         for i in range(MAX_LIGHTS):
             GL.glActiveTexture(GL.GL_TEXTURE3 + i) # type: ignore
@@ -631,8 +652,8 @@ class RenderSystem:
 
         for i in range(MAX_LIGHTS):
             GL.glActiveTexture(GL.GL_TEXTURE3 + MAX_LIGHTS + i) # type: ignore
-            if i < num_dir_lights: GL.glBindTexture(GL.GL_TEXTURE_2D, dir_shadow_map_textures[i])
-            else: GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+            if i < num_dir_lights: GL.glBindTexture(GL.GL_TEXTURE_2D_ARRAY, dir_shadow_map_textures[i])
+            else: GL.glBindTexture(GL.GL_TEXTURE_2D_ARRAY, 0)
         self.shadow_mask_shader.set_int_array("u_DirShadowMap", list(range(MAX_LIGHTS + 3, 2 * MAX_LIGHTS + 3)))
 
         self._draw_fullscreen_quad()
@@ -702,7 +723,7 @@ class RenderSystem:
             current_shader.set_vec3_array("u_DirLightColor", dir_light_colors)
             current_shader.set_int("u_NumDirLights", num_dir_lights)
             current_shader.set_int_array("u_DirLightCastsShadow", dir_light_casts_shadow)
-            current_shader.set_mat4_array("u_DirLightSpaceMatrix", dir_light_space_matrices)
+            current_shader.set_mat4_array("u_DirLightSpaceMatrices", dir_light_space_matrices)
             current_shader.set_vec2("u_ScreenSize", np.array([width, height], dtype=np.float32))
 
             GL.glActiveTexture(GL.GL_TEXTURE8)

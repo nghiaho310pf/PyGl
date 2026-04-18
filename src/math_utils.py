@@ -238,5 +238,59 @@ def create_transformation_matrix(position, rotation_quaternion, scale) -> npt.ND
     mat[:3, 2] *= scale[2]
 
     mat[:3, 3] = position
-    
+
     return mat
+
+
+def get_frustum_corners_world_space(proj_matrix: npt.NDArray[np.float32], view_matrix: npt.NDArray[np.float32]) -> list[npt.NDArray[np.float32]]:
+    inv_vp = np.linalg.inv(proj_matrix @ view_matrix)
+    corners = []
+    for x in [-1.0, 1.0]:
+        for y in [-1.0, 1.0]:
+            for z in [-1.0, 1.0]:
+                pt = inv_vp @ np.array([x, y, z, 1.0], dtype=np.float32)
+                corners.append(pt[:3] / pt[3])
+    return corners
+
+
+def get_light_space_matrix(proj_matrix: npt.NDArray[np.float32], view_matrix: npt.NDArray[np.float32], light_dir: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    corners = get_frustum_corners_world_space(proj_matrix, view_matrix)
+
+    center = np.mean(corners, axis=0)
+
+    up = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+    if abs(np.dot(normalize(light_dir), up)) > 0.999:
+        up = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+
+    light_view = create_look_at(center - light_dir * 50.0, center, up)
+
+    min_x, max_x = float('inf'), float('-inf')
+    min_y, max_y = float('inf'), float('-inf')
+    min_z, max_z = float('inf'), float('-inf')
+
+    for corner in corners:
+        trf = light_view @ np.append(corner, 1.0)
+        trf = trf[:3]
+        min_x = min(min_x, trf[0])
+        max_x = max(max_x, trf[0])
+        min_y = min(min_y, trf[1])
+        max_y = max(max_y, trf[1])
+        min_z = min(min_z, trf[2])
+        max_z = max(max_z, trf[2])
+
+    # small margin to prevent PCF clipping at the edges
+    width = max_x - min_x
+    height = max_y - min_y
+    margin_scale = 0.02
+    min_x -= width * margin_scale
+    max_x += width * margin_scale
+    min_y -= height * margin_scale
+    max_y += height * margin_scale
+
+    z_extension = 100.0
+    near_plane = -max_z - z_extension
+    far_plane = -min_z + z_extension
+
+    light_proj = create_orthographic_projection(min_x, max_x, min_y, max_y, near_plane, far_plane)
+
+    return light_proj @ light_view
