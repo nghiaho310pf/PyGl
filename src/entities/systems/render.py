@@ -21,7 +21,7 @@ from entities.components.visuals.visuals import Visuals, DrawMode
 from entities.registry import Registry
 from entities.components.visuals.material import Material
 from visuals.shader import Shader, ShaderGlobals
-from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, flat_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_smith, debug_depth_shader, id_shader
+from visuals.shaders import depth_prepass_shader, directional_shadowmap_shader, flat_shader, point_shadowmap_shader, shadow_blur_shader, tf2_ggx_hammon, debug_depth_shader, id_shader
 from visuals.shaders.shadow_mask_shader import blue_noise_tex
 from visuals.shaders.shadow_mask_shader import shaders as shadow_mask_shader
 from visuals.shaders.smaa import shaders as smaa_shaders, smaa_area_tex, smaa_search_tex
@@ -38,7 +38,7 @@ class RenderSystem:
         self.shadow_mask_shader = shadow_mask_shader.make_shader()
         self.shadow_blur_shader = shadow_blur_shader.make_shader()
         self.depth_prepass_shader = depth_prepass_shader.make_shader()
-        self.tf2_ggx_shader = tf2_ggx_smith.make_shader()
+        self.tf2_ggx_shader = tf2_ggx_hammon.make_shader()
         self.flat_shader = flat_shader.make_shader()
         self.debug_depth_shader = debug_depth_shader.make_shader()
         self.id_shader = id_shader.make_shader()

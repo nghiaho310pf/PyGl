@@ -17,10 +17,9 @@ uniform vec3 u_Albedo;
 uniform float u_Roughness;
 uniform float u_Metallic;
 
-// Hammon parameters
 uniform float u_Reflectance;   // F0 control (0.5 = 0.04 standard dielectric)
-uniform float u_Translucency;  // "Wrap" factor for subsurface scattering
-uniform float u_AO;            // Ambient Occlusion
+uniform float u_Translucency;  // fake subsurface scattering
+uniform float u_AO;
 
 const int MAX_LIGHTS = 4;
 uniform vec3 u_LightPos[MAX_LIGHTS];
@@ -58,10 +57,9 @@ float filmGrain(vec2 coords) {
     return fract(sin(dot(coords.xy, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
-float distributionGGX(vec3 N, vec3 H, float roughness) {
+float distributionGGX(float NdotH, float roughness) {
     float a = roughness * roughness;
     float a2 = a * a;
-    float NdotH = max(dot(N, H), 0.0);
     float NdotH2 = NdotH * NdotH;
 
     float num = a2;
@@ -71,13 +69,6 @@ float distributionGGX(vec3 N, vec3 H, float roughness) {
     return num / max(denom, 0.0001);
 }
 
-float correlatedSmith(float NdotV, float NdotL, float roughness) {
-    float a2 = roughness * roughness;
-    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - a2) + a2);
-    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - a2) + a2);
-    return 0.5 / (GGXV + GGXL);
-}
-
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     float f = clamp(1.0 - cosTheta, 0.0, 1.0);
     float f2 = f * f;
@@ -85,36 +76,43 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * f5;
 }
 
-float hammonDiffuse(vec3 N, vec3 V, vec3 L, float roughness) {
-    vec3 H = normalize(V + L);
-    float LdotH = clamp(dot(L, H), 0.0, 1.0);
-    float NdotL = clamp(dot(N, L), 0.0, 1.0);
-    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+float hammonVisibility(float NdotV, float NdotL, float roughness) {
+    float a = roughness * roughness;
+    float denom = mix(2.0 * NdotL * NdotV, NdotL + NdotV, a);
+    return 0.5 / max(denom, 0.0001);
+}
 
-    float facing = 0.5 + 2.0 * LdotH * LdotH * roughness;
-    return facing / PI;
+vec3 hammonGGXDiffuse(vec3 albedo, float NdotV, float NdotL, float NdotH, float LdotV, float roughness) {
+    float facing = 0.5 + 0.5 * LdotV;
+    float roughTerm = min((0.5 + NdotH) / max(NdotH, 0.001), 4.0);
+    float rough = facing * (0.9 - 0.4 * facing) * roughTerm;
+    float smoothTerm = 1.05 * (1.0 - pow(1.0 - NdotL, 5.0)) * (1.0 - pow(1.0 - NdotV, 5.0));
+    float single = (1.0 / PI) * mix(smoothTerm, rough, roughness);
+    float multi = 0.1159 * roughness;
+
+    return albedo * single + albedo * multi;
 }
 
 vec3 toneMapAgX(vec3 color) {
-    const mat3 agx_input_mat = mat3(
+    const mat3 agxInputMat = mat3(
         0.59719, 0.07600, 0.02840,
         0.35458, 0.90834, 0.13383,
         0.04823, 0.01566, 0.83777
     );
 
-    vec3 val = agx_input_mat * color;
+    vec3 val = agxInputMat * color;
     val = clamp(log2(max(val, 1e-6)) * 0.0606060606 + 0.7559957575, 0.0, 1.0);
     vec3 x2 = val * val;
     vec3 x4 = x2 * x2;
     val = 15.5 * x4 * x2 - 40.14 * x4 * val + 31.96 * x4 - 6.868 * x2 * val + 0.4298 * x2 + 0.1191 * val - 0.00232;
 
-    const mat3 agx_output_mat = mat3(
+    const mat3 agxOutputMat = mat3(
         1.56230, -0.46872, -0.09358,
         -0.45667, 1.35334, 0.10332,
         -0.09117, 0.02988, 1.06129
     );
 
-    return pow(max(agx_output_mat * val, 0.0), vec3(2.2));
+    return pow(max(agxOutputMat * val, 0.0), vec3(2.2));
 }
 
 void main() {
@@ -132,6 +130,7 @@ void main() {
     }
 
     vec3 V = normalize(u_ViewPos - v_WorldPos);
+    float NdotV = clamp(dot(N, V), 0.0001, 1.0);
 
     vec3 finalAlbedo = u_Albedo;
     if (u_UseAlbedoMap) {
@@ -143,7 +142,7 @@ void main() {
     if (u_UseRoughnessMap) {
         finalRoughness *= texture(u_RoughnessMap, v_UV).r;
     }
-    finalRoughness = clamp(finalRoughness, 0.05, 1.0);
+    finalRoughness = clamp(finalRoughness, 0.001, 1.0);
 
     float finalMetallic = u_Metallic;
     if (u_UseMetallicMap) {
@@ -158,6 +157,12 @@ void main() {
     vec4 pointShadowMask = texture(u_PointShadowMask, screenUV);
     vec4 dirShadowMask = texture(u_DirShadowMask, screenUV);
 
+    float dielectricF0 = 0.16 * u_Reflectance * u_Reflectance;
+    vec3 F0 = vec3(dielectricF0);
+    F0 = mix(F0, finalAlbedo, finalMetallic);
+
+    float wrap = u_Translucency * 0.5;
+
     // == point lights ==
     for (int i = 0; i < MAX_LIGHTS; ++i) {
         if (i >= u_NumLights) break;
@@ -166,38 +171,34 @@ void main() {
         float distance = length(lightPos - v_WorldPos);
         if (distance > u_FarPlane[i]) continue;
 
-        vec3 lightColor = u_LightColor[i];
         vec3 L = normalize(lightPos - v_WorldPos);
         vec3 H = normalize(V + L);
 
+        float NdotL = clamp(dot(N, L), 0.0001, 1.0);
+        float NdotH = clamp(dot(N, H), 0.0001, 1.0);
+        float LdotV = dot(L, V);
         float shadow = pointShadowMask[i];
 
         // lighting prep
         float attenuation = 1.0 / (distance * distance);
-        vec3 radiance = lightColor * attenuation;
+        vec3 radiance = u_LightColor[i] * attenuation;
 
-        float dielectricF0 = 0.16 * u_Reflectance * u_Reflectance;
-        vec3 F0 = vec3(dielectricF0);
-        F0 = mix(F0, finalAlbedo, finalMetallic);
-
-        float NDF = distributionGGX(N, H, finalRoughness);
-        float G = correlatedSmith(dot(N, V), dot(N, L), finalRoughness);
+        // specular (hammon visibility)
+        float NDF = distributionGGX(NdotH, finalRoughness);
+        float V_term = hammonVisibility(NdotV, NdotL, finalRoughness);
         vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-        vec3 specular = NDF * G * F;
+        vec3 specular = NDF * V_term * F;
 
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
-        kD *= (1.0 - finalMetallic);
+        // hammon diffuse
+        vec3 diffuseBRDF = hammonGGXDiffuse(finalAlbedo, NdotV, NdotL, NdotH, LdotV, finalRoughness);
 
-        float diffuseBRDF = hammonDiffuse(N, V, L, finalRoughness);
-
-        float wrap = u_Translucency * 0.5;
+        // wrapped diffuse lighting
         float NdotL_Unclamped = dot(N, L);
         float NdotL_Wrapped = max((NdotL_Unclamped + wrap) / (1.0 + wrap), 0.0);
 
-        vec3 diffuse = kD * finalAlbedo * diffuseBRDF;
-        vec3 directLight = (diffuse * NdotL_Wrapped + specular * max(dot(N, L), 0.0)) * radiance;
+        vec3 diffuse = (1.0 - finalMetallic) * diffuseBRDF;
+        vec3 directLight = (diffuse * NdotL_Wrapped + specular * NdotL) * radiance;
 
         directLight *= (1.0 - shadow);
         totalDirectLight += directLight;
@@ -207,38 +208,32 @@ void main() {
     for (int i = 0; i < MAX_LIGHTS; ++i) {
         if (i >= u_NumDirLights) break;
 
-        vec3 lightDir = normalize(-u_DirLightDirection[i]);
-        vec3 lightColor = u_DirLightColor[i];
-
-        vec3 L = lightDir;
+        vec3 L = normalize(-u_DirLightDirection[i]);
         vec3 H = normalize(V + L);
 
+        float NdotL = clamp(dot(N, L), 0.0001, 1.0);
+        float NdotH = clamp(dot(N, H), 0.0001, 1.0);
+        float LdotV = dot(L, V);
         float shadow = dirShadowMask[i];
 
-        vec3 radiance = lightColor;
+        vec3 radiance = u_DirLightColor[i];
 
-        float dielectricF0 = 0.16 * u_Reflectance * u_Reflectance;
-        vec3 F0 = vec3(dielectricF0);
-        F0 = mix(F0, finalAlbedo, finalMetallic);
-
-        float NDF = distributionGGX(N, H, finalRoughness);
-        float G = correlatedSmith(dot(N, V), dot(N, L), finalRoughness);
+        // specular (hammon visibility)
+        float NDF = distributionGGX(NdotH, finalRoughness);
+        float V_term = hammonVisibility(NdotV, NdotL, finalRoughness);
         vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-        vec3 specular = NDF * G * F;
+        vec3 specular = NDF * V_term * F;
 
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
-        kD *= (1.0 - finalMetallic);
+        // hammon diffuse
+        vec3 diffuseBRDF = hammonGGXDiffuse(finalAlbedo, NdotV, NdotL, NdotH, LdotV, finalRoughness);
 
-        float diffuseBRDF = hammonDiffuse(N, V, L, finalRoughness);
-
-        float wrap = u_Translucency * 0.5;
+        // wrapped diffuse lighting
         float NdotL_Unclamped = dot(N, L);
         float NdotL_Wrapped = max((NdotL_Unclamped + wrap) / (1.0 + wrap), 0.0);
 
-        vec3 diffuse = kD * finalAlbedo * diffuseBRDF;
-        vec3 directLight = (diffuse * NdotL_Wrapped + specular * max(dot(N, L), 0.0)) * radiance;
+        vec3 diffuse = (1.0 - finalMetallic) * diffuseBRDF;
+        vec3 directLight = (diffuse * NdotL_Wrapped + specular * NdotL) * radiance;
 
         directLight *= (1.0 - shadow);
         totalDirectLight += directLight;
