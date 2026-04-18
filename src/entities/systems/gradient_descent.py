@@ -4,6 +4,8 @@ import numpy as np
 from entities.components.gd.optimizer_state import OptimizerAlgorithm, OptimizerState
 from entities.components.gd.surface import GradientDescentSurface, LossFunctionType
 from entities.components.transform import Transform
+from entities.components.ui.gizmo_state import GizmoState
+from entities.components.ui.ui_state import UiState
 from entities.components.visuals.assets import AssetsState
 from entities.components.visuals.visuals import Visuals
 from entities.registry import Registry
@@ -14,10 +16,10 @@ from math_utils import float1, vec3, create_transformation_matrix
 class GradientDescentSurfaceSystem:
     @staticmethod
     def update(registry: Registry, time: float, delta_time: float):
-        r_admin = registry.get_singleton(AssetsState)
+        r_admin = registry.get_singleton(GizmoState, UiState, AssetsState)
         if r_admin is None:
             return
-        admin_entity, (assets_state, ) = r_admin
+        admin_entity, (gizmo_state, ui_state, assets_state, ) = r_admin
 
         for g_entity, (g_transform, g_visuals, g_surface) in registry.view(Transform, Visuals, GradientDescentSurface):
             m_surf = create_transformation_matrix(g_transform.position, g_transform.rotation, g_transform.scale)
@@ -57,7 +59,12 @@ class GradientDescentSurfaceSystem:
                     do_step = True
                     g_surface.step_timer = 0.0
 
+            ui_selected_entity = registry.get_parent(ui_state.selection_child_entity)
+
             for o_entity in children:
+                if gizmo_state.is_dragging and ui_selected_entity == o_entity:
+                    continue
+
                 r_optimizer = registry.get_components(o_entity, Transform, OptimizerState)
                 if r_optimizer is None:
                     continue
