@@ -144,13 +144,13 @@ void main() {
             float distance = length(u_LightPos[i] - v_WorldPos);
             if (distance <= u_FarPlane[i]) {
                 vec3 L = normalize(u_LightPos[i] - v_WorldPos);
-                float normalOffsetScale = max(0.02 * (1.0 - dot(N, L)), 0.002);
+                float normalOffsetScale = max(0.006 * (1.0 - dot(N, L)), 0.0006);
                 vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale;
                 float shadow = calculatePointShadow(
                     biasedWorldPos, u_LightPos[i], u_ShadowMap[i],
-                    u_FarPlane[i], 0.00025, randomRotation
+                    u_FarPlane[i], 0.0001, randomRotation
                 );
-                pointShadows[i] = smoothstep(0.01, 0.98, shadow);
+                pointShadows[i] = smoothstep(0.02, 0.98, shadow);
             }
         }
     }
@@ -163,17 +163,22 @@ void main() {
         if (i >= u_NumDirLights) break;
         if (u_DirLightCastsShadow[i] == 1) {
             vec3 L = normalize(-u_DirLightDirection[i]);
-            float normalOffsetScale = max(0.02 * (1.0 - dot(N, L)), 0.002);
-            vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale;
+            float normalOffsetScale = max(0.002 * (1.0 - dot(N, L)), 0.0002);
 
             int cascadeIndex = 2;
             if (viewSpaceZ <= u_CascadeDistances[0]) cascadeIndex = 0;
             else if (viewSpaceZ <= u_CascadeDistances[1]) cascadeIndex = 1;
 
+            // now, the required world bias amount doesn't scale like this,
+            // but actually scaling the appropriate amount will result in severe peter panning.
+            // we scale it just a bit to squash the risk of it appearing even with PCF sample count >= 16.
+            // generally PCF will naturally filter it out enough.
+            float cascadeScaleFactor = float(cascadeIndex + 1) * 4.0;
+            vec3 biasedWorldPos = v_WorldPos + N * normalOffsetScale * cascadeScaleFactor;
             vec4 fragPosLightSpace = u_DirLightSpaceMatrices[i * 3 + cascadeIndex] * vec4(biasedWorldPos, 1.0);
 
             float shadow = calculateDirectionalShadow(
-                fragPosLightSpace, u_DirShadowMap[i], float(cascadeIndex), 0.00025, randomRotation
+                fragPosLightSpace, u_DirShadowMap[i], float(cascadeIndex), 0.0001, randomRotation
             );
 
             if (cascadeIndex < 2) {
@@ -185,16 +190,18 @@ void main() {
                 if (viewSpaceZ > nextSplit - blendBand) {
                     float blendFactor = (viewSpaceZ - (nextSplit - blendBand)) / blendBand;
 
-                    vec4 nextFragPosLightSpace = u_DirLightSpaceMatrices[i * 3 + cascadeIndex + 1] * vec4(biasedWorldPos, 1.0);
+                    float innerCascadeScaleFactor = float(cascadeIndex + 2) * 4.0;
+                    vec3 innerBiasedWorldPos = v_WorldPos + N * normalOffsetScale * innerCascadeScaleFactor;
+                    vec4 nextFragPosLightSpace = u_DirLightSpaceMatrices[i * 3 + cascadeIndex + 1] * vec4(innerBiasedWorldPos, 1.0);
                     float nextShadow = calculateDirectionalShadow(
-                        nextFragPosLightSpace, u_DirShadowMap[i], float(cascadeIndex + 1), 0.00025, randomRotation
+                        nextFragPosLightSpace, u_DirShadowMap[i], float(cascadeIndex + 1), 0.0001, randomRotation
                     );
 
                     shadow = mix(shadow, nextShadow, blendFactor);
                 }
             }
 
-            dirShadows[i] = smoothstep(0.01, 0.98, shadow);
+            dirShadows[i] = smoothstep(0.02, 0.98, shadow);
         }
     }
 
