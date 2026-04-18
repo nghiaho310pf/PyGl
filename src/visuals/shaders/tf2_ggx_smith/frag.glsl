@@ -4,6 +4,7 @@ out vec4 FragColor;
 in vec3 v_WorldPos;
 in vec3 v_Normal;
 in vec2 v_UV;
+in vec3 v_Tangent;
 
 layout (std140) uniform SceneData {
     mat4 u_Projection;
@@ -36,6 +37,15 @@ uniform int u_DirLightCastsShadow[MAX_LIGHTS];
 
 uniform sampler2D u_AlbedoMap;
 uniform bool u_UseAlbedoMap;
+
+uniform sampler2D u_NormalMap;
+uniform bool u_UseNormalMap;
+
+uniform sampler2D u_RoughnessMap;
+uniform bool u_UseRoughnessMap;
+
+uniform sampler2D u_MetallicMap;
+uniform bool u_UseMetallicMap;
 
 uniform sampler2D u_PointShadowMask;
 uniform sampler2D u_DirShadowMask;
@@ -113,6 +123,14 @@ void main() {
         N = -N;
     }
 
+    if (u_UseNormalMap) {
+        vec3 T = normalize(v_Tangent);
+        vec3 B = cross(N, T);
+        mat3 TBN = mat3(T, B, N);
+        vec3 nm = texture(u_NormalMap, v_UV).rgb * 2.0 - 1.0;
+        N = normalize(TBN * nm);
+    }
+
     vec3 V = normalize(u_ViewPos - v_WorldPos);
 
     vec3 finalAlbedo = u_Albedo;
@@ -120,6 +138,18 @@ void main() {
         vec4 albedoTex = texture(u_AlbedoMap, v_UV);
         finalAlbedo *= albedoTex.xyz;
     }
+
+    float finalRoughness = u_Roughness;
+    if (u_UseRoughnessMap) {
+        finalRoughness *= texture(u_RoughnessMap, v_UV).r;
+    }
+    finalRoughness = clamp(finalRoughness, 0.05, 1.0);
+
+    float finalMetallic = u_Metallic;
+    if (u_UseMetallicMap) {
+        finalMetallic *= texture(u_MetallicMap, v_UV).r;
+    }
+    finalMetallic = clamp(finalMetallic, 0.0, 1.0);
 
     vec3 ambient = finalAlbedo * u_AO;
     vec3 totalDirectLight = vec3(0.0);
@@ -148,19 +178,19 @@ void main() {
 
         float dielectricF0 = 0.16 * u_Reflectance * u_Reflectance;
         vec3 F0 = vec3(dielectricF0);
-        F0 = mix(F0, finalAlbedo, u_Metallic);
+        F0 = mix(F0, finalAlbedo, finalMetallic);
 
-        float NDF = distributionGGX(N, H, u_Roughness);
-        float G = correlatedSmith(dot(N, V), dot(N, L), u_Roughness);
+        float NDF = distributionGGX(N, H, finalRoughness);
+        float G = correlatedSmith(dot(N, V), dot(N, L), finalRoughness);
         vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
         vec3 specular = NDF * G * F;
 
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;
-        kD *= (1.0 - u_Metallic);
+        kD *= (1.0 - finalMetallic);
 
-        float diffuseBRDF = hammonDiffuse(N, V, L, u_Roughness);
+        float diffuseBRDF = hammonDiffuse(N, V, L, finalRoughness);
 
         float wrap = u_Translucency * 0.5;
         float NdotL_Unclamped = dot(N, L);
@@ -189,19 +219,19 @@ void main() {
 
         float dielectricF0 = 0.16 * u_Reflectance * u_Reflectance;
         vec3 F0 = vec3(dielectricF0);
-        F0 = mix(F0, finalAlbedo, u_Metallic);
+        F0 = mix(F0, finalAlbedo, finalMetallic);
 
-        float NDF = distributionGGX(N, H, u_Roughness);
-        float G = correlatedSmith(dot(N, V), dot(N, L), u_Roughness);
+        float NDF = distributionGGX(N, H, finalRoughness);
+        float G = correlatedSmith(dot(N, V), dot(N, L), finalRoughness);
         vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
         vec3 specular = NDF * G * F;
 
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;
-        kD *= (1.0 - u_Metallic);
+        kD *= (1.0 - finalMetallic);
 
-        float diffuseBRDF = hammonDiffuse(N, V, L, u_Roughness);
+        float diffuseBRDF = hammonDiffuse(N, V, L, finalRoughness);
 
         float wrap = u_Translucency * 0.5;
         float NdotL_Unclamped = dot(N, L);

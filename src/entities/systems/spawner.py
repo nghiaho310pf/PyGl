@@ -70,6 +70,15 @@ class SpawnerSystem:
             if node.material_template.albedo_map_id is not None:
                 mat.albedo_map = AssetSystem.request_texture(assets_state, node.material_template.albedo_map_id)
 
+            if node.material_template.normal_map_id is not None:
+                mat.normal_map = AssetSystem.request_texture(assets_state, node.material_template.normal_map_id)
+
+            if node.material_template.roughness_map_id is not None:
+                mat.roughness_map = AssetSystem.request_texture(assets_state, node.material_template.roughness_map_id)
+
+            if node.material_template.metallic_map_id is not None:
+                mat.metallic_map = AssetSystem.request_texture(assets_state, node.material_template.metallic_map_id)
+
             registry.add_components(
                 entity,
                 EntityFlags(name=f"{model.filepath.split('/')[-1]}_{node.name}"),

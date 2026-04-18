@@ -309,8 +309,9 @@ class RenderSystem:
                 shader.set_int(flag_name, 0)
 
         bind_map("albedo_map",   "u_AlbedoMap",   "u_UseAlbedoMap",   0)
-        # bind_map("normal_map",   "u_NormalMap",   "u_UseNormalMap",   1)
-        # bind_map("specular_map", "u_SpecularMap", "u_UseSpecularMap", 2)
+        bind_map("normal_map",   "u_NormalMap",   "u_UseNormalMap",   1)
+        bind_map("roughness_map","u_RoughnessMap","u_UseRoughnessMap", 2)
+        bind_map("metallic_map", "u_MetallicMap", "u_UseMetallicMap",  3)
 
     def _export_dataset_frame(self, registry: Registry, width, height, camera_state: CameraState, frame_name: str):
         exports = {

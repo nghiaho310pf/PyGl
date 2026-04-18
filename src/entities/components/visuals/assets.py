@@ -121,6 +121,9 @@ class MaterialTemplate:
     translucency: np.float32 = field(default_factory=lambda: np.float32(0.0))
     ao: np.float32 = field(default_factory=lambda: np.float32(0.0))
     albedo_map_id: int | None = None
+    normal_map_id: int | None = None
+    roughness_map_id: int | None = None
+    metallic_map_id: int | None = None
 
 
 @dataclass(slots=True, eq=False)

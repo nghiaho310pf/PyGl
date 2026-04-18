@@ -15,5 +15,6 @@ class Material:
     ao: np.float32 = field(default_factory=lambda: np.float32(0.0))
 
     albedo_map: Texture | None = None
-    # normal_map: Texture | None = None
-    # specular_map: Texture | None = None
+    normal_map: Texture | None = None
+    roughness_map: Texture | None = None
+    metallic_map: Texture | None = None

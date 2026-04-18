@@ -62,16 +62,44 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
                 if hasattr(mat, 'main_color'):
                     mat_template.albedo = (mat.main_color[:3] / 255.0) ** 2.2
 
-                pil_image = None
+                # --- albedo map ---
+                albedo_image = None
                 if hasattr(mat, 'image') and mat.image is not None:
-                    pil_image = mat.image
+                    albedo_image = mat.image
                 elif hasattr(mat, 'baseColorTexture') and mat.baseColorTexture is not None:
-                    pil_image = mat.baseColorTexture
+                    albedo_image = mat.baseColorTexture
 
-                if pil_image is not None:
+                if albedo_image is not None:
                     virtual_tex_id = AssetSystem.generate_id(assets_state)
-                    task_queue.put(TextureImageTask(virtual_tex_id, pil_image, is_srgb=True))
+                    task_queue.put(TextureImageTask(virtual_tex_id, albedo_image, is_srgb=True))
                     mat_template.albedo_map_id = virtual_tex_id
+
+                # --- normal map ---
+                normal_image = None
+                if hasattr(mat, 'normalTexture') and mat.normalTexture is not None:
+                    normal_image = mat.normalTexture
+
+                if normal_image is not None:
+                    virtual_normal_id = AssetSystem.generate_id(assets_state)
+                    task_queue.put(TextureImageTask(virtual_normal_id, normal_image, is_srgb=False))
+                    mat_template.normal_map_id = virtual_normal_id
+
+                # --- metallic + roughness map ---
+                if hasattr(mat, 'metallicRoughnessTexture') and mat.metallicRoughnessTexture is not None:
+                    bands = mat.metallicRoughnessTexture.split()
+
+                    if len(bands) >= 3:
+                        # bands[0] = red (AO), skipped for now.
+                        roughness_image = bands[1]
+                        metallic_image = bands[2]
+
+                        roughness_tex_id = AssetSystem.generate_id(assets_state)
+                        task_queue.put(TextureImageTask(roughness_tex_id, roughness_image, is_srgb=False))
+                        mat_template.roughness_map_id = roughness_tex_id
+
+                        metallic_tex_id = AssetSystem.generate_id(assets_state)
+                        task_queue.put(TextureImageTask(metallic_tex_id, metallic_image, is_srgb=False))
+                        mat_template.metallic_map_id = metallic_tex_id
 
             nodes.append(ModelNode(
                 mesh_id=virtual_mesh_id,
@@ -96,6 +124,39 @@ def _process_mesh_from_file(asset_id: int, filepath: str, result_queue: queue.Qu
         result_queue.put(MeshResult(asset_id=asset_id, error=e))
 
 
+def _calculate_tangents(vertices, normals, uvs, faces):
+    tangents = np.zeros_like(vertices)
+    for face in faces:
+        v0, v1, v2 = vertices[face]
+        uv0, uv1, uv2 = uvs[face]
+
+        edge1 = v1 - v0
+        edge2 = v2 - v0
+        delta_uv1 = uv1 - uv0
+        delta_uv2 = uv2 - uv0
+
+        f = 1.0 / (delta_uv1[0] * delta_uv2[1] - delta_uv2[0] * delta_uv1[1] + 1e-10)
+        tangent = f * (delta_uv2[1] * edge1 - delta_uv1[1] * edge2)
+
+        tangents[face] += tangent
+
+    for i in range(len(tangents)):
+        n = normals[i]
+        t = tangents[i]
+        t_ortho = t - n * np.dot(n, t)
+        norm = np.linalg.norm(t_ortho)
+        if norm > 1e-10:
+            tangents[i] = t_ortho / norm
+        else:
+            if abs(n[0]) < 0.9:
+                tangents[i] = np.cross(n, [1, 0, 0])
+            else:
+                tangents[i] = np.cross(n, [0, 1, 0])
+            tangents[i] /= np.linalg.norm(tangents[i])
+
+    return tangents
+
+
 def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, result_queue: queue.Queue):
     try:
         vertices = geom.vertices
@@ -106,10 +167,14 @@ def _process_mesh_from_geom(asset_id: int, geom: trimesh.Trimesh, result_queue: 
         else:
             uvs = np.zeros((len(vertices), 2))
 
-        interleaved = np.empty((len(vertices), 8), dtype=np.float32)
+        # trimesh is garbage and can't parse it from glTF files. compute it ourselves
+        tangents = _calculate_tangents(vertices, normals, uvs, geom.faces)
+
+        interleaved = np.empty((len(vertices), 11), dtype=np.float32)
         interleaved[:, 0:3] = vertices
         interleaved[:, 3:6] = normals
         interleaved[:, 6:8] = uvs
+        interleaved[:, 8:11] = tangents
 
         result_queue.put(MeshResult(
             asset_id=asset_id,
@@ -127,7 +192,7 @@ def _process_texture_from_file(asset_id: int, filepath: str, is_srgb: bool, resu
 def _process_texture_from_image(asset_id: int, img: Image.Image, is_srgb: bool, result_queue: queue.Queue):
     try:
         img_transposed = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-        if img_transposed.mode not in ("RGB", "RGBA"):
+        if img_transposed.mode not in ("RGB", "RGBA", "L"):
             img_transposed = img_transposed.convert("RGBA")
 
         format_ext = img_transposed.mode
@@ -188,6 +253,18 @@ class AssetSystem:
                                 tex_id = node.material_template.albedo_map_id
                                 if tex_id is not None and tex_id not in assets_state.textures:
                                     assets_state.textures[tex_id] = Texture(id=tex_id, filepath="", status=AssetStatus.Loading, is_srgb=True)
+
+                                norm_id = node.material_template.normal_map_id
+                                if norm_id is not None and norm_id not in assets_state.textures:
+                                    assets_state.textures[norm_id] = Texture(id=norm_id, filepath="", status=AssetStatus.Loading, is_srgb=False)
+
+                                rough_id = node.material_template.roughness_map_id
+                                if rough_id is not None and rough_id not in assets_state.textures:
+                                    assets_state.textures[rough_id] = Texture(id=rough_id, filepath="", status=AssetStatus.Loading, is_srgb=False)
+
+                                metal_id = node.material_template.metallic_map_id
+                                if metal_id is not None and metal_id not in assets_state.textures:
+                                    assets_state.textures[metal_id] = Texture(id=metal_id, filepath="", status=AssetStatus.Loading, is_srgb=False)
                         else:
                             raise RuntimeError("AssetSystem: encountered illegal ModelResult")
 
@@ -223,10 +300,32 @@ class AssetSystem:
         asset_id = AssetSystem.generate_id(assets_state)
         mesh = Mesh(id=asset_id, status=AssetStatus.Loading)
         assets_state.meshes[asset_id] = mesh
+
+        # lots of stuff come from mesh generation code that only gives
+        # positions + normals + UVs. we'll just convert it on the fly
+        v_data = vertices
+        if v_data.ndim == 1:
+            num_floats = v_data.size
+            if num_floats % 8 == 0 and num_floats % 11 != 0:
+                num_vertices = num_floats // 8
+                reshaped = v_data.reshape((num_vertices, 8))
+
+                pos = reshaped[:, 0:3]
+                norm = reshaped[:, 3:6]
+                uv = reshaped[:, 6:8]
+                faces = indices.reshape((-1, 3))
+
+                tangents = _calculate_tangents(pos, norm, uv, faces)
+
+                interleaved = np.empty((num_vertices, 11), dtype=np.float32)
+                interleaved[:, 0:8] = reshaped
+                interleaved[:, 8:11] = tangents
+                v_data = interleaved.ravel()
+
         assets_state.result_queue.put(
             MeshResult(
                 asset_id=asset_id,
-                vertices=vertices,
+                vertices=v_data,
                 indices=indices,
                 error=None
             )
@@ -312,8 +411,8 @@ class AssetSystem:
             mesh.has_indices = False
             mesh.indices_count = 0
 
-        mesh.vertex_count = len(vertices) // 8
-        stride = 8 * 4  # 8 floats, 4 bytes each
+        mesh.vertex_count = len(vertices) // 11
+        stride = 11 * 4  # 11 floats, 4 bytes each
 
         GL.glEnableVertexAttribArray(0)
         GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(0))
@@ -321,6 +420,8 @@ class AssetSystem:
         GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(12))
         GL.glEnableVertexAttribArray(2)
         GL.glVertexAttribPointer(2, 2, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(24))
+        GL.glEnableVertexAttribArray(3)
+        GL.glVertexAttribPointer(3, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(32))
 
         GL.glBindVertexArray(0)
         mesh.status = AssetStatus.Ready
@@ -335,18 +436,29 @@ class AssetSystem:
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR_MIPMAP_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
 
-        gl_format = GL.GL_RGB if format_info == "RGB" else GL.GL_RGBA
-        internal_format = gl_format
-        if tex_obj.is_srgb:
-            internal_format = GL.GL_SRGB8 if gl_format == GL.GL_RGB else GL.GL_SRGB8_ALPHA8
+        if format_info == "RGB":
+            gl_format = GL.GL_RGB
+            internal_format = GL.GL_SRGB8 if tex_obj.is_srgb else GL.GL_RGB8
+        elif format_info == "L":
+            gl_format = GL.GL_RED
+            internal_format = GL.GL_R8
+        else: # RGBA
+            gl_format = GL.GL_RGBA
+            internal_format = GL.GL_SRGB8_ALPHA8 if tex_obj.is_srgb else GL.GL_RGBA8
 
         height, width = data.shape[:2]
+
+        if gl_format == GL.GL_RED:
+            GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
 
         GL.glTexImage2D(
             GL.GL_TEXTURE_2D, 0, internal_format, width, height, 0,
             gl_format, GL.GL_UNSIGNED_BYTE, data
         )
         GL.glGenerateMipmap(GL.GL_TEXTURE_2D)
+
+        if gl_format == GL.GL_RED:
+            GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 4)
 
         tex_obj.gl_id = tex_id
         tex_obj.width = width

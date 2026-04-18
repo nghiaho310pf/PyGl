@@ -815,8 +815,9 @@ class UiSystem:
 
                         texture_maps = [
                             ("Albedo", "albedo_map"),
-                            # ("Normal", "normal_map"),
-                            # ("Specular", "specular_map")
+                            ("Normal", "normal_map"),
+                            ("Roughness", "roughness_map"),
+                            ("Metallic", "metallic_map")
                         ]
 
                         for display_name, attr_name in texture_maps:
