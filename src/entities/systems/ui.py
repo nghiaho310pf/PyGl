@@ -5,6 +5,7 @@ from typing import Any, Type
 import numpy as np
 from imgui_bundle import imgui, icons_fontawesome_6, portable_file_dialogs as pfd
 
+from engine.application import Application
 from entities.components.camera import Camera
 from entities.components.camera_state import CameraState
 from entities.components.directional_light import DirectionalLight
@@ -589,8 +590,9 @@ class UiSystem:
             if imgui.button("Capture this frame"):
                 render_state.is_capture = True
 
-            imgui.same_line()
-            imgui.text(f"FPS: {render_state.fps:.1f} ({render_state.render_time_ms:.2f}ms, max: {render_state.theoretical_max_fps:.1f})")
+            if not Application.has_broken_opengl:
+                imgui.same_line()
+                imgui.text(f"FPS: {render_state.fps:.1f} ({render_state.render_time_ms:.2f}ms, max: {render_state.theoretical_max_fps:.1f})")
 
             if imgui.begin_table("graphics_render_mode", 2):
                 imgui.table_setup_column("Label", imgui.TableColumnFlags_.width_fixed)

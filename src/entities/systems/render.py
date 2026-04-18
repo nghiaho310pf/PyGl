@@ -7,6 +7,7 @@ import numpy as np
 from OpenGL import GL
 import PIL.Image as Image
 
+from engine.application import Application
 from entities.components.camera_state import CameraState
 from entities.components.entity_flags import EntityFlags
 from entities.components.gd.optimizer_state import OptimizerState
@@ -100,10 +101,11 @@ class RenderSystem:
         self.line_vbo = GL.glGenBuffers(1)
 
         # == performance querying ==
-        self.num_timer_queries = 8
-        self.timer_queries = GL.glGenQueries(self.num_timer_queries)
-        self.query_index = 0
-        self.gpu_time_ms = 0.0
+        if not Application.has_broken_opengl:
+            self.num_timer_queries = 8
+            self.timer_queries = GL.glGenQueries(self.num_timer_queries)
+            self.query_index = 0
+            self.gpu_time_ms = 0.0
 
     def _setup_fullscreen_quad(self):
         quad_data = np.array([
@@ -398,7 +400,8 @@ class RenderSystem:
             f.writelines(yolo_lines)
 
     def update(self, registry: Registry, window_size: tuple[int, int], time_val: float, delta_time: float):
-        GL.glBeginQuery(GL.GL_TIME_ELAPSED, self.timer_queries[self.query_index])
+        if not Application.has_broken_opengl:
+            GL.glBeginQuery(GL.GL_TIME_ELAPSED, self.timer_queries[self.query_index])
 
         width, height = window_size
         self._setup_fbos(width, height)
@@ -885,22 +888,23 @@ class RenderSystem:
             self._export_dataset_frame(registry, width, height, camera_state, str(render_state.frame_number).zfill(6))
             render_state.is_capture = False
 
-        GL.glEndQuery(GL.GL_TIME_ELAPSED)
+        if not Application.has_broken_opengl:
+            GL.glEndQuery(GL.GL_TIME_ELAPSED)
 
-        if render_state.frame_number >= self.num_timer_queries - 1:
-            oldest_query_index = (self.query_index + 1) % self.num_timer_queries
-            available = GL.glGetQueryObjectiv(self.timer_queries[oldest_query_index], GL.GL_QUERY_RESULT_AVAILABLE)
-            if available:
-                elapsed_ns = GL.glGetQueryObjectuiv(self.timer_queries[oldest_query_index], GL.GL_QUERY_RESULT)
-                self.gpu_time_ms = elapsed_ns / 1_000_000.0
+            if render_state.frame_number >= self.num_timer_queries - 1:
+                oldest_query_index = (self.query_index + 1) % self.num_timer_queries
+                available = GL.glGetQueryObjectiv(self.timer_queries[oldest_query_index], GL.GL_QUERY_RESULT_AVAILABLE)
+                if available:
+                    elapsed_ns = GL.glGetQueryObjectuiv(self.timer_queries[oldest_query_index], GL.GL_QUERY_RESULT)
+                    self.gpu_time_ms = elapsed_ns / 1_000_000.0
 
-        self.query_index = (self.query_index + 1) % self.num_timer_queries
+            self.query_index = (self.query_index + 1) % self.num_timer_queries
 
-        blend_factor_a = 0.05
-        blend_factor_b = 0.95
+            blend_factor_a = 0.05
+            blend_factor_b = 0.95
 
-        render_state.render_time_ms = self.gpu_time_ms * blend_factor_a + render_state.render_time_ms * blend_factor_b
-        render_state.fps = (1.0 / delta_time if delta_time > 0 else 0.0) * blend_factor_a + render_state.fps * blend_factor_b
-        render_state.theoretical_max_fps = (1000.0 / self.gpu_time_ms if self.gpu_time_ms > 0 else 0.0) * blend_factor_a + render_state.theoretical_max_fps * blend_factor_b
+            render_state.render_time_ms = self.gpu_time_ms * blend_factor_a + render_state.render_time_ms * blend_factor_b
+            render_state.fps = (1.0 / delta_time if delta_time > 0 else 0.0) * blend_factor_a + render_state.fps * blend_factor_b
+            render_state.theoretical_max_fps = (1000.0 / self.gpu_time_ms if self.gpu_time_ms > 0 else 0.0) * blend_factor_a + render_state.theoretical_max_fps * blend_factor_b
 
         render_state.frame_number += 1
