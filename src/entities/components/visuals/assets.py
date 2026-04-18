@@ -119,7 +119,7 @@ class MaterialTemplate:
     metallic: np.float32 = field(default_factory=lambda: np.float32(0.0))
     reflectance: np.float32 = field(default_factory=lambda: np.float32(0.0))
     translucency: np.float32 = field(default_factory=lambda: np.float32(0.0))
-    ao: np.float32 = field(default_factory=lambda: np.float32(0.0))
+    ao: np.float32 = field(default_factory=lambda: np.float32(0.12))
     albedo_map_id: int | None = None
     normal_map_id: int | None = None
     roughness_map_id: int | None = None

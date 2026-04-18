@@ -73,6 +73,7 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
                     virtual_tex_id = AssetSystem.generate_id(assets_state)
                     task_queue.put(TextureImageTask(virtual_tex_id, albedo_image, is_srgb=True))
                     mat_template.albedo_map_id = virtual_tex_id
+                    mat_template.albedo = np.array([1.0, 1.0, 1.0], dtype=np.float32)
 
                 # --- normal map ---
                 normal_image = None
@@ -96,10 +97,12 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
                         roughness_tex_id = AssetSystem.generate_id(assets_state)
                         task_queue.put(TextureImageTask(roughness_tex_id, roughness_image, is_srgb=False))
                         mat_template.roughness_map_id = roughness_tex_id
+                        mat_template.roughness = np.float32(1.0)
 
                         metallic_tex_id = AssetSystem.generate_id(assets_state)
                         task_queue.put(TextureImageTask(metallic_tex_id, metallic_image, is_srgb=False))
                         mat_template.metallic_map_id = metallic_tex_id
+                        mat_template.metallic = np.float32(1.0)
 
             nodes.append(ModelNode(
                 mesh_id=virtual_mesh_id,
