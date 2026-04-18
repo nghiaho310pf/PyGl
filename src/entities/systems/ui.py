@@ -454,7 +454,7 @@ class UiSystem:
                         new_entity,
                         EntityFlags(name="Point light"),
                         Transform(position=vec3(*camera_state.focal_point)),
-                        PointLight()
+                        PointLight(casts_shadow=False)
                     )
                 elif ui_state.add_mesh_type == AddType.Camera:
                     registry.add_components(
