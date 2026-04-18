@@ -25,6 +25,10 @@ class RenderState:
     frame_number: int = 0
     is_capture: bool = False
 
+    fps: float = 0.0
+    render_time_ms: float = 0.0
+    theoretical_max_fps: float = 0.0
+
     shadow_blur_depth_sensitivity: np.float32 = np.float32(5.0)
     shadow_blur_normal_threshold: np.float32 = np.float32(0.7)
 
