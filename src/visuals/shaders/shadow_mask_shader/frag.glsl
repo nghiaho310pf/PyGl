@@ -126,7 +126,7 @@ void main() {
     float depth = texture(u_DepthTexture, v_UV).r;
     if (depth == 1.0) discard;
 
-    vec3 N = texture(u_NormalTexture, v_UV).xyz;
+    vec3 N = normalize(texture(u_NormalTexture, v_UV).xyz * 2.0 - 1.0);
 
     vec4 ndc = vec4(v_UV * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     vec4 worldPosProj = u_InverseViewProjection * ndc;

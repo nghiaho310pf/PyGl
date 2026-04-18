@@ -30,7 +30,7 @@ void main() {
 
     float rawCenterDepth = texture(u_DepthTexture, v_UV).r;
     float centerDepth = linearizeDepth(rawCenterDepth);
-    vec3 centerNormal = normalize(texture(u_NormalTexture, v_UV).rgb);
+    vec3 centerNormal = normalize(texture(u_NormalTexture, v_UV).rgb * 2.0 - 1.0);
 
     vec4 result = texture(u_Texture, v_UV) * weightCenter;
     float totalWeight = weightCenter;
@@ -38,7 +38,7 @@ void main() {
     // positive offset
     float rawDepthPos = texture(u_DepthTexture, uvPos).r;
     float depthPos = linearizeDepth(rawDepthPos);
-    vec3 normalPos = normalize(texture(u_NormalTexture, uvPos).rgb);
+    vec3 normalPos = normalize(texture(u_NormalTexture, uvPos).rgb * 2.0 - 1.0);
 
     // reject neighbors with too different a normal
     float normalWeightPos = smoothstep(u_NormalThreshold, 1.0, dot(centerNormal, normalPos));
@@ -50,7 +50,7 @@ void main() {
     // negative offset
     float rawDepthNeg = texture(u_DepthTexture, uvNeg).r;
     float depthNeg = linearizeDepth(rawDepthNeg);
-    vec3 normalNeg = normalize(texture(u_NormalTexture, uvNeg).rgb);
+    vec3 normalNeg = normalize(texture(u_NormalTexture, uvNeg).rgb * 2.0 - 1.0);
 
     float normalWeightNeg = smoothstep(u_NormalThreshold, 1.0, dot(centerNormal, normalNeg));
 
