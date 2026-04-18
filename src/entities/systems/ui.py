@@ -589,6 +589,9 @@ class UiSystem:
             if imgui.button("Capture this frame"):
                 render_state.is_capture = True
 
+            imgui.same_line()
+            imgui.text(f"FPS: {render_state.fps:.1f} ({render_state.render_time_ms:.2f}ms, max: {render_state.theoretical_max_fps:.1f})")
+
             if imgui.begin_table("graphics_render_mode", 2):
                 imgui.table_setup_column("Label", imgui.TableColumnFlags_.width_fixed)
                 imgui.table_setup_column("Controls", imgui.TableColumnFlags_.width_stretch)
