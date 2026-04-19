@@ -49,18 +49,19 @@ class RenderSystem:
             self.smaa_blend_shader
         ) = smaa_shaders.make_shaders()
 
-        self._attach_shader(self.point_shadowmap_shader)
-        self._attach_shader(self.directional_shadowmap_shader)
-        self._attach_shader(self.shadow_mask_shader)
-        self._attach_shader(self.shadow_blur_shader)
-        self._attach_shader(self.depth_prepass_shader)
-        self._attach_shader(self.tf2_ggx_shader)
-        self._attach_shader(self.flat_shader)
-        self._attach_shader(self.debug_depth_shader)
-        self._attach_shader(self.id_shader)
-        self._attach_shader(self.smaa_edge_shader)
-        self._attach_shader(self.smaa_weight_shader)
-        self._attach_shader(self.smaa_blend_shader)
+        # these shaders don't use ShaderGlobals:
+        # - point_shadowmap_shader
+        # - directional_shadowmap_shader
+        # - shadow_blur_shader
+        # - smaa_edge_shader
+        # - smaa_weight_shader
+        # - smaa_blend_shader
+        self._attach_shader_globals_to(self.shadow_mask_shader)
+        self._attach_shader_globals_to(self.depth_prepass_shader)
+        self._attach_shader_globals_to(self.tf2_ggx_shader)
+        self._attach_shader_globals_to(self.flat_shader)
+        self._attach_shader_globals_to(self.debug_depth_shader)
+        self._attach_shader_globals_to(self.id_shader)
 
         self.blue_noise_tex = blue_noise_tex.load()
         self.smaa_area_tex = smaa_area_tex.load()
@@ -245,7 +246,7 @@ class RenderSystem:
             GL.glDrawArrays(GL.GL_TRIANGLES, 0, mesh.vertex_count)
         GL.glBindVertexArray(0)
 
-    def _attach_shader(self, shader: Shader):
+    def _attach_shader_globals_to(self, shader: Shader):
         self.shader_globals.attach_to(shader)
 
     def _setup_directional_shadow_map(self, dir_light: DirectionalLight):

@@ -13,14 +13,6 @@ layout (std140) uniform SceneData {
     float u_Time;
 };
 
-uniform vec3 u_Albedo;
-uniform float u_Roughness;
-uniform float u_Metallic;
-
-uniform float u_Reflectance;   // F0 control (0.5 = 0.04 standard dielectric)
-uniform float u_Translucency;  // fake subsurface scattering
-uniform float u_AO;
-
 const int MAX_LIGHTS = 4;
 uniform vec3 u_LightPos[MAX_LIGHTS];
 uniform float u_LightRadius[MAX_LIGHTS];
@@ -34,21 +26,26 @@ uniform vec3 u_DirLightColor[MAX_LIGHTS];
 uniform int u_NumDirLights;
 uniform int u_DirLightCastsShadow[MAX_LIGHTS];
 
-uniform sampler2D u_AlbedoMap;
-uniform bool u_UseAlbedoMap;
-
-uniform sampler2D u_NormalMap;
-uniform bool u_UseNormalMap;
-
-uniform sampler2D u_RoughnessMap;
-uniform bool u_UseRoughnessMap;
-
-uniform sampler2D u_MetallicMap;
-uniform bool u_UseMetallicMap;
-
+uniform vec2 u_ScreenSize;
 uniform sampler2D u_PointShadowMask;
 uniform sampler2D u_DirShadowMask;
-uniform vec2 u_ScreenSize;
+
+uniform vec3 u_Albedo;
+uniform float u_Roughness;
+uniform float u_Metallic;
+uniform float u_Reflectance; // F0 control (0.5 = 0.04 standard dielectric)
+uniform float u_Translucency; // fake subsurface scattering
+uniform float u_AO;
+
+uniform bool u_UseAlbedoMap;
+uniform bool u_UseNormalMap;
+uniform bool u_UseRoughnessMap;
+uniform bool u_UseMetallicMap;
+
+uniform sampler2D u_AlbedoMap;
+uniform sampler2D u_NormalMap;
+uniform sampler2D u_RoughnessMap;
+uniform sampler2D u_MetallicMap;
 
 const float PI = 3.14159265359;
 const float PI2 = 6.28318530718;
