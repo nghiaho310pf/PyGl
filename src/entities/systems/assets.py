@@ -41,6 +41,7 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
     try:
         scene = trimesh.load_scene(filepath)
         nodes = []
+        base_dir = os.path.dirname(filepath)
 
         for node_name in scene.graph.nodes_geometry:
             transform_matrix, geometry_name = scene.graph[node_name]
@@ -79,6 +80,16 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
                 normal_image = None
                 if hasattr(mat, 'normalTexture') and mat.normalTexture is not None:
                     normal_image = mat.normalTexture
+                elif hasattr(mat, 'kwargs'):
+                    # lowercase in trimesh for some reason
+                    bump_val = mat.kwargs.get('map_bump') or mat.kwargs.get('bump')
+                    if bump_val:
+                        filename = bump_val[0] if isinstance(bump_val, list) else bump_val
+                        tex_path = os.path.join(base_dir, filename)
+
+                        virtual_normal_id = AssetSystem.generate_id(assets_state)
+                        task_queue.put(TextureFileTask(virtual_normal_id, tex_path, is_srgb=False))
+                        mat_template.normal_map_id = virtual_normal_id
 
                 if normal_image is not None:
                     virtual_normal_id = AssetSystem.generate_id(assets_state)
@@ -101,6 +112,26 @@ def _process_model(assets_state: AssetsState, asset_id: int, filepath: str, resu
 
                         metallic_tex_id = AssetSystem.generate_id(assets_state)
                         task_queue.put(TextureImageTask(metallic_tex_id, metallic_image, is_srgb=False))
+                        mat_template.metallic_map_id = metallic_tex_id
+                        mat_template.metallic = np.float32(1.0)
+                elif hasattr(mat, 'kwargs'):
+                    roughness_val = mat.kwargs.get('map_ns') or mat.kwargs.get('map_pr')
+                    if roughness_val:
+                        filename = roughness_val[0] if isinstance(roughness_val, list) else roughness_val
+                        tex_path = os.path.join(base_dir, filename)
+
+                        roughness_tex_id = AssetSystem.generate_id(assets_state)
+                        task_queue.put(TextureFileTask(roughness_tex_id, tex_path, is_srgb=False))
+                        mat_template.roughness_map_id = roughness_tex_id
+                        mat_template.roughness = np.float32(1.0)
+
+                    metallic_val = mat.kwargs.get('map_pm')
+                    if metallic_val:
+                        filename = metallic_val[0] if isinstance(metallic_val, list) else metallic_val
+                        tex_path = os.path.join(base_dir, filename)
+
+                        metallic_tex_id = AssetSystem.generate_id(assets_state)
+                        task_queue.put(TextureFileTask(metallic_tex_id, tex_path, is_srgb=False))
                         mat_template.metallic_map_id = metallic_tex_id
                         mat_template.metallic = np.float32(1.0)
 
