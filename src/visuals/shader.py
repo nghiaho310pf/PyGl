@@ -22,8 +22,7 @@ class Shader:
             shader = GL.glCreateShader(shader_type)
 
             if Application.has_broken_opengl:
-                src = re.sub(r"(^\s*#version\s+)\d+(\s*\w*)", "#version 330 core", src, flags=re.MULTILINE)
-                src = src.replace("#define SMAA_GLSL_4 1", "#define SMAA_GLSL_3 1")
+                src = re.sub(r"(^\s*#version\s+)\d+(\s*\w*)", "#version 410 core", src, flags=re.MULTILINE)
 
             GL.glShaderSource(shader, src)
             GL.glCompileShader(shader)

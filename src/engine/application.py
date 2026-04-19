@@ -25,8 +25,8 @@ class Application:
 
         glfw.default_window_hints()
 
-        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3 if Application.has_broken_opengl else 4)
-        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3 if Application.has_broken_opengl else 5)
+        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
+        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 1 if Application.has_broken_opengl else 5)
         glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, GL.GL_TRUE)
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
 
