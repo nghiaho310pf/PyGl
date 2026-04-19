@@ -160,33 +160,49 @@ def _process_mesh_from_file(asset_id: int, filepath: str, result_queue: queue.Qu
 
 def _calculate_tangents(vertices, normals, uvs, faces):
     tangents = np.zeros_like(vertices)
-    for face in faces:
-        v0, v1, v2 = vertices[face]
-        uv0, uv1, uv2 = uvs[face]
 
-        edge1 = v1 - v0
-        edge2 = v2 - v0
-        delta_uv1 = uv1 - uv0
-        delta_uv2 = uv2 - uv0
+    v0 = vertices[faces[:, 0]]
+    v1 = vertices[faces[:, 1]]
+    v2 = vertices[faces[:, 2]]
+    uv0 = uvs[faces[:, 0]]
+    uv1 = uvs[faces[:, 1]]
+    uv2 = uvs[faces[:, 2]]
 
-        f = 1.0 / (delta_uv1[0] * delta_uv2[1] - delta_uv2[0] * delta_uv1[1] + 1e-10)
-        tangent = f * (delta_uv2[1] * edge1 - delta_uv1[1] * edge2)
+    edge1 = v1 - v0
+    edge2 = v2 - v0
+    delta_uv1 = uv1 - uv0
+    delta_uv2 = uv2 - uv0
 
-        tangents[face] += tangent
+    f = 1.0 / (delta_uv1[:, 0] * delta_uv2[:, 1] - delta_uv2[:, 0] * delta_uv1[:, 1] + 1e-10)
 
-    for i in range(len(tangents)):
-        n = normals[i]
-        t = tangents[i]
-        t_ortho = t - n * np.dot(n, t)
-        norm = np.linalg.norm(t_ortho)
-        if norm > 1e-10:
-            tangents[i] = t_ortho / norm
-        else:
-            if abs(n[0]) < 0.9:
-                tangents[i] = np.cross(n, [1, 0, 0])
-            else:
-                tangents[i] = np.cross(n, [0, 1, 0])
-            tangents[i] /= np.linalg.norm(tangents[i])
+    face_tangents = f[:, np.newaxis] * (delta_uv2[:, 1, np.newaxis] * edge1 - delta_uv1[:, 1, np.newaxis] * edge2)
+
+    np.add.at(tangents, faces[:, 0], face_tangents)
+    np.add.at(tangents, faces[:, 1], face_tangents)
+    np.add.at(tangents, faces[:, 2], face_tangents)
+
+    dots = np.sum(normals * tangents, axis=1)
+    t_ortho = tangents - normals * dots[:, np.newaxis]
+
+    norms = np.linalg.norm(t_ortho, axis=1)
+    mask = norms > 1e-10
+
+    tangents[mask] = t_ortho[mask] / norms[mask, np.newaxis]
+
+    not_mask = ~mask
+    if np.any(not_mask):
+        n_nm = normals[not_mask]
+        t_nm = np.zeros_like(n_nm)
+
+        mask_x = np.abs(n_nm[:, 0]) < 0.9
+        if np.any(mask_x):
+            t_nm[mask_x] = np.cross(n_nm[mask_x], [1, 0, 0])
+        if np.any(~mask_x):
+            t_nm[~mask_x] = np.cross(n_nm[~mask_x], [0, 1, 0])
+
+        nm_norms = np.linalg.norm(t_nm, axis=1)
+        nm_norms[nm_norms < 1e-10] = 1.0
+        tangents[not_mask] = t_nm / nm_norms[:, np.newaxis]
 
     return tangents
 
@@ -264,7 +280,7 @@ class AssetSystem:
         if r_assets is None: return
 
         _, (assets_state, ) = r_assets
-        max_uploads_per_frame = 16
+        max_uploads_per_frame = 256
         uploads = 0
 
         while uploads < max_uploads_per_frame:
