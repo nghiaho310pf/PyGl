@@ -227,19 +227,27 @@ def quaternion_from_axis_angle(axis, angle_degrees):
 
 
 def create_transformation_matrix(position, rotation_quaternion, scale) -> npt.NDArray[np.float32]:
-    """
-    Creates a model matrix (translation * rotation * scale).
-    rotation_quaternion: (x, y, z, w)
-    """
-    mat = quaternion_matrix(rotation_quaternion)
+    x, y, z, w = rotation_quaternion
 
-    mat[:3, 0] *= scale[0]
-    mat[:3, 1] *= scale[1]
-    mat[:3, 2] *= scale[2]
+    mag2 = x*x + y*y + z*z + w*w
+    if abs(mag2 - 1.0) > 1e-6 and mag2 > 1e-8:
+        mag = mag2 ** 0.5
+        x /= mag; y /= mag; z /= mag; w /= mag
 
-    mat[:3, 3] = position
+    x2, y2, z2 = x * 2.0, y * 2.0, z * 2.0
+    xx, xy, xz = x * x2, x * y2, x * z2
+    yy, yz, zz = y * y2, y * z2, z * z2
+    wx, wy, wz = w * x2, w * y2, w * z2
 
-    return mat
+    sx, sy, sz = scale
+    px, py, pz = position
+
+    return np.array((
+        (1.0 - (yy + zz)) * sx, (xy - wz) * sy,         (xz + wy) * sz,         px,
+        (xy + wz) * sx,         (1.0 - (xx + zz)) * sy, (yz - wx) * sz,         py,
+        (xz - wy) * sx,         (yz + wx) * sy,         (1.0 - (xx + yy)) * sz, pz,
+        0.0,                    0.0,                    0.0,                    1.0
+    ), dtype=np.float32).reshape((4, 4))
 
 
 def get_frustum_corners_world_space(proj_matrix: npt.NDArray[np.float32], view_matrix: npt.NDArray[np.float32]) -> list[npt.NDArray[np.float32]]:
