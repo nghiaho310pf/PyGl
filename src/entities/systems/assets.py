@@ -239,19 +239,24 @@ def _process_texture_from_image(asset_id: int, img: Image.Image, is_srgb: bool, 
 
 class AssetSystem:
     @staticmethod
-    def _ensure_worker(assets_state: AssetsState):
-        if not assets_state.worker_started:
-            thread = threading.Thread(
-                target=background_asset_worker,
-                args=(assets_state, assets_state.task_queue, assets_state.result_queue),
-                daemon=True
-            )
-            thread.start()
-            assets_state.worker_started = True
+    def _ensure_workers(assets_state: AssetsState):
+        if not assets_state.workers_started:
+            NUM_WORKERS = 2
+
+            for _ in range(NUM_WORKERS):
+                thread = threading.Thread(
+                    target=background_asset_worker,
+                    args=(assets_state, assets_state.task_queue, assets_state.result_queue),
+                    daemon=True
+                )
+                thread.start()
+
+            assets_state.workers_started = True
 
     @staticmethod
     def generate_id(assets_state: AssetsState) -> int:
-        return next(assets_state.id_counter)
+        with assets_state.id_lock:
+            return next(assets_state.id_counter)
 
     @staticmethod
     def update(registry: Registry):
@@ -259,7 +264,7 @@ class AssetSystem:
         if r_assets is None: return
 
         _, (assets_state, ) = r_assets
-        max_uploads_per_frame = 3
+        max_uploads_per_frame = 16
         uploads = 0
 
         while uploads < max_uploads_per_frame:
@@ -368,7 +373,7 @@ class AssetSystem:
 
     @staticmethod
     def request_model(assets_state: AssetsState, filepath: str) -> ModelAsset:
-        AssetSystem._ensure_worker(assets_state)
+        AssetSystem._ensure_workers(assets_state)
 
         if filepath in assets_state.filepath_to_model:
             return assets_state.models[assets_state.filepath_to_model[filepath]]
@@ -383,7 +388,7 @@ class AssetSystem:
 
     @staticmethod
     def request_mesh(assets_state: AssetsState, filepath_or_id: str | int) -> Mesh:
-        AssetSystem._ensure_worker(assets_state)
+        AssetSystem._ensure_workers(assets_state)
 
         if isinstance(filepath_or_id, int):
             if filepath_or_id in assets_state.meshes:
@@ -406,7 +411,7 @@ class AssetSystem:
 
     @staticmethod
     def request_texture(assets_state: AssetsState, filepath_or_id: str | int, is_srgb: bool = False) -> Texture:
-        AssetSystem._ensure_worker(assets_state)
+        AssetSystem._ensure_workers(assets_state)
 
         if isinstance(filepath_or_id, int):
             if filepath_or_id in assets_state.textures:

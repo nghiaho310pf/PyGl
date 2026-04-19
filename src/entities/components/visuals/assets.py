@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 import queue
 import itertools
+import threading
 from typing import Iterator, Union
 
 import numpy as np
@@ -146,8 +147,9 @@ class ModelAsset:
 
 @dataclass(slots=True, eq=False)
 class AssetsState:
-    worker_started: bool = False
+    workers_started: bool = False
 
+    id_lock: threading.Lock = field(default_factory=threading.Lock)
     id_counter: Iterator[int] = field(default_factory=lambda: itertools.count(1))
 
     meshes: dict[int, Mesh] = field(default_factory=dict)
