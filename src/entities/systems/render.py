@@ -4,6 +4,7 @@ from typing import Tuple
 import ctypes
 
 import numpy as np
+import numpy.typing as npt
 from OpenGL import GL
 import PIL.Image as Image
 
@@ -475,15 +476,19 @@ class RenderSystem:
         num_dir_lights = len(dir_light_directions)
 
         # == batching ==
-        batches: dict[tuple[DrawMode, bool], dict[Material, list[Tuple[Transform, Visuals]]]] = {}
+        batches: dict[tuple[DrawMode, bool], dict[Material, list[Tuple[Transform, Visuals, npt.NDArray[np.float32]]]]] = {}
         for entity, (transform, visuals) in registry.view(Transform, Visuals):
             if not visuals.enabled: continue
+
             mat = visuals.material
             actual_draw_mode = DrawMode.Wireframe if render_state.global_draw_mode == GlobalDrawMode.Wireframe else visuals.draw_mode
             batch_key = (actual_draw_mode, visuals.cull_back_faces)
             if batch_key not in batches: batches[batch_key] = {}
             if mat not in batches[batch_key]: batches[batch_key][mat] = []
-            batches[batch_key][mat].append((transform, visuals))
+            model_matrix = math_utils.create_transformation_matrix(
+                transform.position, transform.rotation, transform.scale
+            )
+            batches[batch_key][mat].append((transform, visuals, model_matrix))
         sorted_batch_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
 
         # == shadow map pass ==
@@ -525,8 +530,7 @@ class RenderSystem:
                     else:
                         GL.glDisable(GL.GL_CULL_FACE)
                     for material, entities in batches[batch_key].items():
-                        for mesh_transform, visuals in entities:
-                            model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
+                        for mesh_transform, visuals, model_matrix in entities:
                             self.point_shadowmap_shader.set_mat4("u_Model", model_matrix)
                             self._draw_mesh(visuals.mesh)
 
@@ -579,8 +583,7 @@ class RenderSystem:
                     else:
                         GL.glDisable(GL.GL_CULL_FACE)
                     for material, entities in batches[batch_key].items():
-                        for mesh_transform, visuals in entities:
-                            model_matrix = math_utils.create_transformation_matrix(mesh_transform.position, mesh_transform.rotation, mesh_transform.scale)
+                        for mesh_transform, visuals, model_matrix in entities:
                             self.directional_shadowmap_shader.set_mat4("u_Model", model_matrix)
                             self._draw_mesh(visuals.mesh)
 
@@ -607,8 +610,7 @@ class RenderSystem:
             if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
             else: GL.glDisable(GL.GL_CULL_FACE)
             for material, entities in batches[batch_key].items():
-                for transform, visuals in entities:
-                    model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
+                for transform, visuals, model_matrix in entities:
                     self.depth_prepass_shader.set_mat4("u_Model", model_matrix)
                     self._draw_mesh(visuals.mesh)
 
@@ -755,8 +757,7 @@ class RenderSystem:
             for material, entities in batches[batch_key].items():
                 if render_state.global_draw_mode != GlobalDrawMode.DepthOnly:
                     self._setup_shader_properties(current_shader, material)
-                for transform, visuals in entities:
-                    model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
+                for transform, visuals, model_matrix in entities:
                     current_shader.set_mat4("u_Model", model_matrix)
                     self._draw_mesh(visuals.mesh)
 
@@ -778,6 +779,7 @@ class RenderSystem:
                 target_color = self._get_distributed_color(entity)
                 self.id_shader.set_vec3("u_EntityColor", target_color)
 
+                # i don't particularly care about optimizing this create_transformation_matrix call away
                 model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
                 self.id_shader.set_mat4("u_Model", model_matrix)
                 self._draw_mesh(visuals.mesh)
