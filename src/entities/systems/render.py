@@ -295,7 +295,6 @@ class RenderSystem:
         shader.set_float("u_Roughness", float(material.roughness))
         shader.set_float("u_Metallic", float(material.metallic))
         shader.set_float("u_Reflectance", float(material.reflectance))
-        shader.set_float("u_Translucency", float(material.translucency))
         shader.set_float("u_AO", float(material.ao))
 
         def bind_map(tex_attr, sampler_name, flag_name, unit):
@@ -733,14 +732,11 @@ class RenderSystem:
         else:
             current_shader.set_vec3_array("u_LightPos", point_light_positions)
             current_shader.set_vec3_array("u_LightColor", point_light_colors)
+            current_shader.set_float_array("u_LightFarPlane", point_light_far_planes)
             current_shader.set_int("u_NumLights", num_point_lights)
-            current_shader.set_int_array("u_PointLightCastsShadow", point_light_casts_shadow)
-            current_shader.set_float_array("u_FarPlane", point_light_far_planes)
             current_shader.set_vec3_array("u_DirLightDirection", dir_light_directions)
             current_shader.set_vec3_array("u_DirLightColor", dir_light_colors)
             current_shader.set_int("u_NumDirLights", num_dir_lights)
-            current_shader.set_int_array("u_DirLightCastsShadow", dir_light_casts_shadow)
-            current_shader.set_mat4_array("u_DirLightSpaceMatrices", dir_light_space_matrices)
             current_shader.set_vec2("u_ScreenSize", np.array([width, height], dtype=np.float32))
 
             GL.glActiveTexture(GL.GL_TEXTURE8)

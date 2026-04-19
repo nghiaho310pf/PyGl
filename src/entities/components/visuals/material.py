@@ -11,7 +11,6 @@ class Material:
     roughness: np.float32 = field(default_factory=lambda: np.float32(0.0))
     metallic: np.float32 = field(default_factory=lambda: np.float32(0.0))
     reflectance: np.float32 = field(default_factory=lambda: np.float32(0.0))
-    translucency: np.float32 = field(default_factory=lambda: np.float32(0.0))
     ao: np.float32 = field(default_factory=lambda: np.float32(0.0))
 
     albedo_map: Texture | None = None

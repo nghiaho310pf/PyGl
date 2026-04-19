@@ -15,16 +15,13 @@ layout (std140) uniform SceneData {
 
 const int MAX_LIGHTS = 4;
 uniform vec3 u_LightPos[MAX_LIGHTS];
-uniform float u_LightRadius[MAX_LIGHTS];
 uniform vec3 u_LightColor[MAX_LIGHTS];
+uniform float u_LightFarPlane[MAX_LIGHTS];
 uniform int u_NumLights;
-uniform int u_PointLightCastsShadow[MAX_LIGHTS];
-uniform float u_FarPlane[MAX_LIGHTS];
 
 uniform vec3 u_DirLightDirection[MAX_LIGHTS];
 uniform vec3 u_DirLightColor[MAX_LIGHTS];
 uniform int u_NumDirLights;
-uniform int u_DirLightCastsShadow[MAX_LIGHTS];
 
 uniform vec2 u_ScreenSize;
 uniform sampler2D u_PointShadowMask;
@@ -34,7 +31,6 @@ uniform vec3 u_Albedo;
 uniform float u_Roughness;
 uniform float u_Metallic;
 uniform float u_Reflectance; // F0 control (0.5 = 0.04 standard dielectric)
-uniform float u_Translucency; // fake subsurface scattering
 uniform float u_AO;
 
 uniform bool u_UseAlbedoMap;
@@ -158,15 +154,13 @@ void main() {
     vec3 F0 = vec3(dielectricF0);
     F0 = mix(F0, finalAlbedo, finalMetallic);
 
-    float wrap = u_Translucency * 0.5;
-
     // == point lights ==
     for (int i = 0; i < MAX_LIGHTS; ++i) {
         if (i >= u_NumLights) break;
 
         vec3 lightPos = u_LightPos[i];
         float distance = length(lightPos - v_WorldPos);
-        if (distance > u_FarPlane[i]) continue;
+        if (distance > u_LightFarPlane[i]) continue;
 
         vec3 L = normalize(lightPos - v_WorldPos);
         vec3 H = normalize(V + L);
@@ -189,13 +183,8 @@ void main() {
 
         // hammon diffuse
         vec3 diffuseBRDF = hammonGGXDiffuse(finalAlbedo, NdotV, NdotL, NdotH, LdotV, finalRoughness);
-
-        // wrapped diffuse lighting
-        float NdotL_Unclamped = dot(N, L);
-        float NdotL_Wrapped = max((NdotL_Unclamped + wrap) / (1.0 + wrap), 0.0);
-
         vec3 diffuse = (1.0 - finalMetallic) * diffuseBRDF;
-        vec3 directLight = (diffuse * NdotL_Wrapped + specular * NdotL) * radiance;
+        vec3 directLight = (diffuse + specular) * NdotL * radiance;
 
         directLight *= (1.0 - shadow);
         totalDirectLight += directLight;
@@ -224,13 +213,8 @@ void main() {
 
         // hammon diffuse
         vec3 diffuseBRDF = hammonGGXDiffuse(finalAlbedo, NdotV, NdotL, NdotH, LdotV, finalRoughness);
-
-        // wrapped diffuse lighting
-        float NdotL_Unclamped = dot(N, L);
-        float NdotL_Wrapped = max((NdotL_Unclamped + wrap) / (1.0 + wrap), 0.0);
-
         vec3 diffuse = (1.0 - finalMetallic) * diffuseBRDF;
-        vec3 directLight = (diffuse * NdotL_Wrapped + specular * NdotL) * radiance;
+        vec3 directLight = (diffuse + specular) * NdotL * radiance;
 
         directLight *= (1.0 - shadow);
         totalDirectLight += directLight;

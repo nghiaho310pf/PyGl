@@ -58,7 +58,6 @@ class Game(Application):
             roughness=float1(0.5),
             metallic=float1(0.2),
             reflectance=float1(0.1),
-            translucency=float1(0.0),
             ao=float1(0.1),
         )
         mat_default = Material(
@@ -66,7 +65,6 @@ class Game(Application):
             metallic=float1(0.2),
             roughness=float1(0.5),
             reflectance=float1(0.1),
-            translucency=float1(0.0),
             ao=float1(0.1),
         )
 
@@ -123,7 +121,6 @@ class Game(Application):
             roughness=float1(0.6),
             metallic=float1(0.3),
             reflectance=float1(0.25),
-            translucency=float1(0.0),
             ao=float1(0.1),
         )
         mat_blue = Material(
@@ -131,7 +128,6 @@ class Game(Application):
             roughness=float1(0.6),
             metallic=float1(0.7),
             reflectance=float1(0.25),
-            translucency=float1(0.0),
             ao=float1(0.1),
         )
         mat_grey = Material(
@@ -139,7 +135,6 @@ class Game(Application):
             roughness=float1(0.6),
             metallic=float1(0.7),
             reflectance=float1(0.01),
-            translucency=float1(0.0),
             ao=float1(0.1),
         )
 

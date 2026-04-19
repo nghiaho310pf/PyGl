@@ -63,7 +63,6 @@ class SpawnerSystem:
                 roughness=node.material_template.roughness,
                 metallic=node.material_template.metallic,
                 reflectance=node.material_template.reflectance,
-                translucency=node.material_template.translucency,
                 ao=node.material_template.ao,
             )
 

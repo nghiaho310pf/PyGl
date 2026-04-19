@@ -800,9 +800,6 @@ class UiSystem:
                 changed_reflectance, new_reflectance = imgui.slider_float("Reflectance", float(comp.material.reflectance), 0.0, 1.0)
                 if changed_reflectance:
                     comp.material.reflectance = float1(new_reflectance)
-                changed_translucency, new_translucency = imgui.slider_float("Translucency", float(comp.material.translucency), 0.0, 1.0)
-                if changed_translucency:
-                    comp.material.translucency = float1(new_translucency)
                 changed_ao, new_ao = imgui.slider_float("AO", float(comp.material.ao), 0.0, 1.0)
                 if changed_ao:
                     comp.material.ao = float1(new_ao)
