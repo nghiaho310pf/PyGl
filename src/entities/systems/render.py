@@ -374,6 +374,19 @@ class RenderSystem:
         with open(export_dir / f"{frame_name}.txt", "w") as f:
             f.writelines(yolo_lines)
 
+    @staticmethod
+    def _smooth_metric(current_avg: float, new_value: float) -> float:
+        base_alpha = 0.01
+        sensitivity = 0.5
+
+        if current_avg == 0.0:
+            return new_value
+
+        relative_diff = abs(new_value - current_avg) / max(current_avg, 0.001)
+        dynamic_alpha = min(1.0, base_alpha + (relative_diff * sensitivity))
+
+        return (new_value * dynamic_alpha) + (current_avg * (1.0 - dynamic_alpha))
+
     def update(self, registry: Registry, window_size: tuple[int, int], time_val: float, delta_time: float):
         if not Application.has_broken_opengl:
             GL.glBeginQuery(GL.GL_TIME_ELAPSED, self.timer_queries[self.query_index])
@@ -882,11 +895,11 @@ class RenderSystem:
 
             self.query_index = (self.query_index + 1) % self.num_timer_queries
 
-            blend_factor_a = 0.05
-            blend_factor_b = 0.95
+            current_fps = 1.0 / delta_time if delta_time > 0 else 0.0
+            current_theoretical_fps = 1000.0 / self.gpu_time_ms if self.gpu_time_ms > 0 else 0.0
 
-            render_state.render_time_ms = self.gpu_time_ms * blend_factor_a + render_state.render_time_ms * blend_factor_b
-            render_state.fps = (1.0 / delta_time if delta_time > 0 else 0.0) * blend_factor_a + render_state.fps * blend_factor_b
-            render_state.theoretical_max_fps = (1000.0 / self.gpu_time_ms if self.gpu_time_ms > 0 else 0.0) * blend_factor_a + render_state.theoretical_max_fps * blend_factor_b
+            render_state.render_time_ms = RenderSystem._smooth_metric(render_state.render_time_ms, self.gpu_time_ms)
+            render_state.fps = RenderSystem._smooth_metric(render_state.fps, current_fps)
+            render_state.theoretical_max_fps = RenderSystem._smooth_metric(render_state.theoretical_max_fps, current_theoretical_fps)
 
         render_state.frame_number += 1
