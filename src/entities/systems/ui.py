@@ -765,10 +765,10 @@ class UiSystem:
                 changed_fov, new_fov = imgui.drag_float("FOV", comp.fov, 1.0, 10.0, 150.0)
                 if changed_fov:
                     comp.fov = new_fov
-                changed_near, new_near = imgui.drag_float("Near plane", comp.near, 0.01)
+                changed_near, new_near = imgui.drag_float("Near plane", comp.near, 0.01, 0.01, 1000.0)
                 if changed_near:
                     comp.near = new_near
-                changed_far, new_far = imgui.drag_float("Far plane", comp.far, 1.0)
+                changed_far, new_far = imgui.drag_float("Far plane", comp.far, 1.0, 0.01, 1000.0)
                 if changed_far:
                     comp.far = new_far
                 imgui.tree_pop()
