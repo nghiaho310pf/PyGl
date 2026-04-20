@@ -290,30 +290,6 @@ class RenderSystem:
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-    def _setup_shader_properties(self, shader: Shader, material: Material):
-        shader.set_vec3("u_Albedo", material.albedo)
-        shader.set_float("u_Roughness", float(material.roughness))
-        shader.set_float("u_Metallic", float(material.metallic))
-        shader.set_float("u_Reflectance", float(material.reflectance))
-        shader.set_float("u_AO", float(material.ao))
-
-        def bind_map(tex_attr, sampler_name, flag_name, unit):
-            GL.glActiveTexture(GL.GL_TEXTURE0 + unit)
-            tex = getattr(material, tex_attr, None)
-            if tex and tex.status == AssetStatus.Ready and tex.gl_id:
-                GL.glBindTexture(GL.GL_TEXTURE_2D, tex.gl_id)
-                shader.set_int(sampler_name, unit)
-                shader.set_int(flag_name, 1)
-            else:
-                GL.glBindTexture(GL.GL_TEXTURE_2D, self.default_texture_id)
-                shader.set_int(sampler_name, unit)
-                shader.set_int(flag_name, 0)
-
-        bind_map("albedo_map",   "u_AlbedoMap",   "u_UseAlbedoMap",   0)
-        bind_map("normal_map",   "u_NormalMap",   "u_UseNormalMap",   1)
-        bind_map("roughness_map","u_RoughnessMap","u_UseRoughnessMap", 2)
-        bind_map("metallic_map", "u_MetallicMap", "u_UseMetallicMap",  3)
-
     def _export_dataset_frame(self, registry: Registry, width, height, camera_state: CameraState, frame_name: str):
         exports = {
             "images": (0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
@@ -729,6 +705,16 @@ class RenderSystem:
         if render_state.global_draw_mode == GlobalDrawMode.DepthOnly:
             current_shader.set_float("u_Near", camera_state.camera_near)
             current_shader.set_float("u_Far", camera_state.camera_far)
+
+            for batch_key in sorted_batch_keys:
+                draw_mode, cull_faces = batch_key
+                GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
+                if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
+                else: GL.glDisable(GL.GL_CULL_FACE)
+                for material, entities in batches[batch_key].items():
+                    for transform, visuals, model_matrix in entities:
+                        current_shader.set_mat4("u_Model", model_matrix)
+                        self._draw_mesh(visuals.mesh)
         else:
             current_shader.set_vec3_array("u_LightPos", point_light_positions)
             current_shader.set_vec3_array("u_LightColor", point_light_colors)
@@ -746,17 +732,16 @@ class RenderSystem:
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[1])
             current_shader.set_int("u_DirShadowMask", 9)
 
-        for batch_key in sorted_batch_keys:
-            draw_mode, cull_faces = batch_key
-            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
-            if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
-            else: GL.glDisable(GL.GL_CULL_FACE)
-            for material, entities in batches[batch_key].items():
-                if render_state.global_draw_mode != GlobalDrawMode.DepthOnly:
-                    self._setup_shader_properties(current_shader, material)
-                for transform, visuals, model_matrix in entities:
-                    current_shader.set_mat4("u_Model", model_matrix)
-                    self._draw_mesh(visuals.mesh)
+            for batch_key in sorted_batch_keys:
+                draw_mode, cull_faces = batch_key
+                GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
+                if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
+                else: GL.glDisable(GL.GL_CULL_FACE)
+                for material, entities in batches[batch_key].items():
+                    self.tf2_ggx_shader.set_material(material, self.default_texture_id)
+                    for transform, visuals, model_matrix in entities:
+                        current_shader.set_mat4("u_Model", model_matrix)
+                        self._draw_mesh(visuals.mesh)
 
         # reset to fill for subsequent passes
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
