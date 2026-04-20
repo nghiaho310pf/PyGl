@@ -94,24 +94,29 @@ class Application:
     def run(self):
         target_fps = 120
         frame_time_target = 1.0 / target_fps
+        sleep_margin = 0.002
 
         print(f"Targeting {target_fps} FPS")
 
-        last_time = glfw.get_time()
+        last_time = time.perf_counter()
 
         while not glfw.window_should_close(self.win):
-            current_time = glfw.get_time()
+            current_time = time.perf_counter()
             delta = current_time - last_time
 
-            if delta >= frame_time_target:
-                last_time = current_time
+            time_left = frame_time_target - delta
 
-                self.render()
+            if time_left > 0:
+                if time_left > sleep_margin:
+                    time.sleep(time_left - sleep_margin)
+                continue  # spin
 
-                glfw.swap_buffers(self.win)
-                glfw.poll_events()
-            else:
-                time.sleep(0.0001)
+            last_time += frame_time_target
+
+            self.render()
+
+            glfw.swap_buffers(self.win)
+            glfw.poll_events()
 
         self.imgui_renderer.shutdown()
         imgui.destroy_context()
