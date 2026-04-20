@@ -27,7 +27,13 @@ class GGXHammonShader(Shader):
         self.u_use_normal_map = GL.glGetUniformLocation(self.program, "u_UseNormalMap")
         self.u_use_roughness_map = GL.glGetUniformLocation(self.program, "u_UseRoughnessMap")
         self.u_use_metallic_map = GL.glGetUniformLocation(self.program, "u_UseMetallicMap")
-    
+
+        GL.glUseProgram(self.program)
+        GL.glUniform1i(self.u_albedo_map, 0)
+        GL.glUniform1i(self.u_normal_map, 1)
+        GL.glUniform1i(self.u_roughness_map, 2)
+        GL.glUniform1i(self.u_metallic_map, 3)
+
     def set_material(self, material: Material, default_texture_id: int):
         GL.glUniform3fv(self.u_albedo, 1, material.albedo)
         GL.glUniform1f(self.u_roughness, float(material.roughness))
@@ -35,23 +41,19 @@ class GGXHammonShader(Shader):
         GL.glUniform1f(self.u_reflectance, float(material.reflectance))
         GL.glUniform1f(self.u_ao, float(material.ao))
 
-        self._bind_and_update(material.albedo_map,    self.u_albedo_map,    self.u_use_albedo_map,    0, default_texture_id)
-        self._bind_and_update(material.normal_map,    self.u_normal_map,    self.u_use_normal_map,    1, default_texture_id)
-        self._bind_and_update(material.roughness_map, self.u_roughness_map, self.u_use_roughness_map, 2, default_texture_id)
-        self._bind_and_update(material.metallic_map,  self.u_metallic_map,  self.u_use_metallic_map,  3, default_texture_id)
+        self._bind_and_update(material.albedo_map,    self.u_use_albedo_map,    0, default_texture_id)
+        self._bind_and_update(material.normal_map,    self.u_use_normal_map,    1, default_texture_id)
+        self._bind_and_update(material.roughness_map, self.u_use_roughness_map, 2, default_texture_id)
+        self._bind_and_update(material.metallic_map,  self.u_use_metallic_map,  3, default_texture_id)
 
-    def _bind_and_update(self, tex_asset, sampler_loc, flag_loc, unit, default_id):
+    def _bind_and_update(self, tex_asset, flag_loc, unit, default_id):
         GL.glActiveTexture(GL.GL_TEXTURE0 + unit)
 
-        is_ready = tex_asset and tex_asset.status == AssetStatus.Ready and tex_asset.gl_id
-
-        if is_ready:
+        if tex_asset and tex_asset.status == AssetStatus.Ready and tex_asset.gl_id:
             GL.glBindTexture(GL.GL_TEXTURE_2D, tex_asset.gl_id)
-            GL.glUniform1i(sampler_loc, unit)
             GL.glUniform1i(flag_loc, 1)
         else:
             GL.glBindTexture(GL.GL_TEXTURE_2D, default_id)
-            GL.glUniform1i(sampler_loc, unit)
             GL.glUniform1i(flag_loc, 0)
 
 
