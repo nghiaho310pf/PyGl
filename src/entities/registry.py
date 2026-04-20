@@ -218,7 +218,7 @@ class Registry:
         try:
             lowest_entity = min(cached_entities)
         except ValueError:
-            # Catches empty sequences safely
+            # catch empty sequences
             return None
 
         stores = [self._components[ct] for ct in comp_types]

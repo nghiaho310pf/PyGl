@@ -280,7 +280,7 @@ class AssetSystem:
         if r_assets is None: return
 
         _, (assets_state, ) = r_assets
-        max_uploads_per_frame = 256
+        max_uploads_per_frame = 64
         uploads = 0
 
         while uploads < max_uploads_per_frame:
