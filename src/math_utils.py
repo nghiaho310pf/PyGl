@@ -73,21 +73,34 @@ def create_look_at(eye, target, up):
 
 def calculate_direction_from_rotation(rotation_degrees):
     q = quaternion_from_euler(rotation_degrees)
-    default_dir = vec3(0.0, 0.0, -1.0)
-    return rotate_vector_by_quaternion(default_dir, q)
+    x, y, z, w = q[0], q[1], q[2], q[3]
+
+    # directly compute the rotated (0, 0, -1) vector
+    return np.array([
+        -2.0 * (x * z + w * y),
+        -2.0 * (y * z - w * x),
+        2.0 * (x * x + y * y) - 1.0
+    ], dtype=np.float32)
 
 
 def quaternion_from_euler(euler_degrees):
-    rad = np.radians(euler_degrees.astype(np.float64)) * 0.5
-    sx, sy, sz = np.sin(rad)
-    cx, cy, cz = np.cos(rad)
+    rx = math.radians(euler_degrees[0]) * 0.5
+    ry = math.radians(euler_degrees[1]) * 0.5
+    rz = math.radians(euler_degrees[2]) * 0.5
 
-    return vec4(
+    sx = math.sin(rx)
+    cx = math.cos(rx)
+    sy = math.sin(ry)
+    cy = math.cos(ry)
+    sz = math.sin(rz)
+    cz = math.cos(rz)
+
+    return np.array([
         sx * cy * cz - cx * sy * sz, # x
         cx * sy * cz + sx * cy * sz, # y
         cx * cy * sz - sx * sy * cz, # z
         cx * cy * cz + sx * sy * sz  # w
-    )
+    ], dtype=np.float32)
 
 
 def quaternion_to_euler(q: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
@@ -250,15 +263,22 @@ def create_transformation_matrix(position, rotation_quaternion, scale) -> npt.ND
     ), dtype=np.float32).reshape((4, 4))
 
 
-def get_frustum_corners_world_space(proj_matrix: npt.NDArray[np.float32], view_matrix: npt.NDArray[np.float32]) -> list[npt.NDArray[np.float32]]:
+_NDC_CORNERS = np.array([
+    [-1.0, -1.0, -1.0, 1.0],
+    [ 1.0, -1.0, -1.0, 1.0],
+    [-1.0,  1.0, -1.0, 1.0],
+    [ 1.0,  1.0, -1.0, 1.0],
+    [-1.0, -1.0,  1.0, 1.0],
+    [ 1.0, -1.0,  1.0, 1.0],
+    [-1.0,  1.0,  1.0, 1.0],
+    [ 1.0,  1.0,  1.0, 1.0]
+], dtype=np.float32)
+
+
+def get_frustum_corners_world_space(proj_matrix: npt.NDArray[np.float32], view_matrix: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     inv_vp = np.linalg.inv(proj_matrix @ view_matrix)
-    corners = []
-    for x in [-1.0, 1.0]:
-        for y in [-1.0, 1.0]:
-            for z in [-1.0, 1.0]:
-                pt = inv_vp @ np.array([x, y, z, 1.0], dtype=np.float32)
-                corners.append(pt[:3] / pt[3])
-    return corners
+    pts = _NDC_CORNERS @ inv_vp.T
+    return pts[:, :3] / pts[:, 3, np.newaxis]  # type: ignore
 
 
 def get_light_space_matrix(proj_matrix: npt.NDArray[np.float32], view_matrix: npt.NDArray[np.float32], light_dir: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
@@ -266,25 +286,57 @@ def get_light_space_matrix(proj_matrix: npt.NDArray[np.float32], view_matrix: np
 
     center = np.mean(corners, axis=0)
 
-    up = np.array([0.0, 1.0, 0.0], dtype=np.float32)
-    if abs(np.dot(normalize(light_dir), up)) > 0.999:
-        up = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    # inline normalization of light_dir
+    l_mag = np.sqrt(light_dir[0]**2 + light_dir[1]**2 + light_dir[2]**2)
+    l_dir = light_dir / l_mag
 
-    light_view = create_look_at(center - light_dir * 50.0, center, up)
+    # fast up vector dot product (np.dot(l_dir, [0,1,0]) is just l_dir[1])
+    up_x, up_y, up_z = 0.0, 1.0, 0.0
+    if abs(l_dir[1]) > 0.999:
+        up_x, up_y, up_z = 0.0, 0.0, 1.0
 
-    min_x, max_x = float('inf'), float('-inf')
-    min_y, max_y = float('inf'), float('-inf')
-    min_z, max_z = float('inf'), float('-inf')
+    eye = center - l_dir * 50.0
 
-    for corner in corners:
-        trf = light_view @ np.append(corner, 1.0)
-        trf = trf[:3]
-        min_x = min(min_x, trf[0])
-        max_x = max(max_x, trf[0])
-        min_y = min(min_y, trf[1])
-        max_y = max(max_y, trf[1])
-        min_z = min(min_z, trf[2])
-        max_z = max(max_z, trf[2])
+    # --- inlined from create_look_at ---
+    # z_axis is simply -l_dir
+    zx, zy, zz = -l_dir[0], -l_dir[1], -l_dir[2]
+
+    # manual x_axis = cross(up, z_axis)
+    cx = up_y * zz - up_z * zy
+    cy = up_z * zx - up_x * zz
+    cz = up_x * zy - up_y * zx
+
+    # normalize x_axis
+    x_mag = np.sqrt(cx**2 + cy**2 + cz**2)
+    xx, xy, xz = cx / x_mag, cy / x_mag, cz / x_mag
+
+    # manual y_axis = cross(z_axis, x_axis)
+    yx = zy * xz - zz * xy
+    yy = zz * xx - zx * xz
+    yz = zx * xy - zy * xx
+
+    # build light_view directly
+    light_view = np.identity(4, dtype=np.float32)
+    light_view[0, :3] = (xx, xy, xz)
+    light_view[1, :3] = (yx, yy, yz)
+    light_view[2, :3] = (zx, zy, zz)
+
+    # manual dot products for translation
+    light_view[0, 3] = -(xx * eye[0] + xy * eye[1] + xz * eye[2])
+    light_view[1, 3] = -(yx * eye[0] + yy * eye[1] + yz * eye[2])
+    light_view[2, 3] = -(zx * eye[0] + zy * eye[1] + zz * eye[2])
+    # -----------------------
+
+    # vectorized 8x4 corners matrix setup
+    corners_4d = np.ones((8, 4), dtype=np.float32)
+    corners_4d[:, :3] = corners
+
+    # transform all 8 corners simultaneously
+    trf_corners = corners_4d @ light_view.T
+
+    # find min/max across all corners simultaneously
+    min_x, min_y, min_z = np.min(trf_corners[:, :3], axis=0)
+    max_x, max_y, max_z = np.max(trf_corners[:, :3], axis=0)
 
     # small margin to prevent PCF clipping at the edges
     width = max_x - min_x

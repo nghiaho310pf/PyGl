@@ -548,7 +548,7 @@ class RenderSystem:
         ]
         cascade_distances = [c[1] for c in cascade_levels]
 
-        for dir_light in active_dir_lights:
+        for i, dir_light in enumerate(active_dir_lights):
             dir_light.light_space_matrices.clear()
             dir_light.cascade_distances = cascade_distances
 
@@ -560,7 +560,7 @@ class RenderSystem:
                 continue
 
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, dir_light.shadow_map_fbo)
-            direction = math_utils.calculate_direction_from_rotation(dir_light.rotation)
+            direction = dir_light_directions[i]
 
             for cascade_idx, (c_near, c_far) in enumerate(cascade_levels):
                 GL.glFramebufferTextureLayer(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, dir_light.shadow_map_texture, 0, cascade_idx)
