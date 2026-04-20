@@ -662,6 +662,9 @@ class RenderSystem:
         self.shadow_blur_shader.set_int("u_NormalTexture", 2)
 
         for i in range(2):
+            if not any(point_light_casts_shadow if i == 0 else dir_light_casts_shadow):
+                continue
+
             # horizontal blur
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.blur_fbo)
             GL.glDrawBuffer(GL.GL_COLOR_ATTACHMENT0 + i)  # type: ignore
