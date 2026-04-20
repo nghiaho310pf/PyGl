@@ -646,10 +646,14 @@ class RenderSystem:
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
         # == shadow map blur pass ==
+        depth_params = math_utils.vec2(
+            camera_state.camera_far + camera_state.camera_near,
+            camera_state.camera_far - camera_state.camera_near
+        ) / (2.0 * camera_state.camera_near * camera_state.camera_far)
+
         GL.glDisable(GL.GL_DEPTH_TEST)
         self.shadow_blur_shader.use()
-        self.shadow_blur_shader.set_float("u_Near", camera_state.camera_near)
-        self.shadow_blur_shader.set_float("u_Far", camera_state.camera_far)
+        self.shadow_blur_shader.set_vec2("u_DepthParams", depth_params)
         self.shadow_blur_shader.set_float("u_DepthSensitivity", render_state.shadow_blur_depth_sensitivity)
         self.shadow_blur_shader.set_float("u_NormalThreshold", render_state.shadow_blur_normal_threshold)
 
@@ -668,7 +672,7 @@ class RenderSystem:
             # horizontal blur
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.blur_fbo)
             GL.glDrawBuffer(GL.GL_COLOR_ATTACHMENT0 + i)  # type: ignore
-            self.shadow_blur_shader.set_int("u_Horizontal", 1)
+            self.shadow_blur_shader.set_vec2("u_TexelOffset", (1.0 / width, 0.0))
             GL.glActiveTexture(GL.GL_TEXTURE0)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[i])
             self.shadow_blur_shader.set_int("u_Texture", 0)
@@ -677,7 +681,7 @@ class RenderSystem:
             # vertical blur (back to main shadow mask FBO)
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
             GL.glDrawBuffer(GL.GL_COLOR_ATTACHMENT0 + i)  # type: ignore
-            self.shadow_blur_shader.set_int("u_Horizontal", 0)
+            self.shadow_blur_shader.set_vec2("u_TexelOffset", (0.0, 1.0 / height))
             GL.glActiveTexture(GL.GL_TEXTURE0)
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.blur_textures[i])
             self.shadow_blur_shader.set_int("u_Texture", 0)
