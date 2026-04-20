@@ -174,20 +174,17 @@ class RenderSystem:
         self.shadow_mask_fbo = GL.glGenFramebuffers(1)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.shadow_mask_fbo)
 
-        self.shadow_mask_textures = GL.glGenTextures(3)
-        for i in range(3):
+        self.shadow_mask_textures = GL.glGenTextures(2)
+        for i in range(2):
             GL.glBindTexture(GL.GL_TEXTURE_2D, self.shadow_mask_textures[i])
 
-            internal_format = GL.GL_RGBA16F if i == 2 else GL.GL_RGBA8
-            type_enum = GL.GL_FLOAT if i == 2 else GL.GL_UNSIGNED_BYTE
-
-            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, internal_format, width, height, 0, GL.GL_RGBA, type_enum, None)
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
             GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
             GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0 + i, GL.GL_TEXTURE_2D, self.shadow_mask_textures[i], 0)  # type: ignore
 
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.main_depth_tex, 0)
-        GL.glDrawBuffers(3, (GL.GLenum * 3)(GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2))
+        GL.glDrawBuffers(2, (GL.GLenum * 2)(GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1))
 
         # == shadow blur FBO ==
         self.blur_fbo = GL.glGenFramebuffers(1)
@@ -201,7 +198,7 @@ class RenderSystem:
             GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0 + i, GL.GL_TEXTURE_2D, self.blur_textures[i], 0)  # type: ignore
 
-        GL.glDrawBuffers(3, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1, GL.GL_COLOR_ATTACHMENT2])
+        GL.glDrawBuffers(2, [GL.GL_COLOR_ATTACHMENT0, GL.GL_COLOR_ATTACHMENT1])
 
         # == smaa edge FBO ==
         self.smaa_edge_fbo = GL.glGenFramebuffers(1)
