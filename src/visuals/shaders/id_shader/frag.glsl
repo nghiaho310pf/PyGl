@@ -1,5 +1,5 @@
 #version 450 core
-out vec4 FragColor;
+layout (location = 0) out uint FragColor;
 
 layout (std140) uniform SceneData {
     mat4 u_Projection;
@@ -8,8 +8,8 @@ layout (std140) uniform SceneData {
     float u_Time;
 };
 
-uniform vec3 u_EntityColor;
+uniform uint u_EntityID;
 
 void main() {
-    FragColor = vec4(u_EntityColor, 1.0);
+    FragColor = u_EntityID;
 }

@@ -47,6 +47,10 @@ def draw_graphics_section(
         changed_ci, new_ci = imgui.checkbox("Camera icons", icon_render_state.draw_camera_icons)
         if changed_ci:
             icon_render_state.draw_camera_icons = new_ci
+        imgui.same_line()
+        changed_bb, new_bb = imgui.checkbox("Show bounding boxes", render_state.show_bounding_boxes)
+        if changed_bb:
+            render_state.show_bounding_boxes = new_bb
 
         if imgui.tree_node_ex("Shadow blurring"):
             changed_depth_sensitivity, new_depth_sensitivity = imgui.drag_float(

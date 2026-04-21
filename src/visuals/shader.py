@@ -82,7 +82,12 @@ class Shader:
     def set_int(self, name, value):
         loc = self._get_uniform_location(name)
         if loc != -1:
-            GL.glUniform1i(loc, value)
+            GL.glUniform1i(loc, int(value))
+
+    def set_uint(self, name, value):
+        loc = self._get_uniform_location(name)
+        if loc != -1:
+            GL.glUniform1ui(loc, int(value))
 
     def set_mat4(self, name, matrix):
         loc = self._get_uniform_location(name)

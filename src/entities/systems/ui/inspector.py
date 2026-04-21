@@ -5,6 +5,8 @@ from imgui_bundle import imgui, icons_fontawesome_6, portable_file_dialogs as pf
 
 from entities.components.camera import Camera
 from entities.components.camera_state import CameraState
+from entities.components.street_scene.scene_generator_state import SceneGeneratorState
+from entities.components.street_scene.scene_animator_state import SceneAnimatorState
 from entities.components.directional_light import DirectionalLight
 from entities.components.disposal import Disposal
 from entities.components.gd.optimizer_state import OptimizerAlgorithm, OptimizerState
@@ -14,7 +16,7 @@ from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.ui.ui_state import UiState
 from entities.components.visuals.visuals import DrawMode, Visuals
-from entities.components.entity_flags import EntityFlags
+from entities.components.entity_flags import EntityFlags, EntityClassification
 from entities.components.visuals.assets import AssetStatus, AssetsState
 from entities.systems.assets import AssetSystem
 from entities.registry import Registry
@@ -61,10 +63,11 @@ def draw_inspector_section(
             imgui.pop_style_color(3)
 
             if entity_flags is not None:
-                changed_classification, new_classification = imgui.drag_int(
-                    "Classification", entity_flags.classification, 1, 0, 65536)
+                class_names = [e.name for e in EntityClassification]
+                current_index = list(EntityClassification).index(entity_flags.classification)
+                changed_classification, new_index = imgui.combo("Classification", current_index, class_names)
                 if changed_classification:
-                    entity_flags.classification = new_classification
+                    entity_flags.classification = list(EntityClassification)[new_index]
 
             target_camera = registry.get_parent(camera_state_entity)
             if target_camera is not None and target_camera != selected_entity:
@@ -446,6 +449,21 @@ def draw_component_properties(
                 comp.velocity_z = 0.0
 
             imgui.text_disabled(f"Velocity: ({comp.velocity_x:.4f}, {comp.velocity_z:.4f})")
+            imgui.tree_pop()
+
+    elif isinstance(comp, SceneGeneratorState):
+        if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+            _, comp.street_length = imgui.drag_float("Street length", comp.street_length, 1.0, 10.0, 1000.0)
+            _, comp.building_count = imgui.drag_int("Buildings", comp.building_count, 1, 0, 100)
+            _, comp.vehicle_count = imgui.drag_int("Vehicles", comp.vehicle_count, 1, 0, 50)
+
+            if imgui.button("Regenerate scene"):
+                comp.should_generate = True
+            imgui.tree_pop()
+
+    elif isinstance(comp, SceneAnimatorState):
+        if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+            _, comp.animate_vehicles = imgui.checkbox("Animate vehicles", comp.animate_vehicles)
             imgui.tree_pop()
 
     else:

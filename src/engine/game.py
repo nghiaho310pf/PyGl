@@ -11,13 +11,14 @@ from entities.components.spawner_state import SpawnerState
 from entities.components.visuals.assets import AssetsState
 from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.ui.gizmo_state import GizmoState
-from entities.components.point_light import PointLight
 from entities.components.directional_light import DirectionalLight
 from entities.components.render_state import RenderState
 from entities.components.transform import Transform
 from entities.components.ui.ui_state import UiState
 from entities.components.visuals.visuals import Visuals
 from entities.components.camera_state import CameraState
+from entities.components.street_scene.scene_animator_state import SceneAnimatorState
+from entities.components.street_scene.scene_generator_state import SceneGeneratorState
 from entities.registry import Registry
 from entities.systems.disposal import DisposalSystem
 from entities.systems.function_surface import FunctionSurfaceSystem
@@ -28,12 +29,12 @@ from entities.systems.spawner import SpawnerSystem
 from entities.systems.ui.system import UiSystem
 from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
+from entities.systems.bounding_box_render import BoundingBoxRenderSystem
 from entities.systems.gizmo import GizmoSystem
 from entities.systems.transform_inheritance import TransformInheritanceSystem
-from meshes.surfaces.plane import generate_plane
-from meshes.volumes.cube import generate_cube
-from meshes.volumes.subdivided_spheres import generate_icosphere
-from entities.components.visuals.assets import Mesh, AssetsState
+from entities.systems.street_scene.scene_generator import SceneGeneratorSystem
+from entities.systems.street_scene.scene_animator import SceneAnimatorSystem
+from entities.components.visuals.assets import AssetsState
 from math_utils import float1, quaternion_from_euler, vec3
 from entities.components.visuals.material import Material
 
@@ -115,95 +116,35 @@ class Game(Application):
             GizmoState(),
         )
 
-        # == demo setup ==
-
-        mat_orange = Material(
-            albedo=vec3(1.0, 0.318, 0.133),
-            roughness=float1(0.6),
-            metallic=float1(0.3),
-            reflectance=float1(0.25),
-            ao=float1(0.1),
-        )
-        mat_blue = Material(
-            albedo=vec3(0.276, 0.481, 1.0),
-            roughness=float1(0.6),
-            metallic=float1(0.7),
-            reflectance=float1(0.25),
-            ao=float1(0.1),
-        )
-        mat_grey = Material(
-            albedo=vec3(0.08, 0.08, 0.08),
-            roughness=float1(0.6),
-            metallic=float1(0.7),
-            reflectance=float1(0.01),
-            ao=float1(0.1),
-        )
-
-        sphere_vertices, sphere_indices = generate_icosphere(radius=0.5, subdivisions=3)
-        cube_vertices, cube_indices = generate_cube(size=1.0)
-        plane_vertices, plane_indices = generate_plane()
-
-        # orange icosphere entity
-        e1 = self.registry.create_entity()
-        self.registry.add_components(
-            e1,
-            EntityFlags(name="Icosphere"),
-            Transform(position=vec3(0.0, 0.5, 0)),
-            Visuals(AssetSystem.create_immediate_mesh(assets_state, sphere_vertices, sphere_indices), mat_orange)
-        )
-
-        # blue cube entity
-        e2 = self.registry.create_entity()
-        self.registry.add_components(
-            e2,
-            EntityFlags(name="Cube"),
-            Transform(position=vec3(-1.6, 0.5, 0), rotation=quaternion_from_euler(vec3(0.0, 57.0, 0.0))),
-            Visuals(AssetSystem.create_immediate_mesh(assets_state, cube_vertices, cube_indices), mat_blue)
-        )
-
-        # floor entity
-        e3 = self.registry.create_entity()
-        self.registry.add_components(
-            e3,
-            EntityFlags(name="Plane"),
-            Transform(position=vec3(0.0, 0.0, 0.0)),
-            Visuals(AssetSystem.create_immediate_mesh(assets_state, plane_vertices, plane_indices), mat_grey)
-        )
-
         # camera entity
         c = self.registry.create_entity()
         self.registry.add_components(
             c,
             EntityFlags(name="Camera 1"),
             Transform(position=vec3(0.0, 2.4, 5.0), rotation=quaternion_from_euler(vec3(-22.0, 0.0, 0.0))),
-            Camera()
-        )
-        c = self.registry.create_entity()
-        self.registry.add_components(
-            c,
-            EntityFlags(name="Camera 2"),
-            Transform(position=vec3(5.0, 2.4, 0.0), rotation=quaternion_from_euler(vec3(-22.0, 90.0, 0.0))),
-            Camera()
+            Camera(far=200)
         )
 
-        # light entities
+        # light entity
         l1 = self.registry.create_entity()
         self.registry.add_components(
             l1,
-            EntityFlags(name="Main light"),
+            EntityFlags(name="Light"),
             DirectionalLight(
-                rotation=vec3(160.0, -112.0, 54.0),
+                rotation=vec3(170.0, -110.0, 130.0),
                 strength=float1(20.0)
             )
         )
-        l2 = self.registry.create_entity()
-        self.registry.add_components(
-            l2,
-            EntityFlags(name="Sub light"),
-            Transform(position=vec3(-5.0, 5.0, -1.0)),
-            PointLight(strength=float1(60.0), casts_shadow=False)
-        )
 
+        # street scene
+        s = self.registry.create_entity()
+        self.registry.add_components(
+            s,
+            EntityFlags(name="Street scene", is_internal=False),
+            Transform(),
+            SceneGeneratorState(should_generate=True),
+            SceneAnimatorState()
+        )
 
     def render(self):
         # == preparation ==
@@ -222,6 +163,8 @@ class Game(Application):
 
         GizmoSystem.update(self.registry, window_size)
         SpawnerSystem.update(self.registry)
+        SceneGeneratorSystem.update(self.registry)
+        SceneAnimatorSystem.update(self.registry, dt)
         GradientDescentSurfaceSystem.update(self.registry, now, dt)
         FunctionSurfaceSystem.update(self.registry, now, dt)
         TransformInheritanceSystem.update(self.registry)
@@ -229,6 +172,7 @@ class Game(Application):
         UiSystem.update(self.registry, now, dt)
         AssetSystem.update(self.registry)
         self.render_system.update(self.registry, window_size, now, dt)
+        BoundingBoxRenderSystem.update(self.registry)
         IconRenderSystem.update(self.registry, window_size)
 
         imgui.render()

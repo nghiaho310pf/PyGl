@@ -10,10 +10,10 @@ import PIL.Image as Image
 
 from engine.application import Application
 from entities.components.camera_state import CameraState
-from entities.components.entity_flags import EntityFlags
+from entities.components.entity_flags import EntityClassification, EntityFlags
 from entities.components.gd.optimizer_state import OptimizerState
 from entities.components.visuals.assets import Mesh, AssetStatus
-from entities.components.render_state import RenderState, GlobalDrawMode
+from entities.components.render_state import RenderState, GlobalDrawMode, BoundingBox
 from entities.components.camera import Camera
 from entities.components.point_light import PointLight
 from entities.components.directional_light import DirectionalLight
@@ -226,8 +226,7 @@ class RenderSystem:
 
         self.seg_color_tex = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.seg_color_tex)
-        # TOOD: use GL_RGB8 for color-coded IDs or GL_R32I for actual integer IDs?
-        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_R32UI, width, height, 0, GL.GL_RED_INTEGER, GL.GL_UNSIGNED_INT, None)
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, self.seg_color_tex, 0)
         # reuse existing depth texture
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, self.main_depth_tex, 0)
@@ -287,92 +286,131 @@ class RenderSystem:
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-    def _export_dataset_frame(self, registry: Registry, width, height, camera_state: CameraState, frame_name: str):
-        exports = {
-            "images": (0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
-            "segmentation": (self.segmentation_fbo, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, "RGB"),
-            "depth": (self.main_fbo, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, "F"),
-        }
-
+    def _export_dataset_frame(self, registry: Registry, width, height, render_state: RenderState, camera_state: CameraState, frame_name: str, segmentation_ids: np.ndarray):
         base_path = Path("dataset")
 
-        for folder, (fbo, gl_fmt, gl_type, pil_mode) in exports.items():
-            export_dir = base_path / folder
-            export_dir.mkdir(parents=True, exist_ok=True)
+        rgb_dir = base_path / "images"
+        depth_dir = base_path / "depth"
+        label_dir = base_path / "labels"
+        seg_dir = base_path / "segmentation"
 
-            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, fbo)
+        rgb_dir.mkdir(parents=True, exist_ok=True)
+        depth_dir.mkdir(parents=True, exist_ok=True)
+        label_dir.mkdir(parents=True, exist_ok=True)
+        seg_dir.mkdir(parents=True, exist_ok=True)
 
-            if fbo == self.segmentation_fbo:
-                GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
-            elif fbo == 0:
-                GL.glReadBuffer(GL.GL_BACK)
+        # == rgb ==
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        GL.glReadBuffer(GL.GL_BACK)
+        raw_rgb = GL.glReadPixels(0, 0, width, height, GL.GL_RGB, GL.GL_UNSIGNED_BYTE)
+        if not isinstance(raw_rgb, bytes):
+            raise RuntimeError("GL.glReadPixels did not return bytes for RGB buffer")
+        img_rgb = Image.frombytes("RGB", (width, height), raw_rgb)
+        img_rgb.transpose(Image.Transpose.FLIP_TOP_BOTTOM).save(rgb_dir / f"{frame_name}.png")
 
-            raw_data = GL.glReadPixels(0, 0, width, height, gl_fmt, gl_type)
-            save_path = export_dir / f"{frame_name}.png"
+        # == depth ==
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.main_fbo)
+        raw_depth = GL.glReadPixels(0, 0, width, height, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT)
+        if not isinstance(raw_depth, np.ndarray):
+            raise RuntimeError("GL.glReadPixels did not return a NumPy array for depth buffer")
+        z_n = raw_depth.reshape((height, width))
+        near, far = camera_state.camera_near, camera_state.camera_far
+        z_lin = (near * far) / (far - z_n * (far - near))
+        depth_mm = np.clip(z_lin * 1000, 0, 65535).astype(np.uint16)
 
-            if folder == "depth":
-                if not isinstance(raw_data, np.ndarray):
-                    raise RuntimeError("GL.glReadPixels did not return a NumPy array for depth buffer")
-                z_n = raw_data.reshape((height, width))
-                z_lin = (2.0 * camera_state.camera_near * camera_state.camera_far) / (camera_state.camera_far + camera_state.camera_near - z_n * (camera_state.camera_far - camera_state.camera_near))
-                depth_mm = (z_lin * 1000).astype(np.uint16)
+        img_depth = Image.fromarray(depth_mm, mode="I;16")
+        img_depth.transpose(Image.Transpose.FLIP_TOP_BOTTOM).save(depth_dir / f"{frame_name}.png")
 
-                img = Image.fromarray(depth_mm, mode="I;16")
-                img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-                img.save(save_path)
-            else:
-                if not isinstance(raw_data, bytes):
-                    raise RuntimeError("GL.glReadPixels did not return bytes for non-depth buffer")
-                img = Image.frombytes(pil_mode, (width, height), raw_data)
-                img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        # == yolo labels ==
+        yolo_lines = []
 
-                if folder == "segmentation":
-                    self._export_yolo_labels(base_path / "labels", frame_name, width, height, np.array(img), registry)
+        for bbox in render_state.bounding_boxes:
+            x_center = (bbox.min_x + bbox.max_x) / 2.0
+            y_center = (bbox.min_y + bbox.max_y) / 2.0
+            w, h = (bbox.max_x - bbox.min_x), (bbox.max_y - bbox.min_y)
 
-                img.save(save_path)
+            comps = registry.get_components(bbox.entity_id, EntityFlags)
+            if comps:
+                flags, = comps
+                yolo_lines.append(f"{int(flags.classification)} {x_center:.6f} {y_center:.6f} {w:.6f} {h:.6f}\n")
+
+        with open(label_dir / f"{frame_name}.txt", "w") as f:
+            f.writelines(yolo_lines)
+
+        # == segmentation map ==
+        class_colors = {
+            EntityClassification.Environment: [0, 0, 0],
+            EntityClassification.Vehicle:     [255, 0, 0],
+            EntityClassification.Building:    [0, 255, 0],
+            EntityClassification.Human:       [0, 0, 255],
+        }
+
+        seg_rgb = np.zeros((height, width, 3), dtype=np.uint8)
+        for entity_id in np.unique(segmentation_ids):
+            if entity_id == 0: continue  # skip background
+
+            comps = registry.get_components(int(entity_id), EntityFlags)
+            if comps:
+                flags, = comps
+                color = class_colors.get(flags.classification, [255, 255, 255])
+                seg_rgb[segmentation_ids == entity_id] = color
+
+        img_seg = Image.fromarray(seg_rgb, mode="RGB")
+        img_seg.transpose(Image.Transpose.FLIP_TOP_BOTTOM).save(seg_dir / f"{frame_name}.png")
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-    def _get_distributed_color(self, entity_id: int) -> np.ndarray:
-        phi = 0.618033988749895
-        h = (entity_id * phi) % 1.0
-        s = 0.5 + (entity_id % 5) * 0.1
-        v = 0.95
-        return np.array(colorsys.hsv_to_rgb(h, s, v))
+    def _calculate_bounding_boxes(self, render_state: RenderState, registry: Registry, width: int, height: int):
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
+        GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
 
-    def _export_yolo_labels(self, export_dir: Path, frame_name: str, width: int, height: int, seg_array: np.ndarray, registry: Registry):
-        export_dir.mkdir(parents=True, exist_ok=True)
-        yolo_lines = []
+        raw_data = GL.glReadPixels(0, 0, width, height, GL.GL_RED_INTEGER, GL.GL_UNSIGNED_INT)
+        if not isinstance(raw_data, np.ndarray):
+            raise RuntimeError("GL.glReadPixels did not return a NumPy array for segmentation buffer")
 
-        for entity, (transform, visuals, flags) in registry.view(Transform, Visuals, EntityFlags):
-            if not visuals.enabled: continue
+        id_buffer = raw_data.reshape((height, width))
 
-            color_float = self._get_distributed_color(entity)
-            target_color = np.clip(np.round(color_float * 255), 0, 255).astype(np.uint8)
+        render_state.bounding_boxes.clear()
 
-            mask = (seg_array[:, :, 0] == target_color[0]) & \
-                   (seg_array[:, :, 1] == target_color[1]) & \
-                   (seg_array[:, :, 2] == target_color[2])
+        visible_entity_ids = np.unique(id_buffer)
 
-            coords = np.argwhere(mask)
-            if coords.size == 0:
-                # occluded, skip
+        for entity_id in visible_entity_ids:
+            if entity_id == 0:
+                continue  # background
+
+            entity_flags_comps = registry.get_components(int(entity_id), EntityFlags)
+            if not entity_flags_comps:
                 continue
 
-            # NOTE: argwhere returns (y, x)
-            y_min, x_min = coords.min(axis=0)
-            y_max, x_max = coords.max(axis=0)
+            flags, = entity_flags_comps
+            if flags.classification == EntityClassification.Environment:
+                continue
 
-            # normalize for YOLO [x_center, y_center, width, height]
-            x_center = (x_min + x_max) / (2.0 * width)
-            y_center = (y_min + y_max) / (2.0 * height)
-            bbox_w = (x_max - x_min) / float(width)
-            bbox_h = (y_max - y_min) / float(height)
+            entity_pixel_mask = (id_buffer == entity_id)
 
-            yolo_lines.append(f"{flags.classification} {x_center:.6f} {y_center:.6f} {bbox_w:.6f} {bbox_h:.6f}\n")
+            has_entity_pixels_in_row = np.any(entity_pixel_mask, axis=1)
+            has_entity_pixels_in_column = np.any(entity_pixel_mask, axis=0)
 
-        with open(export_dir / f"{frame_name}.txt", "w") as f:
-            f.writelines(yolo_lines)
+            occupied_rows = np.where(has_entity_pixels_in_row)[0]
+            occupied_columns = np.where(has_entity_pixels_in_column)[0]
+
+            if occupied_rows.size == 0 or occupied_columns.size == 0:
+                continue
+
+            bottom_row_index, top_row_index = occupied_rows[0], occupied_rows[-1]
+            left_column_index, right_column_index = occupied_columns[0], occupied_columns[-1]
+
+            render_state.bounding_boxes.append(BoundingBox(
+                entity_id=int(entity_id),
+                name=flags.name,
+                classification_name=flags.classification.name,
+                min_x=float(left_column_index) / width,
+                min_y=1.0 - float(top_row_index + 1) / height,
+                max_x=float(right_column_index + 1) / width,
+                max_y=1.0 - float(bottom_row_index) / height
+            ))
+
+        return id_buffer
 
     @staticmethod
     def _smooth_metric(current_avg: float, new_value: float) -> float:
@@ -757,26 +795,27 @@ class RenderSystem:
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
         # == segmentation mask pass ==
-        if render_state.is_capture:
-            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
-            GL.glViewport(0, 0, width, height)
-            GL.glClearColor(0, 0, 0, 0)
-            GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
+        GL.glViewport(0, 0, width, height)
+        GL.glClearColor(0, 0, 0, 0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
-            self.id_shader.use()
+        self.id_shader.use()
 
-            for entity, (transform, visuals) in registry.view(Transform, Visuals):
-                if not visuals.enabled: continue
+        for entity, (transform, visuals, flags) in registry.view(Transform, Visuals, EntityFlags):
+            if not visuals.enabled: continue
 
-                target_color = self._get_distributed_color(entity)
-                self.id_shader.set_vec3("u_EntityColor", target_color)
+            self.id_shader.set_uint("u_EntityID", entity)
 
-                # i don't particularly care about optimizing this create_transformation_matrix call away
-                model_matrix = math_utils.create_transformation_matrix(
-                    transform.world.position, transform.world.rotation, transform.world.scale
-                )
-                self.id_shader.set_mat4("u_Model", model_matrix)
-                self._draw_mesh(visuals.mesh)
+            # i don't particularly care about optimizing this create_transformation_matrix call away
+            model_matrix = math_utils.create_transformation_matrix(
+                transform.world.position, transform.world.rotation, transform.world.scale
+            )
+            self.id_shader.set_mat4("u_Model", model_matrix)
+            self._draw_mesh(visuals.mesh)
+
+        if render_state.show_bounding_boxes or render_state.is_capture:
+            segmentation_ids = self._calculate_bounding_boxes(render_state, registry, width, height)
 
         # == trajectory line rendering ==
         GL.glBindVertexArray(self.line_vao)
@@ -882,7 +921,7 @@ class RenderSystem:
 
         # == handle capture ==
         if render_state.is_capture:
-            self._export_dataset_frame(registry, width, height, camera_state, str(render_state.frame_number).zfill(6))
+            self._export_dataset_frame(registry, width, height, render_state, camera_state, str(render_state.frame_number).zfill(6), segmentation_ids)  # type: ignore
             render_state.is_capture = False
 
         if not Application.has_broken_opengl:
