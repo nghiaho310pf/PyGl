@@ -25,7 +25,7 @@ from entities.systems.gradient_descent import GradientDescentSurfaceSystem
 from entities.systems.render import RenderSystem
 from entities.systems.assets import AssetSystem
 from entities.systems.spawner import SpawnerSystem
-from entities.systems.ui import UiSystem
+from entities.systems.ui.system import UiSystem
 from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
 from entities.systems.gizmo import GizmoSystem
