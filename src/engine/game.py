@@ -29,6 +29,7 @@ from entities.systems.ui.system import UiSystem
 from entities.systems.camera import CameraSystem
 from entities.systems.icon_render import IconRenderSystem
 from entities.systems.gizmo import GizmoSystem
+from entities.systems.transform_inheritance import TransformInheritanceSystem
 from meshes.surfaces.plane import generate_plane
 from meshes.volumes.cube import generate_cube
 from meshes.volumes.subdivided_spheres import generate_icosphere
@@ -220,11 +221,12 @@ class Game(Application):
         imgui.new_frame()
 
         GizmoSystem.update(self.registry, window_size)
-        CameraSystem.update(self.registry, window_size, now, dt)
-        UiSystem.update(self.registry, now, dt)
         SpawnerSystem.update(self.registry)
         GradientDescentSurfaceSystem.update(self.registry, now, dt)
         FunctionSurfaceSystem.update(self.registry, now, dt)
+        TransformInheritanceSystem.update(self.registry)
+        CameraSystem.update(self.registry, window_size, now, dt)
+        UiSystem.update(self.registry, now, dt)
         AssetSystem.update(self.registry)
         self.render_system.update(self.registry, window_size, now, dt)
         IconRenderSystem.update(self.registry, window_size)

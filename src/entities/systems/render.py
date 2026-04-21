@@ -437,7 +437,7 @@ class RenderSystem:
         for transform, point_light in active_point_lights:
             if point_light.shadow_map_fbo == 0:
                 self._setup_point_shadow_map(point_light)
-            point_light_positions.append(transform.position)
+            point_light_positions.append(transform.world.position)
             point_light_colors.append(point_light.color * point_light.strength)
             point_light_far_planes.append(100.0)
             point_shadow_map_textures.append(point_light.shadow_map_texture)
@@ -470,7 +470,7 @@ class RenderSystem:
             batch_key = (actual_draw_mode, visuals.cull_back_faces)
             if batch_key not in batches: batches[batch_key] = []
             model_matrix = math_utils.create_transformation_matrix(
-                transform.position, transform.rotation, transform.scale
+                transform.world.position, transform.world.rotation, transform.world.scale
             )
             batches[batch_key].append((transform, visuals, model_matrix))
         sorted_batch_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
@@ -497,11 +497,11 @@ class RenderSystem:
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, point_light.shadow_map_fbo)
             self.point_shadowmap_shader.use()
             self.point_shadowmap_shader.set_float("u_FarPlane", 100.0)
-            self.point_shadowmap_shader.set_vec3("u_LightPos", transform.position)
+            self.point_shadowmap_shader.set_vec3("u_LightPos", transform.world.position)
             for i, (target_dir, up_dir) in enumerate(shadow_dirs):
                 GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, point_light.shadow_map_texture, 0) # type: ignore
                 GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
-                light_view = math_utils.create_look_at(transform.position, transform.position + target_dir, up_dir)
+                light_view = math_utils.create_look_at(transform.world.position, transform.world.position + target_dir, up_dir)
                 self.point_shadowmap_shader.set_mat4("u_Projection", point_light_projection)
                 self.point_shadowmap_shader.set_mat4("u_View", light_view)
 
@@ -772,10 +772,12 @@ class RenderSystem:
                 self.id_shader.set_vec3("u_EntityColor", target_color)
 
                 # i don't particularly care about optimizing this create_transformation_matrix call away
-                model_matrix = math_utils.create_transformation_matrix(transform.position, transform.rotation, transform.scale)
+                model_matrix = math_utils.create_transformation_matrix(
+                    transform.world.position, transform.world.rotation, transform.world.scale
+                )
                 self.id_shader.set_mat4("u_Model", model_matrix)
                 self._draw_mesh(visuals.mesh)
-        
+
         # == trajectory line rendering ==
         GL.glBindVertexArray(self.line_vao)
         GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.line_vbo)

@@ -105,33 +105,41 @@ def draw_component_properties(
 ):
     if isinstance(comp, Transform):
         if imgui.tree_node_ex(comp_type.__name__, imgui.TreeNodeFlags_.default_open):
+            changed_inherit, new_inherit = imgui.checkbox("Inherit", comp.inherit)
+            if changed_inherit:
+                comp.inherit = new_inherit
+
             changed_pos, new_pos = imgui.drag_float3(
-                "Position", comp.position.tolist(), 0.1)
+                "Position", comp.local.position.tolist(), 0.1)
             if changed_pos:
-                comp.position = vec3(*new_pos)
+                comp.local.position = vec3(*new_pos)
 
             # no, we're not gonna be cute and use an epsilon or a dot product.
             # if it changed, it changed.
-            if not np.array_equal(comp.rotation, ui_state.last_synced_quaternion):
-                new_euler = quaternion_to_euler(comp.rotation)
+            if not np.array_equal(comp.local.rotation, ui_state.last_synced_quaternion):
+                new_euler = quaternion_to_euler(comp.local.rotation)
                 ui_state.euler_buffer = minimize_euler(new_euler)
-                ui_state.last_synced_quaternion = comp.rotation.copy()
+                ui_state.last_synced_quaternion = comp.local.rotation.copy()
 
             changed_rot, new_euler = imgui.drag_float3("Rotation", ui_state.euler_buffer.tolist(), 0.1)
 
             if changed_rot:
                 ui_state.euler_buffer = vec3(*new_euler)
                 new_quat_1, new_quat_2 = quaternions_from_euler(ui_state.euler_buffer)
-                if np.dot(comp.rotation, new_quat_1) >= 0:
-                    comp.rotation = new_quat_1
+                if np.dot(comp.local.rotation, new_quat_1) >= 0:
+                    comp.local.rotation = new_quat_1
                 else:
-                    comp.rotation = new_quat_2
-                ui_state.last_synced_quaternion = comp.rotation.copy()
+                    comp.local.rotation = new_quat_2
+                ui_state.last_synced_quaternion = comp.local.rotation.copy()
 
             changed_scale, new_scale = imgui.drag_float3(
-                "Scale", comp.scale.tolist(), 0.1)
+                "Scale", comp.local.scale.tolist(), 0.1)
             if changed_scale:
-                comp.scale = vec3(*new_scale)
+                comp.local.scale = vec3(*new_scale)
+
+            imgui.separator()
+            imgui.text_disabled(f"World position: ({comp.world.position[0]:.3f}, {comp.world.position[1]:.3f}, {comp.world.position[2]:.3f})")
+
             imgui.tree_pop()
 
     elif isinstance(comp, DirectionalLight):
@@ -381,14 +389,15 @@ def draw_component_properties(
                 comp.size = new_size
                 comp.dirty = True
 
+            changed_yscale, new_yscale = imgui.drag_float("Y scale", comp.y_scale, 0.001, 0.0001, 10.0, "%.4f")
+            if changed_yscale:
+                comp.y_scale = new_yscale
+                comp.dirty = True
+
             imgui.text_disabled(f"Iterations: {comp.iterations}")
 
             if imgui.button("+ Add optimizer"):
-                r_transform = registry.get_components(entity_id, Transform)
-                spawn_pos = vec3(0.0, 0.0, 0.0)
-                if r_transform:
-                    (surf_trans,) = r_transform
-                    spawn_pos = surf_trans.position.copy()
+                spawn_pos_local = vec3(0.0, 0.0, 0.0)
 
                 optimizer_mesh = AssetSystem.create_immediate_mesh(assets_state, *generate_uv_sphere(radius=0.1, stacks=10, sectors=20))
 
@@ -396,7 +405,7 @@ def draw_component_properties(
                 registry.add_components(
                     new_entity,
                     EntityFlags(name=f"Optimizer {new_entity}"),
-                    Transform(position=spawn_pos),
+                    Transform(position=spawn_pos_local),
                     OptimizerState(algorithm=OptimizerAlgorithm.BatchGD),
                     Visuals(optimizer_mesh, copy.copy(ui_state.default_material)),
                 )
@@ -458,5 +467,5 @@ def focus_camera_on_transform(
     camera_transform: Transform,
     target_transform: Transform,
 ):
-    camera_state.focal_point = target_transform.position
-    camera_transform.position = camera_state.focal_point - camera_state.front * camera.focal_point_distance  # type: ignore
+    camera_state.focal_point = target_transform.world.position
+    camera_transform.local.position = camera_state.focal_point - camera_state.front * camera.focal_point_distance  # type: ignore

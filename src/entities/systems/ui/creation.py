@@ -70,9 +70,9 @@ def draw_creation_section(
                 )
                 ui_state.should_close_add_menu = True
 
-        preview_transform.position = vec3(*camera_state.focal_point)
-        preview_transform.rotation = quaternion_identity()
-        preview_transform.scale = vec3(1.0, 1.0, 1.0)
+        preview_transform.local.position = vec3(*camera_state.focal_point)
+        preview_transform.local.rotation = quaternion_identity()
+        preview_transform.local.scale = vec3(1.0, 1.0, 1.0)
 
         changed_type = False
 
@@ -369,7 +369,7 @@ def draw_creation_section(
                     new_entity,
                     EntityFlags(name="Gradient descent surface"),
 
-                    Transform(position=vec3(0.0, 0.0, 0.0), scale=vec3(1.0, 0.01, 1.0)),
+                    Transform(position=vec3(0.0, 0.0, 0.0), scale=vec3(1.0, 1.0, 1.0)),
                     GradientDescentSurface(),
                     Visuals(AssetSystem.create_immediate_mesh(assets_state, *vi), new_material, cull_back_faces=False),
                 )

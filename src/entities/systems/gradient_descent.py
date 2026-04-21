@@ -22,35 +22,9 @@ class GradientDescentSurfaceSystem:
         admin_entity, (gizmo_state, ui_state, assets_state, ) = r_admin
 
         for g_entity, (g_transform, g_visuals, g_surface) in registry.view(Transform, Visuals, GradientDescentSurface):
-            m_surf = create_transformation_matrix(g_transform.position, g_transform.rotation, g_transform.scale)
-            children = registry.get_children(g_entity)
-
-            try:
-                m_inv = np.linalg.inv(m_surf)
-            except np.linalg.LinAlgError:
-                m_inv = np.identity(4, dtype=np.float32)
-
             if g_surface.dirty:
                 GradientDescentSurfaceSystem._generate_mesh(assets_state, g_visuals, g_surface)
                 g_surface.dirty = False
-
-                for o_entity in children:
-                    r_optimizer = registry.get_components(o_entity, Transform, OptimizerState)
-                    if r_optimizer is None:
-                        continue
-                    o_transform, o_optimizer = r_optimizer
-
-                    pos_world = np.array([o_transform.position[0], o_transform.position[1], o_transform.position[2], 1.0], dtype=np.float32)
-                    pos_local = m_inv @ pos_world
-
-                    new_local_y = float1(GradientDescentSurfaceSystem.evaluate_loss(
-                        g_surface.function_type, pos_local[0], pos_local[2],
-                        g_surface.rosenbrock_a, g_surface.rosenbrock_b
-                    ))
-                    pos_local[1] = new_local_y
-
-                    new_pos_world = m_surf @ pos_local
-                    o_transform.position = vec3(new_pos_world[0], new_pos_world[1], new_pos_world[2])
 
             do_step = False
             if g_surface.is_running:
@@ -59,23 +33,19 @@ class GradientDescentSurfaceSystem:
                     do_step = True
                     g_surface.step_timer = 0.0
 
-            ui_selected_entity = registry.get_parent(ui_state.selection_child_entity)
+            children = registry.get_children(g_entity)
+
+            m_surf = create_transformation_matrix(g_transform.world.position, g_transform.world.rotation, g_transform.world.scale)
 
             for o_entity in children:
-                if gizmo_state.is_dragging and ui_selected_entity == o_entity:
-                    continue
-
                 r_optimizer = registry.get_components(o_entity, Transform, OptimizerState)
                 if r_optimizer is None:
                     continue
                 o_transform, o_optimizer = r_optimizer
 
-                pos_world = np.array([o_transform.position[0], o_transform.position[1], o_transform.position[2], 1.0], dtype=np.float32)
-                pos_local = m_inv @ pos_world
-
-                local_x = pos_local[0]
-                local_z = pos_local[2]
-
+                # skip movement if being dragged by gizmo, but still snap to surface Y
+                local_x = o_transform.local.position[0]
+                local_z = o_transform.local.position[2]
                 if do_step:
                     dx, dz = GradientDescentSurfaceSystem.evaluate_gradient(
                         g_surface.function_type, local_x, local_z,
@@ -105,18 +75,16 @@ class GradientDescentSurfaceSystem:
                     local_x += o_optimizer.velocity_x
                     local_z += o_optimizer.velocity_z
 
-                local_y = float(GradientDescentSurfaceSystem.evaluate_loss(
+                local_y = float1(GradientDescentSurfaceSystem.evaluate_loss(
                     g_surface.function_type, local_x, local_z,
                     g_surface.rosenbrock_a, g_surface.rosenbrock_b
-                ))
+                ) * g_surface.y_scale)
 
-                new_pos_local = np.array([local_x, local_y, local_z, 1.0], dtype=np.float32)
-                new_pos_world = m_surf @ new_pos_local
-
-                o_transform.position = vec3(new_pos_world[0], new_pos_world[1], new_pos_world[2])
+                o_transform.local.position = vec3(local_x, local_y, local_z)
 
                 if do_step:
-                    o_optimizer.trajectory.append(vec3(new_pos_world[0], new_pos_world[1], new_pos_world[2]))
+                    pos_world = m_surf @ np.array([local_x, local_y, local_z, 1.0], dtype=np.float32)
+                    o_optimizer.trajectory.append(vec3(pos_world[0], pos_world[1], pos_world[2]))
 
             if do_step:
                 g_surface.iterations += 1
@@ -158,20 +126,20 @@ class GradientDescentSurfaceSystem:
         X, Z = np.meshgrid(x_lin, z_lin)
 
         # == evaluate the expression (vectorized) ==
-        Y = GradientDescentSurfaceSystem.evaluate_loss(
+        Y = (GradientDescentSurfaceSystem.evaluate_loss(
             surface.function_type, X, Z,
             surface.rosenbrock_a, surface.rosenbrock_b
-        ).astype(np.float32)
+        ) * surface.y_scale).astype(np.float32)
 
         # == calculate analytical normals ==
         dX, dZ = GradientDescentSurfaceSystem.evaluate_gradient(
             surface.function_type, X, Z,
             surface.rosenbrock_a, surface.rosenbrock_b
         )
-        # surface normal formula: (-df/dx, 1, -df/dz)
-        Nx = -dX.astype(np.float32) # type: ignore
+        # surface normal formula of (x, f(x,z)*s, z) is (-df/dx*s, 1, -df/dz*s)
+        Nx = (-dX * surface.y_scale).astype(np.float32) # type: ignore
         Ny = np.ones_like(Y, dtype=np.float32)
-        Nz = -dZ.astype(np.float32) # type: ignore
+        Nz = (-dZ * surface.y_scale).astype(np.float32) # type: ignore
 
         # == stack and normalize ==
         normals = np.stack([Nx, Ny, Nz], axis=-1)

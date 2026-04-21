@@ -6,7 +6,7 @@ from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.point_light import PointLight
 from entities.components.ui.ui_state import UiState
 from entities.components.camera import Camera
-from entities.components.transform import Transform
+from entities.components.transform import Transform, TransformData
 from entities.components.render_state import RenderState
 from entities.registry import Registry
 
@@ -34,7 +34,7 @@ class IconRenderSystem:
                 if entity == camera_parent:
                     continue
                 IconRenderSystem._draw_entity_icon(
-                    draw_list, transform, camera_state.view_projection_matrix, window_size,
+                    draw_list, transform.world, camera_state.view_projection_matrix, window_size,
                     entity == selected_entity, icons_fontawesome_6.ICON_FA_CAMERA,
                     np.array([1.0, 1.0, 1.0])
                 )
@@ -44,7 +44,7 @@ class IconRenderSystem:
                 if entity == camera_parent:
                     continue
                 IconRenderSystem._draw_entity_icon(
-                    draw_list, transform, camera_state.view_projection_matrix, window_size,
+                    draw_list, transform.world, camera_state.view_projection_matrix, window_size,
                     entity == selected_entity, icons_fontawesome_6.ICON_FA_LIGHTBULB,
                     light.color * 0.6 + np.array([1.0, 1.0, 1.0]) * 0.4
                 )
@@ -52,7 +52,7 @@ class IconRenderSystem:
     @staticmethod
     def _draw_entity_icon(
         draw_list: imgui.ImDrawList,
-        transform: Transform, view_projection_matrix: np.ndarray,
+        transform: TransformData, view_projection_matrix: np.ndarray,
         window_size: tuple[int, int],
         selected: bool, icon: str,
         color: np.ndarray

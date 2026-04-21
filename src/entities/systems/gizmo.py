@@ -41,7 +41,7 @@ class GizmoSystem:
         io = imgui.get_io()
         draw_list = imgui.get_background_draw_list()
 
-        world_space_origin = transform.position
+        world_space_origin = transform.world.position
         distance_to_camera = np.linalg.norm(world_space_origin - camera_state.camera_position)
         gizmo_too_close = distance_to_camera < camera_state.camera_near
 
@@ -114,14 +114,18 @@ class GizmoSystem:
                 gizmo_state.initial_mouse_position = mouse_position
 
                 if gizmo_state.mode == GizmoMode.Translate:
-                    gizmo_state.initial_transform_value = transform.position.copy()
+                    # store the initial local position!
+                    # this is to modify it during dragging
+                    gizmo_state.initial_transform_value = transform.local.position.copy()
 
                     axis_direction = axes[gizmo_state.active_axis]
-                    initial_offset = GizmoSystem._get_ray_axis_intersection(mouse_position, gizmo_state.initial_transform_value, axis_direction, camera_state, window_size)
+                    # use world position to calculate the intersection offset
+                    initial_offset = GizmoSystem._get_ray_axis_intersection(mouse_position, transform.world.position, axis_direction, camera_state, window_size)
                     gizmo_state.initial_translation_axis_offset = initial_offset if initial_offset is not None else 0.0
 
                 elif gizmo_state.mode == GizmoMode.Rotate:
-                    gizmo_state.initial_transform_value = transform.rotation.copy()
+                    # store the initial local rotation!
+                    gizmo_state.initial_transform_value = transform.local.rotation.copy()
                     gizmo_state.initial_rotation_angle = GizmoSystem._calculate_rotation_angle(mouse_position, screen_space_origin)
 
         # == handle active dragging ==
@@ -307,7 +311,7 @@ class GizmoSystem:
             return
 
         world_delta = np.clip(current_offset - gizmo_state.initial_translation_axis_offset, -1500.0, 1500.0)
-        transform.position = gizmo_state.initial_transform_value + axis_dir * world_delta
+        transform.local.position = gizmo_state.initial_transform_value + axis_dir * world_delta
 
     @staticmethod
     def _calculate_rotation_angle(mouse_pos, center_screen):
@@ -316,7 +320,7 @@ class GizmoSystem:
 
     @staticmethod
     def _apply_rotation(gizmo_state: GizmoState, transform: Transform, camera_state: CameraState, window_size: tuple[int, int], mouse_pos: npt.NDArray):
-        center_screen = GizmoSystem._world_to_screen(transform.position, camera_state.view_projection_matrix, window_size)
+        center_screen = GizmoSystem._world_to_screen(transform.local.position, camera_state.view_projection_matrix, window_size)
         if center_screen is None:
             return
 
@@ -335,4 +339,4 @@ class GizmoSystem:
             delta_angle_deg = -delta_angle_deg
 
         delta_q = quaternion_from_axis_angle(world_axis, delta_angle_deg)
-        transform.rotation = quaternion_mul(delta_q, gizmo_state.initial_transform_value)
+        transform.local.rotation = quaternion_mul(delta_q, gizmo_state.initial_transform_value)

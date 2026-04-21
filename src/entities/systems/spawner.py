@@ -51,9 +51,9 @@ class SpawnerSystem:
         for node in model.nodes:
             entity = registry.create_entity()
 
-            world_pos = root_transform.position + node.local_position
-            world_rot = math_utils.quaternion_mul(root_transform.rotation, node.local_rotation)
-            world_scale = root_transform.scale * node.local_scale
+            world_pos = root_transform.world.position + node.local_position
+            world_rot = math_utils.quaternion_mul(root_transform.world.rotation, node.local_rotation)
+            world_scale = root_transform.world.scale * node.local_scale
 
             node_transform = Transform(position=world_pos, rotation=world_rot, scale=world_scale)
 

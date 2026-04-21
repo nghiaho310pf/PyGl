@@ -67,7 +67,7 @@ class CameraSystem:
 
             cam_rot_matrix = math_utils.create_transformation_matrix(
                 vec3(0, 0, 0),
-                camera_transform.rotation,
+                camera_transform.local.rotation,
                 vec3(1, 1, 1)
             )
             forward = -cam_rot_matrix[0:3, 2]
@@ -85,15 +85,15 @@ class CameraSystem:
             q_yaw = math_utils.quaternion_from_axis_angle(world_up, -yaw_change)
             q_pitch = math_utils.quaternion_from_axis_angle(horizontal_right, actual_pitch_change)
 
-            new_rot = math_utils.quaternion_mul(q_pitch, camera_transform.rotation)
+            new_rot = math_utils.quaternion_mul(q_pitch, camera_transform.local.rotation)
             new_rot = math_utils.quaternion_mul(q_yaw, new_rot)
 
-            camera_transform.rotation = math_utils.normalize(new_rot)
+            camera_transform.local.rotation = math_utils.normalize(new_rot)  # type: ignore
 
         # recalculate since the code directly above us definitely changed the rotation
         cam_rot_matrix = math_utils.create_transformation_matrix(
             vec3(0, 0, 0),
-            camera_transform.rotation,
+            camera_transform.local.rotation,
             vec3(1, 1, 1)
         )
 
@@ -124,14 +124,14 @@ class CameraSystem:
 
         if is_input_active:
             camera.focal_point_distance = max(0.1, camera.focal_point_distance)
-            camera_transform.position = camera_state.focal_point + (backward * camera.focal_point_distance)  # type: ignore
+            camera_transform.local.position = camera_state.focal_point + (backward * camera.focal_point_distance)  # type: ignore
         else:
             CameraSystem.sync_focal_point(camera_state, camera, camera_transform)
 
         cam_world_matrix = math_utils.create_transformation_matrix(
-            camera_transform.position,
-            camera_transform.rotation,
-            camera_transform.scale,
+            camera_transform.world.position,
+            camera_transform.world.rotation,
+            camera_transform.world.scale,
         )
 
         try:
@@ -142,7 +142,7 @@ class CameraSystem:
         window_width, window_height = window_size
         aspect_ratio = window_width / window_height
 
-        camera_state.camera_position = camera_transform.position
+        camera_state.camera_position = camera_transform.world.position
         camera_state.camera_near = camera.near
         camera_state.camera_far = camera.far
         camera_state.front = front
@@ -155,8 +155,9 @@ class CameraSystem:
 
     @staticmethod
     def sync_focal_point(state: CameraState, camera: Camera, transform: Transform):
+        # sync based on world transform so focal point is in world space
         rot_matrix = math_utils.create_transformation_matrix(
-            vec3(0, 0, 0), transform.rotation, vec3(1, 1, 1)
+            vec3(0, 0, 0), transform.world.rotation, vec3(1, 1, 1)
         )
         backward = math_utils.normalize(rot_matrix[0:3, 2])
-        state.focal_point = transform.position - (backward * camera.focal_point_distance)  # type: ignore
+        state.focal_point = transform.world.position - (backward * camera.focal_point_distance)  # type: ignore

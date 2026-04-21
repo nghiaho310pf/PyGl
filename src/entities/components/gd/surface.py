@@ -15,6 +15,7 @@ class GradientDescentSurface:
 
     size: float = 10.0
     resolution: int = 100
+    y_scale: float = 0.01
 
     # specific parameters for Rosenbrock
     rosenbrock_a: float = 1.0
