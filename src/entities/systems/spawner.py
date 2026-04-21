@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from entities.registry import Registry
 from entities.components.spawner_state import SpawnRequest, SpawnerState
 from entities.components.visuals.assets import AssetsState, AssetStatus, ModelAsset
@@ -80,7 +82,7 @@ class SpawnerSystem:
 
             registry.add_components(
                 entity,
-                EntityFlags(name=f"{model.filepath.split('/')[-1]}_{node.name}"),
+                EntityFlags(name=f"{Path(model.filepath).name}"),
                 node_transform,
                 Visuals(mesh=mesh, material=mat)
             )
