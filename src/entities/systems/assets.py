@@ -361,7 +361,19 @@ class AssetSystem:
         v_data = vertices
         if v_data.ndim == 1:
             num_floats = v_data.size
-            if num_floats % 8 == 0 and num_floats % 11 != 0:
+            needs_tangents = False
+
+            if num_floats % 8 == 0:
+                if num_floats % 11 != 0:
+                    needs_tangents = True
+                elif len(indices) != 0:
+                    max_idx = np.max(indices)
+                    max_verts_if_11 = num_floats // 11
+
+                    if max_idx >= max_verts_if_11:
+                        needs_tangents = True
+
+            if needs_tangents:
                 num_vertices = num_floats // 8
                 reshaped = v_data.reshape((num_vertices, 8))
 
