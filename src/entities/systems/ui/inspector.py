@@ -16,7 +16,7 @@ from entities.components.point_light import PointLight
 from entities.components.transform import Transform
 from entities.components.ui.ui_state import UiState
 from entities.components.visuals.visuals import DrawMode, Visuals
-from entities.components.entity_flags import EntityFlags, EntityClassification
+from entities.components.entity_flags import EntityFlags
 from entities.components.visuals.assets import AssetStatus, AssetsState
 from entities.systems.assets import AssetSystem
 from entities.registry import Registry
@@ -61,13 +61,6 @@ def draw_inspector_section(
             if imgui.button("Delete"):
                 disposal.entities_to_dispose.add(selected_entity)
             imgui.pop_style_color(3)
-
-            if entity_flags is not None:
-                class_names = [e.name for e in EntityClassification]
-                current_index = list(EntityClassification).index(entity_flags.classification)
-                changed_classification, new_index = imgui.combo("Classification", current_index, class_names)
-                if changed_classification:
-                    entity_flags.classification = list(EntityClassification)[new_index]
 
             target_camera = registry.get_parent(camera_state_entity)
             if target_camera is not None and target_camera != selected_entity:

@@ -27,23 +27,22 @@ class SpawnerSystem:
             request = spawner_state.pending_spawns[i]
 
             if request.model.status == AssetStatus.Ready:
-                instantiations.append((request.model, request.root_transform))
+                instantiations.append((request.model, request.root_transform, request.parent_entity))
                 spawner_state.pending_spawns.pop(i)
             elif request.model.status == AssetStatus.Failed:
                 spawner_state.pending_spawns.pop(i)
 
-        for (model, root_transform) in instantiations:
-            SpawnerSystem.instantiate_model(registry, assets_state, model, root_transform)
+        for (model, root_transform, parent_entity) in instantiations:
+            SpawnerSystem.instantiate_model(registry, assets_state, model, root_transform, parent_entity)
 
     @staticmethod
-    def load_and_spawn_one(spawner_state: SpawnerState, assets_state: AssetsState, filepath: str, transform: Transform | None = None):
+    def load_and_spawn_one(spawner_state: SpawnerState, model_asset: ModelAsset, transform: Transform | None = None, parent_entity: int | None = None):
         if transform is None:
             transform = Transform()
-        model_asset = AssetSystem.request_model(assets_state, filepath)
-        spawner_state.pending_spawns.append(SpawnRequest(model_asset, transform))
+        spawner_state.pending_spawns.append(SpawnRequest(model_asset, transform, parent_entity))
 
     @staticmethod
-    def instantiate_model(registry: Registry, assets_state: AssetsState, model: ModelAsset, root_transform: Transform) -> list[int]:
+    def instantiate_model(registry: Registry, assets_state: AssetsState, model: ModelAsset, root_transform: Transform, parent_entity: int | None = None) -> list[int]:
         if model.status != AssetStatus.Ready:
             print(f"Warning: Attempted to spawn model {model.filepath} before it was Ready.")
             return []
@@ -53,11 +52,21 @@ class SpawnerSystem:
         for node in model.nodes:
             entity = registry.create_entity()
 
-            world_pos = root_transform.world.position + node.local_position
-            world_rot = math_utils.quaternion_mul(root_transform.world.rotation, node.local_rotation)
-            world_scale = root_transform.world.scale * node.local_scale
+            if parent_entity is None:
+                # apply the root transform for loose instantiations
+                world_pos = root_transform.local.position + node.local_position
+                world_rot = math_utils.quaternion_mul(root_transform.local.rotation, node.local_rotation)
+                world_scale = root_transform.local.scale * node.local_scale
 
-            node_transform = Transform(position=world_pos, rotation=world_rot, scale=world_scale)
+                node_transform = Transform(position=world_pos, rotation=world_rot, scale=world_scale)
+            else:
+                # use the local transform relative to the parent
+                node_transform = Transform(
+                    position=node.local_position,
+                    rotation=node.local_rotation,
+                    scale=node.local_scale
+                )
+                registry.set_parent(entity, parent_entity)
 
             mesh = AssetSystem.request_mesh(assets_state, node.mesh_id)
             mat = Material(

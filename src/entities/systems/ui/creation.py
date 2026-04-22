@@ -64,8 +64,9 @@ def draw_creation_section(
 
             if result and len(result) > 0:
                 filepath = result[0]
+                model_asset = AssetSystem.request_model(assets_state, filepath)
                 SpawnerSystem.load_and_spawn_one(
-                    spawner_state, assets_state, filepath,
+                    spawner_state, model_asset,
                     Transform(scale=vec3(0.04, 0.04, 0.04)),
                 )
                 ui_state.should_close_add_menu = True

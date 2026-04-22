@@ -10,7 +10,10 @@ import PIL.Image as Image
 
 from engine.application import Application
 from entities.components.camera_state import CameraState
-from entities.components.entity_flags import EntityClassification, EntityFlags
+from entities.components.entity_flags import EntityFlags
+from entities.components.street_scene.vehicle import Vehicle
+from entities.components.street_scene.building import Building
+from entities.components.street_scene.environment import Environment
 from entities.components.gd.optimizer_state import OptimizerState
 from entities.components.visuals.assets import Mesh, AssetStatus
 from entities.components.render_state import RenderState, GlobalDrawMode, BoundingBox
@@ -67,8 +70,8 @@ class RenderSystem:
         self.smaa_area_tex = smaa_area_tex.load()
         self.smaa_search_tex = smaa_search_tex.load()
 
-        self.directional_shadow_map_width = 1408
-        self.directional_shadow_map_height = 1408
+        self.directional_shadow_map_width = 2048
+        self.directional_shadow_map_height = 2048
         self.point_shadow_map_width = 512
         self.point_shadow_map_height = 512
 
@@ -286,6 +289,16 @@ class RenderSystem:
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
+    @staticmethod
+    def _get_classification_and_color(registry: Registry, entity_id: int) -> Tuple[int, str, list[int]]:
+        if registry.get_components(entity_id, Vehicle):
+            return 1, "Vehicle", [255, 0, 0]
+        if registry.get_components(entity_id, Building):
+            return 2, "Building", [0, 255, 0]
+        if registry.get_components(entity_id, Environment):
+            return 0, "Environment", [0, 0, 0]
+        return 0, "Environment", [0, 0, 0]  # default
+
     def _export_dataset_frame(self, registry: Registry, width, height, render_state: RenderState, camera_state: CameraState, frame_name: str, segmentation_ids: np.ndarray):
         base_path = Path("dataset")
 
@@ -329,31 +342,19 @@ class RenderSystem:
             y_center = (bbox.min_y + bbox.max_y) / 2.0
             w, h = (bbox.max_x - bbox.min_x), (bbox.max_y - bbox.min_y)
 
-            comps = registry.get_components(bbox.entity_id, EntityFlags)
-            if comps:
-                flags, = comps
-                yolo_lines.append(f"{int(flags.classification)} {x_center:.6f} {y_center:.6f} {w:.6f} {h:.6f}\n")
+            class_id, _, _ = self._get_classification_and_color(registry, bbox.entity_id)
+            yolo_lines.append(f"{class_id} {x_center:.6f} {y_center:.6f} {w:.6f} {h:.6f}\n")
 
         with open(label_dir / f"{frame_name}.txt", "w") as f:
             f.writelines(yolo_lines)
 
         # == segmentation map ==
-        class_colors = {
-            EntityClassification.Environment: [0, 0, 0],
-            EntityClassification.Vehicle:     [255, 0, 0],
-            EntityClassification.Building:    [0, 255, 0],
-            EntityClassification.Human:       [0, 0, 255],
-        }
-
         seg_rgb = np.zeros((height, width, 3), dtype=np.uint8)
         for entity_id in np.unique(segmentation_ids):
             if entity_id == 0: continue  # skip background
 
-            comps = registry.get_components(int(entity_id), EntityFlags)
-            if comps:
-                flags, = comps
-                color = class_colors.get(flags.classification, [255, 255, 255])
-                seg_rgb[segmentation_ids == entity_id] = color
+            _, _, color = self._get_classification_and_color(registry, int(entity_id))
+            seg_rgb[segmentation_ids == entity_id] = color
 
         img_seg = Image.fromarray(seg_rgb, mode="RGB")
         img_seg.transpose(Image.Transpose.FLIP_TOP_BOTTOM).save(seg_dir / f"{frame_name}.png")
@@ -378,12 +379,8 @@ class RenderSystem:
             if entity_id == 0:
                 continue  # background
 
-            entity_flags_comps = registry.get_components(int(entity_id), EntityFlags)
-            if not entity_flags_comps:
-                continue
-
-            flags, = entity_flags_comps
-            if flags.classification == EntityClassification.Environment:
+            class_id, class_name, _ = self._get_classification_and_color(registry, int(entity_id))
+            if class_id == 0:  # environment
                 continue
 
             entity_pixel_mask = (id_buffer == entity_id)
@@ -400,10 +397,15 @@ class RenderSystem:
             bottom_row_index, top_row_index = occupied_rows[0], occupied_rows[-1]
             left_column_index, right_column_index = occupied_columns[0], occupied_columns[-1]
 
+            name = "Unknown"
+            flags_comps = registry.get_components(int(entity_id), EntityFlags)
+            if flags_comps:
+                name = flags_comps[0].name
+
             render_state.bounding_boxes.append(BoundingBox(
                 entity_id=int(entity_id),
-                name=flags.name,
-                classification_name=flags.classification.name,
+                name=name,
+                classification_name=class_name,
                 min_x=float(left_column_index) / width,
                 min_y=1.0 - float(top_row_index + 1) / height,
                 max_x=float(right_column_index + 1) / width,
@@ -411,6 +413,17 @@ class RenderSystem:
             ))
 
         return id_buffer
+
+    @staticmethod
+    def _find_visual_children(registry: Registry, entity: int) -> list[Tuple[int, Transform, Visuals]]:
+        results = []
+        children = registry.get_children(entity)
+        for child in children:
+            comps = registry.get_components(child, Transform, Visuals)
+            if comps:
+                results.append((child, comps[0], comps[1]))
+            results.extend(RenderSystem._find_visual_children(registry, child))
+        return results
 
     @staticmethod
     def _smooth_metric(current_avg: float, new_value: float) -> float:
@@ -803,17 +816,32 @@ class RenderSystem:
 
             self.id_shader.use()
 
-            for entity, (transform, visuals, flags) in registry.view(Transform, Visuals, EntityFlags):
-                if not visuals.enabled: continue
+            classified_entities = []
+            for e, _ in registry.view(Vehicle): classified_entities.append(e)
+            for e, _ in registry.view(Building): classified_entities.append(e)
+            for e, _ in registry.view(Environment): classified_entities.append(e)
 
-                self.id_shader.set_uint("u_EntityID", entity)
+            for classified_entity in classified_entities:
+                # check if the classified entity ITSELF has visuals
+                comps = registry.get_components(classified_entity, Transform, Visuals)
+                if comps and comps[1].enabled:
+                    self.id_shader.set_uint("u_EntityID", classified_entity)
+                    model_matrix = math_utils.create_transformation_matrix(
+                        comps[0].world.position, comps[0].world.rotation, comps[0].world.scale
+                    )
+                    self.id_shader.set_mat4("u_Model", model_matrix)
+                    self._draw_mesh(comps[1].mesh)
 
-                # i don't particularly care about optimizing this create_transformation_matrix call away
-                model_matrix = math_utils.create_transformation_matrix(
-                    transform.world.position, transform.world.rotation, transform.world.scale
-                )
-                self.id_shader.set_mat4("u_Model", model_matrix)
-                self._draw_mesh(visuals.mesh)
+                # find all children recursively and render them using the parent's ID
+                visual_children = RenderSystem._find_visual_children(registry, classified_entity)
+                for child_id, transform, visuals in visual_children:
+                    if not visuals.enabled: continue
+                    self.id_shader.set_uint("u_EntityID", classified_entity)
+                    model_matrix = math_utils.create_transformation_matrix(
+                        transform.world.position, transform.world.rotation, transform.world.scale
+                    )
+                    self.id_shader.set_mat4("u_Model", model_matrix)
+                    self._draw_mesh(visuals.mesh)
 
             segmentation_ids = self._calculate_bounding_boxes(render_state, registry, width, height)
 

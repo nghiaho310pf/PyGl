@@ -8,6 +8,7 @@ from entities.components.visuals.assets import ModelAsset
 class SpawnRequest:
     model: ModelAsset
     root_transform: Transform
+    parent_entity: int | None = None
 
 
 @dataclass(slots=True, eq=False)
