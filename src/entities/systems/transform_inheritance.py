@@ -1,59 +1,53 @@
 from entities.registry import Registry
 from entities.components.transform import Transform
 import math_utils
+import numpy as np
 
 
 class TransformInheritanceSystem:
     @staticmethod
     def update(registry: Registry):
-        updated_entities: set[int] = set()
-        transform_entities = registry.get_components_of_type(Transform).keys()
-
-        for entity in transform_entities:
-            if entity not in updated_entities:
-                TransformInheritanceSystem._update_entity(registry, entity, updated_entities)
-
-    @staticmethod
-    def _update_entity(registry: Registry, entity: int, updated_entities: set[int]):
-        parent = registry.get_parent(entity)
-
-        if parent is not None and parent not in updated_entities:
-            if parent in registry.get_components_of_type(Transform):
-                TransformInheritanceSystem._update_entity(registry, parent, updated_entities)
-
-        r_transform = registry.get_components(entity, Transform)
-        if not r_transform:
-            updated_entities.add(entity)
+        transforms_dict = registry.get_components_of_type(Transform)
+        if not transforms_dict:
             return
 
-        transform = r_transform[0]
-        local = transform.local
-        world = transform.world
+        scaled_pos_scratch = np.zeros(3, dtype=np.float32)
 
-        parent_transform = None
-        if parent is not None:
-            r_parent_transform = registry.get_components(parent, Transform)
-            if r_parent_transform:
-                parent_transform = r_parent_transform[0]
+        stack: list[int] = []
+        for entity in transforms_dict:
+            parent = registry.get_parent(entity)
+            if parent is None or parent not in transforms_dict:
+                stack.append(entity)
 
-        if transform.inherit and parent_transform is not None:
-            parent_world = parent_transform.world
+        while stack:
+            entity = stack.pop()
+            transform = transforms_dict[entity]
 
-            world.rotation[:] = math_utils.quaternion_mul(parent_world.rotation, local.rotation)
-            world.scale[:] = parent_world.scale * local.scale
+            parent = registry.get_parent(entity)
+            parent_transform = transforms_dict.get(parent) if parent is not None else None
 
-            rotated_local_pos = math_utils.rotate_vector_by_quaternion(
-                local.position * parent_world.scale,
-                parent_world.rotation
-            )
-            world.position[:] = parent_world.position + rotated_local_pos
-        else:
-            world.position[:] = local.position
-            world.rotation[:] = local.rotation
-            world.scale[:] = local.scale
+            local = transform.local
+            world = transform.world
 
-        updated_entities.add(entity)
+            if transform.inherit and parent_transform is not None:
+                parent_world = parent_transform.world
 
-        for child in registry.get_children(entity):
-            if child not in updated_entities:
-                TransformInheritanceSystem._update_entity(registry, child, updated_entities)
+                math_utils.quaternion_mul_out(parent_world.rotation, local.rotation, world.rotation)
+                np.multiply(parent_world.scale, local.scale, out=world.scale)
+
+                np.multiply(local.position, parent_world.scale, out=scaled_pos_scratch)
+                math_utils.rotate_vector_by_quaternion_out(
+                    scaled_pos_scratch,
+                    parent_world.rotation,
+                    world.position
+                )
+
+                world.position += parent_world.position
+            else:
+                world.position[:] = local.position
+                world.rotation[:] = local.rotation
+                world.scale[:] = local.scale
+
+            for child in registry.get_children(entity):
+                if child in transforms_dict:
+                    stack.append(child)
