@@ -52,20 +52,13 @@ class SpawnerSystem:
         for node in model.nodes:
             entity = registry.create_entity()
 
-            if parent_entity is None:
-                # apply the root transform for loose instantiations
-                world_pos = root_transform.local.position + node.local_position
-                world_rot = math_utils.quaternion_mul(root_transform.local.rotation, node.local_rotation)
-                world_scale = root_transform.local.scale * node.local_scale
+            # apply the root transform for loose instantiations
+            world_pos = root_transform.local.position + node.local_position
+            world_rot = math_utils.quaternion_mul(root_transform.local.rotation, node.local_rotation)
+            world_scale = root_transform.local.scale * node.local_scale
+            node_transform = Transform(position=world_pos, rotation=world_rot, scale=world_scale)
 
-                node_transform = Transform(position=world_pos, rotation=world_rot, scale=world_scale)
-            else:
-                # use the local transform relative to the parent
-                node_transform = Transform(
-                    position=node.local_position,
-                    rotation=node.local_rotation,
-                    scale=node.local_scale
-                )
+            if parent_entity is not None:
                 registry.set_parent(entity, parent_entity)
 
             mesh = AssetSystem.request_mesh(assets_state, node.mesh_id)

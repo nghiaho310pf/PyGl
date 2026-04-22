@@ -208,20 +208,13 @@ class SceneGeneratorSystem:
                 )
                 registry.set_parent(vehicle_entity, generator_entity)
 
-                visual_root = registry.create_entity()
-                registry.add_components(
-                    visual_root,
-                    EntityFlags(name="Visuals"),
-                    Transform(
-                        scale=model_scale,
-                        rotation=model_offset
-                    )
-                )
-                registry.set_parent(visual_root, vehicle_entity)
-
                 if model:
                     SpawnerSystem.load_and_spawn_one(
                         spawner_state,
                         model,
-                        parent_entity=visual_root
+                        transform=Transform(
+                            scale=model_scale,
+                            rotation=model_offset
+                        ),
+                        parent_entity=vehicle_entity
                     )

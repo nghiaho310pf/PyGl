@@ -15,11 +15,11 @@ class SceneGeneratorState:
     car_model: ModelAsset | None = None
     bus_model: ModelAsset | None = None
 
-    street_length: float = 300.0
+    street_length: float = 200.0
     street_width: float = 10.0
     sidewalk_width: float = 5.0
 
-    building_count: int = 30
+    building_count: int = 20
     min_building_height: float = 5.0
     max_building_height: float = 20.0
     min_building_width: float = 4.0
