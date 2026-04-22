@@ -66,9 +66,6 @@ class Application:
         renderer: bytes = GL.glGetString(GL.GL_RENDERER)  # type: ignore
         print(f"OpenGL: {version.decode()}\nGLSL: {glsl_version.decode()}\nRenderer: {renderer.decode()}")
 
-        # disable vsync. we'll try to render at a fixed frame rate in Application#run
-        glfw.swap_interval(0)
-
     def _on_resize_internal(self, window, width, height):
         if width == 0 or height == 0:  # may happen when window is minimized
             return
@@ -89,32 +86,11 @@ class Application:
     def get_time(self):
         return glfw.get_time()
 
-    # == Orchestration ==
+    # == orchestration ==
 
     def run(self):
-        target_fps = 120
-        frame_time_target = 1.0 / target_fps
-        sleep_margin = 0.002
-
-        print(f"Targeting {target_fps} FPS")
-
-        last_time = time.perf_counter()
-
         while not glfw.window_should_close(self.win):
-            current_time = time.perf_counter()
-            delta = current_time - last_time
-
-            time_left = frame_time_target - delta
-
-            if time_left > 0:
-                if time_left > sleep_margin:
-                    time.sleep(time_left - sleep_margin)
-                continue  # spin
-
-            last_time += frame_time_target
-
             self.render()
-
             glfw.swap_buffers(self.win)
             glfw.poll_events()
 
@@ -122,7 +98,7 @@ class Application:
         imgui.destroy_context()
         glfw.terminate()
 
-    # == Overrideable callbacks ==
+    # == overrideable callbacks ==
 
     def on_resize(self):
         pass

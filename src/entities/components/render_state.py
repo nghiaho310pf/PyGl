@@ -11,11 +11,6 @@ class GlobalDrawMode(Enum):
 
 
 @dataclass(slots=True, eq=False)
-class GraphicsSettings:
-    pass
-
-
-@dataclass(slots=True, eq=False)
 class BoundingBox:
     entity_id: int
     name: str | None
@@ -35,12 +30,3 @@ class RenderState:
     is_capture: bool = False
     show_bounding_boxes: bool = False
     bounding_boxes: list[BoundingBox] = field(default_factory=list)
-
-    fps: float = 0.0
-    render_time_ms: float = 0.0
-    theoretical_max_fps: float = 0.0
-
-    viewport_graphics_settings: GraphicsSettings = field(default_factory=lambda: GraphicsSettings(
-    ))
-    capture_graphics_settings: GraphicsSettings = field(default_factory=lambda: GraphicsSettings(
-    ))

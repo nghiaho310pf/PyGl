@@ -64,13 +64,6 @@ class RenderSystem:
         self.line_vao = GL.glGenVertexArrays(1)
         self.line_vbo = GL.glGenBuffers(1)
 
-        # == performance querying ==
-        if not Application.has_broken_opengl:
-            self.num_timer_queries = 8
-            self.timer_queries = GL.glGenQueries(self.num_timer_queries)
-            self.query_index = 0
-            self.gpu_time_ms = 0.0
-
     def _setup_fullscreen_quad(self):
         quad_data = np.array([
             -1.0, -1.0, 0.0, 0.0,
@@ -321,9 +314,6 @@ class RenderSystem:
         return (new_value * dynamic_alpha) + (current_avg * (1.0 - dynamic_alpha))
 
     def update(self, registry: Registry, window_size: tuple[int, int], time_val: float, delta_time: float):
-        if not Application.has_broken_opengl:
-            GL.glBeginQuery(GL.GL_TIME_ELAPSED, self.timer_queries[self.query_index])
-
         width, height = window_size
         self._setup_fbos(width, height)
 
@@ -337,12 +327,6 @@ class RenderSystem:
         if r_camera_state is None:
             raise RuntimeError("RenderSystem is missing a CameraState singleton")
         camera_state_entity, (camera_state, ) = r_camera_state
-
-        # choose graphics settings for this frame
-        if render_state.is_capture:
-            graphics_settings = render_state.capture_graphics_settings
-        else:
-            graphics_settings = render_state.viewport_graphics_settings
 
         # == lights setup ==
         active_point_lights: list[Tuple[Transform, PointLight]] = []
@@ -527,23 +511,5 @@ class RenderSystem:
         if render_state.is_capture:
             self._export_dataset_frame(registry, width, height, render_state, camera_state, str(render_state.frame_number).zfill(6), segmentation_ids)  # type: ignore
             render_state.is_capture = False
-
-        # == performance metrics ==
-        if not Application.has_broken_opengl:
-            GL.glEndQuery(GL.GL_TIME_ELAPSED)
-            if render_state.frame_number >= self.num_timer_queries - 1:
-                oldest_query_index = (self.query_index + 1) % self.num_timer_queries
-                available = GL.glGetQueryObjectiv(self.timer_queries[oldest_query_index], GL.GL_QUERY_RESULT_AVAILABLE)
-                if available:
-                    elapsed_ns = GL.glGetQueryObjectuiv(self.timer_queries[oldest_query_index], GL.GL_QUERY_RESULT)
-                    self.gpu_time_ms = elapsed_ns / 1_000_000.0
-
-            self.query_index = (self.query_index + 1) % self.num_timer_queries
-            current_fps = 1.0 / delta_time if delta_time > 0 else 0.0
-            current_theoretical_fps = 1000.0 / self.gpu_time_ms if self.gpu_time_ms > 0 else 0.0
-
-            render_state.render_time_ms = RenderSystem._smooth_metric(render_state.render_time_ms, self.gpu_time_ms)
-            render_state.fps = RenderSystem._smooth_metric(render_state.fps, current_fps)
-            render_state.theoretical_max_fps = RenderSystem._smooth_metric(render_state.theoretical_max_fps, current_theoretical_fps)
 
         render_state.frame_number += 1

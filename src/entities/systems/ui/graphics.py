@@ -1,8 +1,7 @@
 from imgui_bundle import imgui
-from engine.application import Application
+
 from entities.components.render_state import GlobalDrawMode, RenderState
 from entities.components.ui.icon_render_state import IconRenderState
-from math_utils import float1
 
 
 def draw_graphics_section(
@@ -12,10 +11,6 @@ def draw_graphics_section(
     if imgui.collapsing_header("Graphics", imgui.TreeNodeFlags_.default_open):
         if imgui.button("Capture this frame"):
             render_state.is_capture = True
-
-        if not Application.has_broken_opengl:
-            imgui.same_line()
-            imgui.text(f"FPS: {render_state.fps:.1f} ({render_state.render_time_ms:.2f}ms, max: {render_state.theoretical_max_fps:.1f})")
 
         if imgui.begin_table("graphics_render_mode", 2):
             imgui.table_setup_column("Label", imgui.TableColumnFlags_.width_fixed)
