@@ -69,15 +69,15 @@ class ModelResult:
 @dataclass(slots=True)
 class MeshResult:
     asset_id: int
-    vertices: np.ndarray | None = None
-    indices: np.ndarray | None = None
+    vertices: npt.NDArray[np.float32] | None = None
+    indices: npt.NDArray[np.uint32] | None = None
     error: Exception | None = None
 
 
 @dataclass(slots=True)
 class TextureResult:
     asset_id: int
-    data: np.ndarray | None = None
+    data: npt.NDArray[np.float32] | None = None
     format_info: str | None = None
     is_srgb: bool = False
     error: Exception | None = None

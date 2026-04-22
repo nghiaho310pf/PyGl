@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.typing as npt
 from imgui_bundle import imgui, icons_fontawesome_6
 
 from entities.components.camera_state import CameraState
@@ -46,16 +47,16 @@ class IconRenderSystem:
                 IconRenderSystem._draw_entity_icon(
                     draw_list, transform.world, camera_state.view_projection_matrix, window_size,
                     entity == selected_entity, icons_fontawesome_6.ICON_FA_LIGHTBULB,
-                    light.color * 0.6 + np.array([1.0, 1.0, 1.0]) * 0.4
+                    light.color * 0.6 + np.array([1.0, 1.0, 1.0], dtype=np.float32) * 0.4  # type: ignore
                 )
 
     @staticmethod
     def _draw_entity_icon(
         draw_list: imgui.ImDrawList,
-        transform: TransformData, view_projection_matrix: np.ndarray,
+        transform: TransformData, view_projection_matrix: npt.NDArray[np.float32],
         window_size: tuple[int, int],
         selected: bool, icon: str,
-        color: np.ndarray
+        color: npt.NDArray[np.float32]
     ):
         world_pos = np.array(
             [transform.position[0], transform.position[1], transform.position[2], 1.0])

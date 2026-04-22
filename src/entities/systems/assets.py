@@ -3,6 +3,7 @@ import threading
 import queue
 import ctypes
 import numpy as np
+import numpy.typing as npt
 import trimesh
 import trimesh.transformations as tf
 from PIL import Image
@@ -351,7 +352,7 @@ class AssetSystem:
                         raise RuntimeError("AssetSystem: encountered illegal TextureResult")
 
     @staticmethod
-    def create_immediate_mesh(assets_state: AssetsState, vertices: np.ndarray, indices: np.ndarray) -> Mesh:
+    def create_immediate_mesh(assets_state: AssetsState, vertices: npt.NDArray[np.float32], indices: npt.NDArray[np.uint32]) -> Mesh:
         asset_id = AssetSystem.generate_id(assets_state)
         mesh = Mesh(id=asset_id, status=AssetStatus.Loading)
         assets_state.meshes[asset_id] = mesh

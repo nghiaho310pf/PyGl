@@ -1,5 +1,6 @@
 import random
 import math
+from typing import Tuple
 
 from entities.registry import Registry
 from entities.components.transform import Transform
@@ -23,7 +24,7 @@ class SceneAnimatorSystem:
             lane_width = (gen_state.street_width / 2) / lanes_count
 
             children = registry.get_children(scene_entity)
-            vehicles_data = []
+            vehicles_data: list[Tuple[int, Transform, Vehicle]] = []
 
             # == collect all vehicle data ==
             for child in children:
