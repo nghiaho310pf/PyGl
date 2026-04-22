@@ -166,10 +166,18 @@ def quaternion_to_axes(q):
 
 
 def rotate_vector_by_quaternion(v, q):
-    q_vec = q[:3]
-    q_w = q[3]
-    t = 2.0 * np.cross(q_vec, v)
-    return v + q_w * t + np.cross(q_vec, t)
+    qx, qy, qz, qw = q[0], q[1], q[2], q[3]
+    vx, vy, vz = v[0], v[1], v[2]
+
+    tx = 2.0 * (qy * vz - qz * vy)
+    ty = 2.0 * (qz * vx - qx * vz)
+    tz = 2.0 * (qx * vy - qy * vx)
+
+    return np.array([
+        vx + qw * tx + (qy * tz - qz * ty),
+        vy + qw * ty + (qz * tx - qx * tz),
+        vz + qw * tz + (qx * ty - qy * tx)
+    ], dtype=np.float32)
 
 
 def quaternion_mul(q1, q2):

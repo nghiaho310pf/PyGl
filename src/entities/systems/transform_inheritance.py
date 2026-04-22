@@ -39,14 +39,14 @@ class TransformInheritanceSystem:
         if transform.inherit and parent_transform is not None:
             parent_world = parent_transform.world
 
-            world.rotation = math_utils.quaternion_mul(parent_world.rotation, local.rotation)
-            world.scale = parent_world.scale * local.scale
+            world.rotation[:] = math_utils.quaternion_mul(parent_world.rotation, local.rotation)
+            world.scale[:] = parent_world.scale * local.scale
 
             rotated_local_pos = math_utils.rotate_vector_by_quaternion(
                 local.position * parent_world.scale,
                 parent_world.rotation
             )
-            world.position = parent_world.position + rotated_local_pos
+            world.position[:] = parent_world.position + rotated_local_pos
         else:
             world.position[:] = local.position
             world.rotation[:] = local.rotation
