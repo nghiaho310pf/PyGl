@@ -28,4 +28,4 @@ class BoundingBoxRenderSystem:
             draw_list.add_rect(imgui.ImVec2(*p_min), imgui.ImVec2(*p_max), color, thickness=2.0)
 
             label = bbox.classification_name
-            draw_list.add_text(imgui.ImVec2(p_min[0], p_min[1] - 20), color, label)
+            draw_list.add_text(imgui.ImVec2(p_min[0], p_min[1] - 16), color, label)

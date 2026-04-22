@@ -43,7 +43,7 @@ def draw_graphics_section(
         if changed_ci:
             icon_render_state.draw_camera_icons = new_ci
         imgui.same_line()
-        changed_bb, new_bb = imgui.checkbox("Show bounding boxes", render_state.show_bounding_boxes)
+        changed_bb, new_bb = imgui.checkbox("Bounding boxes", render_state.show_bounding_boxes)
         if changed_bb:
             render_state.show_bounding_boxes = new_bb
 
