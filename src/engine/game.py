@@ -44,6 +44,7 @@ class Game(Application):
         super().__init__(initial_window_width, initial_window_height)
 
         self.last_update = None
+        self._capture_sim_time = 0
 
         self.registry = Registry()
 
@@ -153,6 +154,24 @@ class Game(Application):
             self.last_update = now
         dt = now - self.last_update
 
+        # cheap hack: retrieve RenderState to check for capture
+        render_state = None
+        for _, (rs,) in self.registry.view(RenderState):
+            render_state = rs
+            break
+
+        effective_now = now
+        if render_state and render_state.capture_frames_remaining > 0:
+            dt = render_state.capture_fixed_dt
+
+            if self._capture_sim_time is None:
+                self._capture_sim_time = now
+
+            self._capture_sim_time += dt
+            effective_now = self._capture_sim_time
+        else:
+            self._capture_sim_time = None
+
         window_size = self.get_window_size()
 
         # == logic & graphics ==
@@ -165,13 +184,13 @@ class Game(Application):
         SpawnerSystem.update(self.registry)
         SceneGeneratorSystem.update(self.registry)
         SceneAnimatorSystem.update(self.registry, dt)
-        GradientDescentSurfaceSystem.update(self.registry, now, dt)
-        FunctionSurfaceSystem.update(self.registry, now, dt)
+        GradientDescentSurfaceSystem.update(self.registry, effective_now, dt)
+        FunctionSurfaceSystem.update(self.registry, effective_now, dt)
         TransformInheritanceSystem.update(self.registry)
-        CameraSystem.update(self.registry, window_size, now, dt)
-        UiSystem.update(self.registry, now, dt)
+        CameraSystem.update(self.registry, window_size, effective_now, dt)
+        UiSystem.update(self.registry, effective_now, dt)
         AssetSystem.update(self.registry)
-        self.render_system.update(self.registry, window_size, now, dt)
+        self.render_system.update(self.registry, window_size, effective_now, dt)
         BoundingBoxRenderSystem.update(self.registry)
         IconRenderSystem.update(self.registry, window_size)
 

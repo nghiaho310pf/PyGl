@@ -97,7 +97,7 @@ class UiSystem:
         )
 
         draw_graphics_section(
-            render_state, icon_render_state
+            render_state, icon_render_state, ui_state
         )
 
         imgui.end()

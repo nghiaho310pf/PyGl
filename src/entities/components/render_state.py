@@ -28,5 +28,9 @@ class RenderState:
 
     frame_number: int = 0
     is_capture: bool = False
+    is_first_frame_of_capture: bool = False
+    capture_frames_remaining: int = 0
+    capture_fixed_dt: float = 1.0 / 30.0
+
     show_bounding_boxes: bool = False
     bounding_boxes: list[BoundingBox] = field(default_factory=list)

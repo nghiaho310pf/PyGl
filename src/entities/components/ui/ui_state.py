@@ -87,6 +87,10 @@ class UiState:
 
     preview_visual_initialized: bool = False
 
+    # == capture state ==
+    capture_frames_input: int = 30
+    capture_fps_input: float = 30.0
+
     # == other stuff ==
     euler_buffer: npt.NDArray[np.float32] = field(default_factory=lambda: vec3(0.0, 0.0, 0.0))
     last_synced_quaternion: npt.NDArray[np.float32] = field(default_factory=quaternion_identity)

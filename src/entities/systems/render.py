@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Tuple
 import ctypes
+import shutil
 
 import numpy as np
 import numpy.typing as npt
@@ -465,6 +466,9 @@ class RenderSystem:
         )
 
         # == segmentation mask pass (non-multisampled) ==
+        if render_state.capture_frames_remaining > 0:
+            render_state.is_capture = True
+
         segmentation_ids = None
         if render_state.show_bounding_boxes or render_state.is_capture:
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
@@ -508,8 +512,17 @@ class RenderSystem:
         GL.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
 
         # == handle capture ==
+        if render_state.is_first_frame_of_capture:
+            dataset_path = Path("dataset")
+            if dataset_path.exists():
+                shutil.rmtree(dataset_path)
+            dataset_path.mkdir(parents=True, exist_ok=True)
+            render_state.is_first_frame_of_capture = False
+
         if render_state.is_capture:
             self._export_dataset_frame(registry, width, height, render_state, camera_state, str(render_state.frame_number).zfill(6), segmentation_ids)  # type: ignore
             render_state.is_capture = False
+            if render_state.capture_frames_remaining > 0:
+                render_state.capture_frames_remaining -= 1
 
         render_state.frame_number += 1
