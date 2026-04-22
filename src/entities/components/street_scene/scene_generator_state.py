@@ -1,6 +1,9 @@
 from typing import Any
 from dataclasses import dataclass, field
 
+from entities.components.visuals.assets import Mesh
+from entities.components.visuals.material import Material
+
 
 @dataclass(slots=True, eq=False)
 class SceneGeneratorState:
@@ -8,6 +11,9 @@ class SceneGeneratorState:
 
     cube_mesh: Any = None
     plane_mesh: Any = None
+
+    car_mesh: Mesh | None = None
+    car_material: Material | None = None
 
     street_length: float = 100.0
     street_width: float = 10.0

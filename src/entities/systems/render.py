@@ -795,26 +795,26 @@ class RenderSystem:
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
 
         # == segmentation mask pass ==
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
-        GL.glViewport(0, 0, width, height)
-        GL.glClearColor(0, 0, 0, 0)
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
-
-        self.id_shader.use()
-
-        for entity, (transform, visuals, flags) in registry.view(Transform, Visuals, EntityFlags):
-            if not visuals.enabled: continue
-
-            self.id_shader.set_uint("u_EntityID", entity)
-
-            # i don't particularly care about optimizing this create_transformation_matrix call away
-            model_matrix = math_utils.create_transformation_matrix(
-                transform.world.position, transform.world.rotation, transform.world.scale
-            )
-            self.id_shader.set_mat4("u_Model", model_matrix)
-            self._draw_mesh(visuals.mesh)
-
         if render_state.show_bounding_boxes or render_state.is_capture:
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
+            GL.glViewport(0, 0, width, height)
+            GL.glClearColor(0, 0, 0, 0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+
+            self.id_shader.use()
+
+            for entity, (transform, visuals, flags) in registry.view(Transform, Visuals, EntityFlags):
+                if not visuals.enabled: continue
+
+                self.id_shader.set_uint("u_EntityID", entity)
+
+                # i don't particularly care about optimizing this create_transformation_matrix call away
+                model_matrix = math_utils.create_transformation_matrix(
+                    transform.world.position, transform.world.rotation, transform.world.scale
+                )
+                self.id_shader.set_mat4("u_Model", model_matrix)
+                self._draw_mesh(visuals.mesh)
+
             segmentation_ids = self._calculate_bounding_boxes(render_state, registry, width, height)
 
         # == trajectory line rendering ==

@@ -64,13 +64,6 @@ class SceneGeneratorSystem:
                 reflectance=float1(0.1),
                 ao=float1(0.1),
             )
-            mat_vehicle = Material(
-                albedo=vec3(0.8, 0.1, 0.1),
-                roughness=float1(0.4),
-                metallic=float1(0.5),
-                reflectance=float1(0.5),
-                ao=float1(0.1),
-            )
 
             if generator_state.cube_mesh is None:
                 cube_vertices, cube_indices = generate_cube(size=1.0)
@@ -80,8 +73,24 @@ class SceneGeneratorSystem:
                 plane_vertices, plane_indices = generate_plane()
                 generator_state.plane_mesh = AssetSystem.create_immediate_mesh(assets_state, plane_vertices, plane_indices)
 
+            if generator_state.car_mesh is None:
+                generator_state.car_mesh = AssetSystem.request_mesh(assets_state, "assets/car/1399 Taxi.obj")
+            if generator_state.car_material is None:
+                generator_state.car_material = Material(
+                    albedo=vec3(1.0, 1.0, 1.0),
+                    roughness=float1(0.4),
+                    metallic=float1(0.0),
+                    reflectance=float1(0.5),
+                    ao=float1(1.0),
+
+                    albedo_map=AssetSystem.request_texture(assets_state, "assets/car/1399 Taxi.png", is_srgb=True)
+                )
+
             cube_mesh = generator_state.cube_mesh
             plane_mesh = generator_state.plane_mesh
+
+            car_mesh = generator_state.car_mesh
+            car_material = generator_state.car_material
 
             # == roads ==
             road = registry.create_entity()
@@ -158,11 +167,11 @@ class SceneGeneratorSystem:
                         classification=EntityClassification.Vehicle
                     ),
                     Transform(
-                        position=vec3(x_pos, 0.5, z_pos),
-                        scale=vec3(1.5, 1.0, 3.0),
+                        position=vec3(x_pos, 0.0, z_pos),
+                        scale=vec3(0.04, 0.04, 0.04),
                         rotation=quaternion_from_euler(vec3(0, 0 if lane > 0 else 180, 0))
                     ),
-                    Visuals(cube_mesh, mat_vehicle),
+                    Visuals(car_mesh, car_material),
                     Vehicle(speed=speed, direction=direction)
                 )
                 registry.set_parent(vehicle, generator_entity)
