@@ -513,17 +513,18 @@ class RenderSystem:
         num_dir_lights = len(dir_light_directions)
 
         # == batching ==
-        batches: dict[tuple[DrawMode, bool], list[Tuple[Transform, Visuals, npt.NDArray[np.float32]]]] = {}
+        batches: dict[tuple[DrawMode, bool], list[Tuple[Transform, Visuals]]] = {}
         for entity, (transform, visuals) in registry.view(Transform, Visuals):
             if not visuals.enabled: continue
 
             actual_draw_mode = DrawMode.Wireframe if render_state.global_draw_mode == GlobalDrawMode.Wireframe else visuals.draw_mode
             batch_key = (actual_draw_mode, visuals.cull_back_faces)
             if batch_key not in batches: batches[batch_key] = []
-            model_matrix = math_utils.create_transformation_matrix(
-                transform.world.position, transform.world.rotation, transform.world.scale
+            math_utils.update_transformation_matrix(
+                transform.world.position, transform.world.rotation, transform.world.scale,
+                transform.matrix_cache
             )
-            batches[batch_key].append((transform, visuals, model_matrix))
+            batches[batch_key].append((transform, visuals))
         sorted_batch_keys = sorted(batches.keys(), key=lambda k: (k[0].name, k[1]))
 
         # == shadow map pass ==
@@ -564,8 +565,8 @@ class RenderSystem:
                         GL.glCullFace(GL.GL_BACK)
                     else:
                         GL.glDisable(GL.GL_CULL_FACE)
-                    for mesh_transform, visuals, model_matrix in batches[batch_key]:
-                        self.point_shadowmap_shader.set_mat4("u_Model", model_matrix)
+                    for mesh_transform, visuals in batches[batch_key]:
+                        self.point_shadowmap_shader.set_mat4("u_Model", mesh_transform.matrix_cache)
                         self._draw_mesh(visuals.mesh)
 
         # for directional lights
@@ -616,8 +617,8 @@ class RenderSystem:
                         GL.glCullFace(GL.GL_BACK)
                     else:
                         GL.glDisable(GL.GL_CULL_FACE)
-                    for mesh_transform, visuals, model_matrix in batches[batch_key]:
-                        self.directional_shadowmap_shader.set_mat4("u_Model", model_matrix)
+                    for mesh_transform, visuals in batches[batch_key]:
+                        self.directional_shadowmap_shader.set_mat4("u_Model", mesh_transform.matrix_cache)
                         self._draw_mesh(visuals.mesh)
 
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
@@ -642,8 +643,8 @@ class RenderSystem:
             GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
             if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
             else: GL.glDisable(GL.GL_CULL_FACE)
-            for transform, visuals, model_matrix in batches[batch_key]:
-                self.depth_prepass_shader.set_mat4("u_Model", model_matrix)
+            for transform, visuals in batches[batch_key]:
+                self.depth_prepass_shader.set_mat4("u_Model", transform.matrix_cache)
                 self._draw_mesh(visuals.mesh)
 
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
@@ -774,8 +775,8 @@ class RenderSystem:
                 GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
                 if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
                 else: GL.glDisable(GL.GL_CULL_FACE)
-                for transform, visuals, model_matrix in batches[batch_key]:
-                    current_shader.set_mat4("u_Model", model_matrix)
+                for transform, visuals in batches[batch_key]:
+                    current_shader.set_mat4("u_Model", transform.matrix_cache)
                     self._draw_mesh(visuals.mesh)
         else:
             current_shader.set_vec3_array("u_LightPos", point_light_positions)
@@ -799,9 +800,9 @@ class RenderSystem:
                 GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if draw_mode == DrawMode.Wireframe else GL.GL_FILL)
                 if cull_faces: GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK)
                 else: GL.glDisable(GL.GL_CULL_FACE)
-                for transform, visuals, model_matrix in batches[batch_key]:
+                for transform, visuals in batches[batch_key]:
                     self.tf2_ggx_shader.set_material(visuals.material, self.default_texture_id)
-                    current_shader.set_mat4("u_Model", model_matrix)
+                    current_shader.set_mat4("u_Model", transform.matrix_cache)
                     self._draw_mesh(visuals.mesh)
 
         # reset to fill for subsequent passes

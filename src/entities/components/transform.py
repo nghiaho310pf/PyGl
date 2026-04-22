@@ -28,6 +28,8 @@ class Transform:
 
     inherit: bool = True
 
+    matrix_cache: npt.NDArray[np.float32] = field(default_factory=lambda: np.eye(4, dtype=np.float32))
+
     def __init__(
         self,
         position: npt.NDArray[np.float32] | None = None,
@@ -46,3 +48,4 @@ class Transform:
             scale=self.local.scale.copy()
         )
         self.inherit = inherit
+        self.matrix_cache = np.eye(4, dtype=np.float32)

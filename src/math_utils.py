@@ -271,6 +271,34 @@ def create_transformation_matrix(position, rotation_quaternion, scale) -> npt.ND
     ), dtype=np.float32).reshape((4, 4))
 
 
+def update_transformation_matrix(
+    position: npt.NDArray[np.float32],
+    rotation_quaternion: npt.NDArray[np.float32],
+    scale: npt.NDArray[np.float32],
+    out_matrix: npt.NDArray[np.float32]
+) -> None:
+    x, y, z, w = rotation_quaternion.tolist()
+    sx, sy, sz = scale.tolist()
+    px, py, pz = position.tolist()
+
+    mag2 = x*x + y*y + z*z + w*w
+    if abs(mag2 - 1.0) > 1e-6 and mag2 > 1e-8:
+        mag = mag2 ** 0.5
+        x /= mag; y /= mag; z /= mag; w /= mag
+
+    x2, y2, z2 = x * 2.0, y * 2.0, z * 2.0
+    xx, xy, xz = x * x2, x * y2, x * z2
+    yy, yz, zz = y * y2, y * z2, z * z2
+    wx, wy, wz = w * x2, w * y2, w * z2
+
+    out_matrix.flat[:] = (
+        (1.0 - (yy + zz)) * sx, (xy - wz) * sy,         (xz + wy) * sz,         px,
+        (xy + wz) * sx,         (1.0 - (xx + zz)) * sy, (yz - wx) * sz,         py,
+        (xz - wy) * sx,         (yz + wx) * sy,         (1.0 - (xx + yy)) * sz, pz,
+        0.0,                    0.0,                    0.0,                    1.0
+    )
+
+
 _NDC_CORNERS = np.array([
     [-1.0, -1.0, -1.0, 1.0],
     [ 1.0, -1.0, -1.0, 1.0],
