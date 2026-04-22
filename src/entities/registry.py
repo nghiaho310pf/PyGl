@@ -19,6 +19,8 @@ class Registry:
 
         self._query_cache: Dict[Tuple[Type[Any], ...], Set[int]] = {}
 
+        self._empty_set: Set[int] = frozenset()  # type: ignore
+
     def create_entity(self) -> int:
         entity = self._next_id
         self._next_id += 1
@@ -250,4 +252,4 @@ class Registry:
         return self._parents.get(entity)
 
     def get_children(self, entity: int) -> Set[int]:
-        return set(self._children.get(entity, set()))
+        return self._children.get(entity, self._empty_set)
