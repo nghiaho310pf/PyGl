@@ -24,8 +24,6 @@ uniform vec3 u_DirLightColor[MAX_LIGHTS];
 uniform int u_NumDirLights;
 
 uniform vec2 u_ScreenSize;
-uniform sampler2D u_PointShadowMask;
-uniform sampler2D u_DirShadowMask;
 
 uniform vec3 u_Albedo;
 uniform float u_Roughness;
@@ -146,10 +144,6 @@ void main() {
     vec3 ambient = finalAlbedo * u_AO;
     vec3 totalDirectLight = vec3(0.0);
 
-    vec2 screenUV = gl_FragCoord.xy / u_ScreenSize;
-    vec4 pointShadowMask = texture(u_PointShadowMask, screenUV);
-    vec4 dirShadowMask = texture(u_DirShadowMask, screenUV);
-
     float dielectricF0 = 0.16 * u_Reflectance * u_Reflectance;
     vec3 F0 = vec3(dielectricF0);
     F0 = mix(F0, finalAlbedo, finalMetallic);
@@ -168,7 +162,6 @@ void main() {
         float NdotL = clamp(dot(N, L), 0.0001, 1.0);
         float NdotH = clamp(dot(N, H), 0.0001, 1.0);
         float LdotV = dot(L, V);
-        float shadow = pointShadowMask[i];
 
         // lighting prep
         float attenuation = 1.0 / (distance * distance);
@@ -186,7 +179,6 @@ void main() {
         vec3 diffuse = (1.0 - finalMetallic) * diffuseBRDF;
         vec3 directLight = (diffuse + specular) * NdotL * radiance;
 
-        directLight *= (1.0 - shadow);
         totalDirectLight += directLight;
     }
 
@@ -200,7 +192,6 @@ void main() {
         float NdotL = clamp(dot(N, L), 0.0001, 1.0);
         float NdotH = clamp(dot(N, H), 0.0001, 1.0);
         float LdotV = dot(L, V);
-        float shadow = dirShadowMask[i];
 
         vec3 radiance = u_DirLightColor[i];
 
@@ -216,7 +207,6 @@ void main() {
         vec3 diffuse = (1.0 - finalMetallic) * diffuseBRDF;
         vec3 directLight = (diffuse + specular) * NdotL * radiance;
 
-        directLight *= (1.0 - shadow);
         totalDirectLight += directLight;
     }
 

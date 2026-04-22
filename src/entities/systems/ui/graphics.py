@@ -52,39 +52,4 @@ def draw_graphics_section(
         if changed_bb:
             render_state.show_bounding_boxes = new_bb
 
-        if imgui.tree_node_ex("Shadow blurring"):
-            changed_depth_sensitivity, new_depth_sensitivity = imgui.drag_float(
-                "Depth sensitivity", float(render_state.shadow_blur_depth_sensitivity), 0.01, 0.0, 200.0)
-            if changed_depth_sensitivity:
-                render_state.shadow_blur_depth_sensitivity = float1(new_depth_sensitivity)
-            changed_norm_thres, new_norm_thres = imgui.drag_float(
-                "Normal threshold", float(render_state.shadow_blur_normal_threshold), 0.001, 0.0, 1.0)
-            if changed_norm_thres:
-                render_state.shadow_blur_normal_threshold = float1(new_norm_thres)
-
-            imgui.tree_pop()
-
-        for name, preset in [
-            ("Viewport settings", render_state.viewport_graphics_settings),
-            ("Capture settings", render_state.capture_graphics_settings)
-        ]:
-            if imgui.tree_node_ex(name):
-                changed_smaa, new_smaa = imgui.checkbox("SMAA", preset.enable_smaa)
-                if changed_smaa:
-                    preset.enable_smaa = new_smaa
-
-                imgui.text_disabled("Shadows")
-
-                changed_p_pcf, new_p_pcf = imgui.drag_int(
-                    "Point samples", preset.point_shadow_samples, 1, 1, 128)
-                if changed_p_pcf:
-                    preset.point_shadow_samples = new_p_pcf
-
-                changed_d_pcf, new_d_pcf = imgui.drag_int(
-                    "Directional samples", preset.directional_shadow_samples, 1, 1, 128)
-                if changed_d_pcf:
-                    preset.directional_shadow_samples = new_d_pcf
-
-                imgui.tree_pop()
-
         imgui.pop_item_width()

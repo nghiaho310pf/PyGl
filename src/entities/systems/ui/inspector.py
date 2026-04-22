@@ -144,11 +144,6 @@ def draw_component_properties(
                 "Enabled", comp.enabled)
             if changed_enabled:
                 comp.enabled = new_enabled
-            imgui.same_line()
-            changed_casts_shadow, new_casts_shadow = imgui.checkbox(
-                "Casts shadow", comp.casts_shadow)
-            if changed_casts_shadow:
-                comp.casts_shadow = new_casts_shadow
             # light color is stored as linear, but color_edit3 expects sRGB
             changed_color, new_color = imgui.color_edit3(
                 "Color", np.power(comp.color, 1.0/2.2).tolist())
@@ -172,11 +167,6 @@ def draw_component_properties(
                 "Enabled", comp.enabled)
             if changed_enabled:
                 comp.enabled = new_enabled
-            imgui.same_line()
-            changed_casts_shadow, new_casts_shadow = imgui.checkbox(
-                "Casts shadow", comp.casts_shadow)
-            if changed_casts_shadow:
-                comp.casts_shadow = new_casts_shadow
             # light color is stored as linear, but color_edit3 expects sRGB
             changed_color, new_color = imgui.color_edit3(
                 "Color", np.power(comp.color, 1.0/2.2).tolist())

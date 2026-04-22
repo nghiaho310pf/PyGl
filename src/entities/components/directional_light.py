@@ -11,9 +11,3 @@ class DirectionalLight:
     strength: np.float32 = np.float32(1.0)
 
     enabled: bool = True
-    casts_shadow: bool = True
-
-    shadow_map_fbo: int = 0
-    shadow_map_texture: int = 0
-    light_space_matrices: list[npt.NDArray[np.float32]] = field(default_factory=list)
-    cascade_distances: list[float] = field(default_factory=list)
