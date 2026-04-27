@@ -16,8 +16,6 @@ def draw_graphics_section(
 
         if imgui.button("Capture this frame"):
             render_state.is_capture = True
-            render_state.is_first_frame_of_capture = True
-            render_state.frame_number = 0
 
         if disable_capture_ui:
             imgui.begin_disabled()

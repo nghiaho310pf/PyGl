@@ -191,10 +191,16 @@ class RenderSystem:
         # == rgb ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.resolve_fbo)
         GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
-        raw_rgb = GL.glReadPixels(0, 0, width, height, GL.GL_RGB, GL.GL_UNSIGNED_BYTE)
-        if not isinstance(raw_rgb, bytes):
-            raise RuntimeError("GL.glReadPixels did not return bytes for RGB buffer")
-        img_rgb = Image.frombytes("RGB", (width, height), raw_rgb)
+        raw_rgb = GL.glReadPixels(0, 0, width, height, GL.GL_RGB, GL.GL_FLOAT)
+        if not isinstance(raw_rgb, np.ndarray):
+            raise RuntimeError("GL.glReadPixels did not return a NumPy array for RGB buffer")
+
+        # apply sRGB gamma correction (approximate)
+        pixels = np.clip(raw_rgb.reshape((height, width, 3)), 0.0, 1.0)
+        pixels = np.power(pixels, 1.0/2.2)
+        pixels_u8 = (pixels * 255.0).astype(np.uint8)
+
+        img_rgb = Image.fromarray(pixels_u8, mode="RGB")
         img_rgb.transpose(Image.Transpose.FLIP_TOP_BOTTOM).save(rgb_dir / f"{frame_name}.png")
 
         # == depth ==
