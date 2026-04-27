@@ -1,7 +1,7 @@
 import random
 
 from entities.registry import Registry
-from entities.components.transform import Transform
+from entities.components.transform import Transform, TransformData
 from entities.components.visuals.visuals import Visuals
 from entities.components.visuals.assets import AssetsState
 from entities.components.visuals.material import Material
@@ -94,10 +94,10 @@ class SceneGeneratorSystem:
             registry.add_components(
                 road,
                 EntityFlags(name="Road"),
-                Transform(
+                Transform(local=TransformData(
                     position=vec3(0, 0, 0),
                     scale=vec3(generator_state.street_width, 1, generator_state.street_length)
-                ),
+                )),
                 Visuals(plane_mesh, mat_road),
                 Environment()
             )
@@ -114,10 +114,10 @@ class SceneGeneratorSystem:
                     EntityFlags(
                         name=f"Sidewalk {'Left' if side < 0 else 'Right'}"
                     ),
-                    Transform(
+                    Transform(local=TransformData(
                         position=vec3(x_pos, sidewalk_height / 2, 0),
                         scale=vec3(sidewalk_width, sidewalk_height, generator_state.street_length)
-                    ),
+                    )),
                     Visuals(cube_mesh, mat_sidewalk),
                     Environment()
                 )
@@ -139,10 +139,10 @@ class SceneGeneratorSystem:
                     EntityFlags(
                         name=f"Building {i}"
                     ),
-                    Transform(
+                    Transform(local=TransformData(
                         position=vec3(x_pos, sidewalk_height + height / 2, z_pos),
                         scale=vec3(width, height, depth)
-                    ),
+                    )),
                     Visuals(cube_mesh, mat_building),
                     Building()
                 )
@@ -190,11 +190,11 @@ class SceneGeneratorSystem:
                     EntityFlags(
                         name=f"{'Bus' if is_bus else 'Vehicle'} {i}"
                     ),
-                    Transform(
+                    Transform(local=TransformData(
                         position=vec3(x_pos, 0.0, z_pos),
                         scale=vec3(1, 1, 1),
                         rotation=dir_rot.copy()
-                    ),
+                    )),
                     Vehicle(
                         target_speed=speed,
                         current_speed=speed,
@@ -212,9 +212,9 @@ class SceneGeneratorSystem:
                     SpawnerSystem.load_and_spawn_one(
                         spawner_state,
                         model,
-                        transform=Transform(
+                        transform=Transform(local=TransformData(
                             scale=model_scale,
                             rotation=model_offset
-                        ),
+                        )),
                         parent_entity=vehicle_entity
                     )

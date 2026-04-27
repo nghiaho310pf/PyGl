@@ -13,7 +13,7 @@ from entities.components.gd.optimizer_state import OptimizerAlgorithm, Optimizer
 from entities.components.gd.surface import GradientDescentSurface, LossFunctionType
 from entities.components.surface_function import CompilationStatus, SurfaceFunction
 from entities.components.point_light import PointLight
-from entities.components.transform import Transform
+from entities.components.transform import Transform, TransformData
 from entities.components.ui.ui_state import UiState
 from entities.components.visuals.visuals import DrawMode, Visuals
 from entities.components.entity_flags import EntityFlags
@@ -391,7 +391,7 @@ def draw_component_properties(
                 registry.add_components(
                     new_entity,
                     EntityFlags(name=f"Optimizer {new_entity}"),
-                    Transform(position=spawn_pos_local),
+                    Transform(local=TransformData(position=spawn_pos_local)),
                     OptimizerState(algorithm=OptimizerAlgorithm.BatchGD),
                     Visuals(optimizer_mesh, copy.copy(ui_state.default_material)),
                 )

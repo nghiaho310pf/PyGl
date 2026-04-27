@@ -7,9 +7,9 @@ import numpy.typing as npt
 
 @dataclass(slots=True)
 class TransformData:
-    position: npt.NDArray[np.float32]
-    rotation: npt.NDArray[np.float32]
-    scale: npt.NDArray[np.float32]
+    position: npt.NDArray[np.float32] = field(default_factory=lambda: vec3(0.0, 0.0, 0.0))
+    rotation: npt.NDArray[np.float32] = field(default_factory=lambda: quaternion_identity())
+    scale: npt.NDArray[np.float32] = field(default_factory=lambda: vec3(1.0, 1.0, 1.0))
 
 
 @dataclass(slots=True, eq=False)
@@ -29,23 +29,3 @@ class Transform:
     inherit: bool = True
 
     matrix_cache: npt.NDArray[np.float32] = field(default_factory=lambda: np.eye(4, dtype=np.float32))
-
-    def __init__(
-        self,
-        position: npt.NDArray[np.float32] | None = None,
-        rotation: npt.NDArray[np.float32] | None = None,
-        scale: npt.NDArray[np.float32] | None = None,
-        inherit: bool = True
-    ):
-        self.local = TransformData(
-            position=position if position is not None else vec3(0.0, 0.0, 0.0),
-            rotation=rotation if rotation is not None else quaternion_identity(),
-            scale=scale if scale is not None else vec3(1.0, 1.0, 1.0)
-        )
-        self.world = TransformData(
-            position=self.local.position.copy(),
-            rotation=self.local.rotation.copy(),
-            scale=self.local.scale.copy()
-        )
-        self.inherit = inherit
-        self.matrix_cache = np.eye(4, dtype=np.float32)

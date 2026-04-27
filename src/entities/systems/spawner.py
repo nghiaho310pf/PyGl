@@ -3,7 +3,7 @@ from pathlib import Path
 from entities.registry import Registry
 from entities.components.spawner_state import SpawnRequest, SpawnerState
 from entities.components.visuals.assets import AssetsState, AssetStatus, ModelAsset
-from entities.components.transform import Transform
+from entities.components.transform import Transform, TransformData
 from entities.components.entity_flags import EntityFlags
 from entities.components.visuals.visuals import Visuals
 from entities.components.visuals.material import Material
@@ -56,7 +56,7 @@ class SpawnerSystem:
             world_pos = root_transform.local.position + node.local_position
             world_rot = math_utils.quaternion_mul(root_transform.local.rotation, node.local_rotation)
             world_scale = root_transform.local.scale * node.local_scale
-            node_transform = Transform(position=world_pos, rotation=world_rot, scale=world_scale)
+            node_transform = Transform(local=TransformData(position=world_pos, rotation=world_rot, scale=world_scale))
 
             if parent_entity is not None:
                 registry.set_parent(entity, parent_entity)

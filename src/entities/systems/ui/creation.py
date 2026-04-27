@@ -9,7 +9,7 @@ from entities.components.point_light import PointLight
 from entities.components.spawner_state import SpawnerState
 from entities.components.surface_function import SurfaceFunction
 from entities.components.gd.surface import GradientDescentSurface
-from entities.components.transform import Transform
+from entities.components.transform import Transform, TransformData
 from entities.components.ui.ui_state import AddType, UiState
 from entities.components.visuals.visuals import Visuals
 from entities.components.entity_flags import EntityFlags
@@ -67,7 +67,7 @@ def draw_creation_section(
                 model_asset = AssetSystem.request_model(assets_state, filepath)
                 SpawnerSystem.load_and_spawn_one(
                     spawner_state, model_asset,
-                    Transform(scale=vec3(0.04, 0.04, 0.04)),
+                    Transform(local=TransformData(scale=vec3(0.04, 0.04, 0.04))),
                 )
                 ui_state.should_close_add_menu = True
 
@@ -348,7 +348,7 @@ def draw_creation_section(
                     registry.add_components(
                         new_entity,
                         EntityFlags(name=f"{ui_state.add_mesh_type.name}"),
-                        dataclasses.replace(preview_transform),
+                        copy.deepcopy(preview_transform),
                         Visuals(AssetSystem.create_immediate_mesh(assets_state, *vi), new_material)
                     )
             elif ui_state.add_mesh_type == AddType.FunctionSurface:
@@ -358,7 +358,7 @@ def draw_creation_section(
                 registry.add_components(
                     new_entity,
                     EntityFlags(name="Function surface"),
-                    Transform(position=vec3(*camera_state.focal_point)),
+                    Transform(local=TransformData(position=vec3(*camera_state.focal_point))),
                     Visuals(AssetSystem.create_immediate_mesh(assets_state, *vi), new_material, cull_back_faces=False),
                     SurfaceFunction()
                 )
@@ -370,7 +370,7 @@ def draw_creation_section(
                     new_entity,
                     EntityFlags(name="Gradient descent surface"),
 
-                    Transform(position=vec3(0.0, 0.0, 0.0), scale=vec3(1.0, 1.0, 1.0)),
+                    Transform(local=TransformData(position=vec3(0.0, 0.0, 0.0), scale=vec3(1.0, 1.0, 1.0))),
                     GradientDescentSurface(),
                     Visuals(AssetSystem.create_immediate_mesh(assets_state, *vi), new_material, cull_back_faces=False),
                 )
@@ -384,14 +384,14 @@ def draw_creation_section(
                 registry.add_components(
                     new_entity,
                     EntityFlags(name="Point light"),
-                    Transform(position=vec3(*camera_state.focal_point)),
+                    Transform(local=TransformData(position=vec3(*camera_state.focal_point))),
                     PointLight()
                 )
             elif ui_state.add_mesh_type == AddType.Camera:
                 registry.add_components(
                     new_entity,
                     EntityFlags(name="Camera"),
-                    Transform(position=vec3(*camera_state.focal_point)),
+                    Transform(local=TransformData(position=vec3(*camera_state.focal_point))),
                     Camera()
                 )
 

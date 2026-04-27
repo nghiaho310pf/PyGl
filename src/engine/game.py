@@ -13,7 +13,7 @@ from entities.components.ui.icon_render_state import IconRenderState
 from entities.components.ui.gizmo_state import GizmoState
 from entities.components.directional_light import DirectionalLight
 from entities.components.render_state import RenderState
-from entities.components.transform import Transform
+from entities.components.transform import Transform, TransformData
 from entities.components.ui.ui_state import UiState
 from entities.components.visuals.visuals import Visuals
 from entities.components.camera_state import CameraState
@@ -76,7 +76,7 @@ class Game(Application):
         self.registry.add_components(
             preview_entity,
             EntityFlags(is_internal=True),
-            Transform(position=vec3(0.0, 0.0, 0.0)),
+            Transform(local=TransformData(position=vec3(0.0, 0.0, 0.0))),
             Visuals(
                 AssetSystem.create_immediate_mesh(assets_state, np.array([], dtype=np.float32), np.array([], dtype=np.uint32)),
                 material=mat_preview, enabled=False, is_internal=True
@@ -122,7 +122,10 @@ class Game(Application):
         self.registry.add_components(
             c,
             EntityFlags(name="Camera 1"),
-            Transform(position=vec3(0.0, 2.4, 5.0), rotation=quaternion_from_euler(vec3(-22.0, 0.0, 0.0))),
+            Transform(local=TransformData(
+                position=vec3(0.0, 2.4, 5.0),
+                rotation=quaternion_from_euler(vec3(-22.0, 0.0, 0.0))
+            )),
             Camera(far=200)
         )
 
