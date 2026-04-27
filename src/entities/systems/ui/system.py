@@ -53,12 +53,42 @@ class UiSystem:
             imgui.end()
             return
 
+        # status indicator
+        has_camera = registry.get_parent(camera_state_entity) is not None
+        loading_model_count = sum(1 for m in assets_state.models.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
+        loading_mesh_count = sum(1 for m in assets_state.meshes.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
+        loading_texture_count = sum(1 for m in assets_state.textures.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
+
+        loading_parts = []
+        if loading_model_count > 0:
+            loading_parts.append(f"{loading_model_count} model{'s' if loading_model_count > 1 else ''}")
+        if loading_mesh_count > 0:
+            loading_parts.append(f"{loading_mesh_count} mesh{'es' if loading_mesh_count > 1 else ''}")
+        if loading_texture_count > 0:
+            loading_parts.append(f"{loading_texture_count} texture{'s' if loading_texture_count > 1 else ''}")
+
+        is_loading = len(loading_parts) > 0
+
+        if has_camera and not is_loading:
+            imgui.text_colored((0.5, 0.8, 1.0, 1.0), f"{icons_fontawesome_6.ICON_FA_CIRCLE_INFO} Ready.")
+        else:
+            status_parts = []
+            if not has_camera:
+                status_parts.append("No camera")
+            if is_loading:
+                status_parts.append(", ".join(loading_parts) + " loading")
+
+            status_text = ". ".join(status_parts) + "."
+            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} {status_text}")
+
         if selected_entity is None:
             imgui.begin_disabled()
-        if imgui.button("Deselect"):
+        if imgui.button("Deselect object"):
             registry.set_parent(ui_state.selection_child_entity, None)
         if selected_entity is None:
             imgui.end_disabled()
+        imgui.same_line()
+        imgui.text("Gizmo:")
         imgui.same_line()
         if imgui.radio_button("Translate", gizmo_state.mode == GizmoMode.Translate):
             gizmo_state.mode = GizmoMode.Translate
@@ -66,21 +96,6 @@ class UiSystem:
         if imgui.radio_button("Rotate", gizmo_state.mode == GizmoMode.Rotate):
             gizmo_state.mode = GizmoMode.Rotate
         imgui.separator()
-
-        # warn when there's no camera
-        if registry.get_parent(camera_state_entity) is None:
-            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} No camera.")
-
-        loading_model_count = sum(1 for m in assets_state.models.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
-        loading_mesh_count = sum(1 for m in assets_state.meshes.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
-        loading_texture_count = sum(1 for m in assets_state.textures.values() if m.status in (AssetStatus.Unloaded, AssetStatus.Loading))
-
-        if loading_model_count > 0:
-            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} {loading_model_count} model(s) are loading.")
-        if loading_mesh_count > 0:
-            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} {loading_mesh_count} meshes(s) are loading.")
-        if loading_texture_count > 0:
-            imgui.text_colored((1.0, 0.8, 0.0, 1.0), f"{icons_fontawesome_6.ICON_FA_TRIANGLE_EXCLAMATION} {loading_texture_count} textures(s) are loading.")
 
         draw_creation_section(
             registry, ui_state, assets_state, spawner_state,
