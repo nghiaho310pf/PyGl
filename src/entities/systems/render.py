@@ -244,46 +244,61 @@ class RenderSystem:
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
     def _calculate_bounding_boxes(self, render_state: RenderState, registry: Registry, width: int, height: int):
+        # == read segmentation buffer ==
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.segmentation_fbo)
-        GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
+        GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)  # target the first color attachment
 
-        raw_data = GL.glReadPixels(0, 0, width, height, GL.GL_RED_INTEGER, GL.GL_UNSIGNED_INT)
+        # fetch raw 1D pixel data from the GPU
+        raw_data: npt.NDArray[np.uint32] = GL.glReadPixels(0, 0, width, height, GL.GL_RED_INTEGER, GL.GL_UNSIGNED_INT)
         if not isinstance(raw_data, np.ndarray):
             raise RuntimeError("GL.glReadPixels did not return a NumPy array for segmentation buffer")
 
+        # (height, width) instead of (width, height) due to numpy row-major order
+        # npt.NDArray[np.uint32], 2D shape, index by pixel coordinates
         id_buffer = raw_data.reshape((height, width))
 
+        # == process visible entities ==
         render_state.bounding_boxes.clear()
-
+        # get all unique IDs currently on screen
+        # npt.NDArray[np.uint32], 1D shape
         visible_entity_ids = np.unique(id_buffer)
 
         for entity_id in visible_entity_ids:
             if entity_id == 0:
-                continue  # background
+                continue  # skip background
 
             class_id, class_name, _ = self._get_classification_and_color(registry, int(entity_id))
-            if class_id == 0:  # environment
-                continue
+            if class_id == 0:  
+                continue  # skip environment
 
+            # == calculate pixel bounds ==
+            # boolean mask of just this entity's pixels
             entity_pixel_mask = (id_buffer == entity_id)
 
-            has_entity_pixels_in_row = np.any(entity_pixel_mask, axis=1)
-            has_entity_pixels_in_column = np.any(entity_pixel_mask, axis=0)
+            # squash 2D mask to 1D arrays to locate filled rows/cols
+            has_entity_pixels_in_row = np.any(entity_pixel_mask, axis=1)  # npt.NDArray[bool], 1D shape
+            has_entity_pixels_in_column = np.any(entity_pixel_mask, axis=0)  # npt.NDArray[bool], 1D shape
 
+            # npt.NDArray[np.uint32], (1, N) shape before the [0] indexing
+            # contains indices of `True`s from above arrays
             occupied_rows = np.where(has_entity_pixels_in_row)[0]
             occupied_columns = np.where(has_entity_pixels_in_column)[0]
 
             if occupied_rows.size == 0 or occupied_columns.size == 0:
+                # mask is empty (?!)
                 continue
 
+            # extract the extreme edges (min/max pixel coordinates)
             bottom_row_index, top_row_index = occupied_rows[0], occupied_rows[-1]
             left_column_index, right_column_index = occupied_columns[0], occupied_columns[-1]
 
+            # == fetch metadata and store ==
             name = "Unknown"
             flags_comps = registry.get_components(int(entity_id), EntityFlags)
             if flags_comps:
                 name = flags_comps[0].name
 
+            # append box: normalize to 0.0-1.0 UV space (and flip Y axis for top-left origin)
             render_state.bounding_boxes.append(BoundingBox(
                 entity_id=int(entity_id),
                 name=name,

@@ -105,6 +105,9 @@ def draw_component_properties(
             if changed_inherit:
                 comp.inherit = new_inherit
 
+            imgui.same_line()
+            imgui.text_disabled(f"World position: ({comp.world.position[0]:.3f}, {comp.world.position[1]:.3f}, {comp.world.position[2]:.3f})")
+
             changed_pos, new_pos = imgui.drag_float3(
                 "Position", comp.local.position.tolist(), 0.1)
             if changed_pos:
@@ -132,9 +135,6 @@ def draw_component_properties(
                 "Scale", comp.local.scale.tolist(), 0.1)
             if changed_scale:
                 comp.local.scale = vec3(*new_scale)
-
-            imgui.separator()
-            imgui.text_disabled(f"World position: ({comp.world.position[0]:.3f}, {comp.world.position[1]:.3f}, {comp.world.position[2]:.3f})")
 
             imgui.tree_pop()
 
